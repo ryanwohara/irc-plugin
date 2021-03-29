@@ -111,8 +111,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				channel = "#rshelp";
 			}
 			else {
-				System.out.println("wtf");
-				System.out.println(ircConfig.channel());
 				channel = ircConfig.channel().toLowerCase();
 				if (!channel.startsWith("#")) {
 					channel = "#" + channel;
