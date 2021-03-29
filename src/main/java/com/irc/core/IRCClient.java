@@ -103,7 +103,8 @@ public class IRCClient extends Thread implements AutoCloseable
 		{
 			register(username);
 
-			if (!Strings.isNullOrEmpty(password)) {
+			if (!Strings.isNullOrEmpty(password))
+			{
 				nickservID(password);
 			}
 
@@ -149,7 +150,7 @@ public class IRCClient extends Thread implements AutoCloseable
 		}
 		catch (IOException ex)
 		{
-			log.debug("error in twitch irc client", ex);
+			log.debug("error in irc client", ex);
 		}
 		finally
 		{

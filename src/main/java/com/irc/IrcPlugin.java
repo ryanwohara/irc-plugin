@@ -107,16 +107,20 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		{
 			String channel;
 
-			if (Strings.isNullOrEmpty(ircConfig.channel())) {
+			if (Strings.isNullOrEmpty(ircConfig.channel()))
+			{
 				channel = "#rshelp";
 			}
-			else {
+			else
+			{
 				channel = ircConfig.channel().toLowerCase();
-				if (!channel.startsWith("#")) {
+				if (!channel.startsWith("#"))
+				{
 					channel = "#" + channel;
 				}
 
-				if (channel.contains(",")) {
+				if (channel.contains(","))
+				{
 					channel = channel.split(",")[0];
 				}
 
@@ -241,22 +245,28 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			{
 				String trimmed = message.substring(3);
 
-				if (message.startsWith(("ns "))) {
+				if (message.startsWith(("ns ")))
+				{
 					IRCClient.nickserv(trimmed);
 				}
-				else if (message.startsWith("cs ")) {
+				else if (message.startsWith("cs "))
+				{
 					IRCClient.chanserv(trimmed);
 				}
-				else if (message.startsWith("bs ")) {
+				else if (message.startsWith("bs "))
+				{
 					IRCClient.botserv(trimmed);
 				}
-				else if (message.startsWith("hs ")) {
+				else if (message.startsWith("hs "))
+				{
 					IRCClient.hostserv(trimmed);
 				}
-				else if (message.startsWith("notice ")) {
+				else if (message.startsWith("notice "))
+				{
 					IRCClient.notice(message);
 				}
-				else if (message.startsWith("msg ")) {
+				else if (message.startsWith("msg "))
+				{
 					IRCClient.privateMsg(message.substring(4));
 				}
 			}
