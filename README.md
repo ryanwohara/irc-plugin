@@ -1,4 +1,4 @@
-# ![Logo](logo.png) IRC Plugin
+# ![Logo](icon.png) IRC Plugin
 
 An integration with SwiftIRC through the OSRS chat box.
 
