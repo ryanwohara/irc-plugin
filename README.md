@@ -54,3 +54,9 @@ The channel you intend to join. Leaving this blank will default to #rshelp.
 ### password (optional)
 
 The password to identify with NickServ.
+
+
+## Known Issues
+
+* If the username is taken when you try to connect, the connection will fail.
+* Incompatibility with the Twitch RL plugin.
