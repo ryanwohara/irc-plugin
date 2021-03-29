@@ -133,6 +133,10 @@ public class IRCClient extends Thread implements AutoCloseable
 						ircListener.privmsg(message.getTags(),
 							message.getArguments()[1]);
 						break;
+					case "NOTICE":
+						ircListener.notice(message.getTags(),
+								message.getArguments()[1]);
+						break;
 					case "ROOMSTATE":
 						ircListener.roomstate(message.getTags());
 						break;
@@ -219,9 +223,36 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("PRIVMSG", channel, message);
 	}
 
+	public void notice(String message) throws IOException
+	{
+		send(message);
+	}
+
+	public void privateMsg(String message) throws IOException
+	{
+		String[] split = message.split(" ", 2);
+
+		send("PRIVMSG", split[0], split[1]);
+	}
+
 	public void nickserv(String message) throws IOException
 	{
 		send("PRIVMSG", "NickServ", message);
+	}
+
+	public void chanserv(String message) throws IOException
+	{
+		send("PRIVMSG", "ChanServ", message);
+	}
+
+	public void botserv(String message) throws IOException
+	{
+		send("PRIVMSG", "BotServ", message);
+	}
+
+	public void hostserv(String message) throws IOException
+	{
+		send("PRIVMSG", "HostServ", message);
 	}
 
 	private void send(String command, String... args) throws IOException

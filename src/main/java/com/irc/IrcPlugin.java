@@ -103,8 +103,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			IRCClient = null;
 		}
 
-		if (!Strings.isNullOrEmpty(ircConfig.username())
-				&& !Strings.isNullOrEmpty(ircConfig.channel()))
+		if (!Strings.isNullOrEmpty(ircConfig.username()))
 		{
 			String channel;
 
@@ -112,6 +111,8 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				channel = "#rshelp";
 			}
 			else {
+				System.out.println("wtf");
+				System.out.println(ircConfig.channel());
 				channel = ircConfig.channel().toLowerCase();
 				if (!channel.startsWith("#")) {
 					channel = "#" + channel;
@@ -190,6 +191,19 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		}
 
 		String displayName = tags.get("display-name");
+
+		addChatMessage(displayName, message);
+	}
+
+	@Override
+	public void notice(Map<String, String> tags, String message)
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		String displayName = "(notice) " + tags.get("display-name");
 		addChatMessage(displayName, message);
 	}
 
@@ -217,9 +231,9 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	public boolean onChatboxInput(ChatboxInput chatboxInput)
 	{
 		String message = chatboxInput.getValue();
-		if (message.startsWith("//"))
+		if (message.startsWith("///"))
 		{
-			message = message.substring(2);
+			message = message.substring(3);
 			if (message.isEmpty() || IRCClient == null)
 			{
 				return true;
@@ -227,8 +241,26 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 			try
 			{
-				IRCClient.privmsg(message);
-				addChatMessage(ircConfig.username(), message);
+				String trimmed = message.substring(3);
+
+				if (message.startsWith(("ns "))) {
+					IRCClient.nickserv(trimmed);
+				}
+				else if (message.startsWith("cs ")) {
+					IRCClient.chanserv(trimmed);
+				}
+				else if (message.startsWith("bs ")) {
+					IRCClient.botserv(trimmed);
+				}
+				else if (message.startsWith("hs ")) {
+					IRCClient.hostserv(trimmed);
+				}
+				else if (message.startsWith("notice ")) {
+					IRCClient.notice(message);
+				}
+				else if (message.startsWith("msg ")) {
+					IRCClient.privateMsg(message.substring(4));
+				}
 			}
 			catch (IOException e)
 			{
@@ -237,25 +269,12 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 			return true;
 		}
-		else if (message.startsWith("///"))
+		else if (message.startsWith("//"))
 		{
-			message = message.substring(3);
+			message = message.substring(2);
 			if (message.isEmpty() || IRCClient == null)
 			{
 				return true;
-			}
-
-			if (message.startsWith(("ns "))) {
-				send("PRIVMSG", "NickServ", message);
-			}
-			else if (message.startsWith("cs ")) {
-				send("PRIVMSG", "ChanServ", message);
-			}
-			else if (message.startsWith("bs ")) {
-				send("PRIVMSG", "BotServ", message);
-			}
-			else if (message.startsWith("hs ")) {
-				send("PRIVMSG", "HostServ", message);
 			}
 
 			try

@@ -42,7 +42,7 @@ class Message
 	public static Message parse(String in)
 	{
 		Message message = new Message();
-
+		System.out.println("MSGHEREGOES - " + in);
 		if (in.startsWith("@"))
 		{
 			String[] tags = in.substring(1)
@@ -67,14 +67,21 @@ class Message
 			in = in.substring(sp + 1);
 		}
 
-		if(in.contains("PRIVMSG"))
+		if(in.contains("PRIVMSG") || in.contains("NOTICE"))
 		{
-		    if (in.startsWith(":"))
-		    {
-		        String name = in.split("!")[0].replace(":", "");
-		        message.tags.put("display-name", name);
-            }
-        }
+			if (in.startsWith(":"))
+			{
+				String name = in.split("!")[0].replace(":", "");
+				String target = in.split(" ")[2];
+
+				if (!target.startsWith("#")) {
+					name = "(pm) " + name;
+				}
+
+				message.tags.put("display-name", name);
+				message.tags.put(target, target);
+			}
+		}
 
 		if (in.startsWith(":"))
 		{
