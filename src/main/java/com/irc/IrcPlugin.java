@@ -38,8 +38,8 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PrivateMessageInput;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.irc.core.IRCClient;
-import net.runelite.client.plugins.irc.core.IrcListener;
+import com.irc.core.IRCClient;
+import com.irc.core.IrcListener;
 import net.runelite.client.task.Schedule;
 
 import javax.inject.Inject;
@@ -98,7 +98,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	{
 		if (IRCClient != null)
 		{
-			log.debug("Terminating Twitch client {}", IRCClient);
+			log.debug("Terminating IRC client {}", IRCClient);
 			IRCClient.close();
 			IRCClient = null;
 		}
@@ -106,10 +106,21 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		if (!Strings.isNullOrEmpty(ircConfig.username())
 				&& !Strings.isNullOrEmpty(ircConfig.channel()))
 		{
-			String channel = ircConfig.channel().toLowerCase();
-			if (!channel.startsWith("#"))
-			{
-				channel = "#" + channel;
+			String channel;
+
+			if (Strings.isNullOrEmpty(ircConfig.channel())) {
+				channel = "#rshelp";
+			}
+			else {
+				channel = ircConfig.channel().toLowerCase();
+				if (!channel.startsWith("#")) {
+					channel = "#" + channel;
+				}
+
+				if (channel.contains(",")) {
+					channel = channel.split(",")[0];
+				}
+
 			}
 
 			log.debug("Connecting to IRC as {}", ircConfig.username());
@@ -117,7 +128,8 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			IRCClient = new IRCClient(
 					this,
 					ircConfig.username(),
-					channel
+					channel,
+					ircConfig.password()
 			);
 			IRCClient.start();
 		}
@@ -145,7 +157,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	@Subscribe
 	public void onConfigChanged(ConfigChanged configChanged)
 	{
-		if (!configChanged.getGroup().equals("twitch"))
+		if (!configChanged.getGroup().equals("irc"))
 		{
 			return;
 		}
@@ -225,12 +237,25 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 			return true;
 		}
-		elseif (message.startsWith("///"))
+		else if (message.startsWith("///"))
 		{
-			message = message.substring(2);
+			message = message.substring(3);
 			if (message.isEmpty() || IRCClient == null)
 			{
 				return true;
+			}
+
+			if (message.startsWith(("ns "))) {
+				send("PRIVMSG", "NickServ", message);
+			}
+			else if (message.startsWith("cs ")) {
+				send("PRIVMSG", "ChanServ", message);
+			}
+			else if (message.startsWith("bs ")) {
+				send("PRIVMSG", "BotServ", message);
+			}
+			else if (message.startsWith("hs ")) {
+				send("PRIVMSG", "HostServ", message);
 			}
 
 			try

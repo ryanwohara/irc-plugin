@@ -42,7 +42,7 @@ class Message
 	public static Message parse(String in)
 	{
 		Message message = new Message();
-		System.out.println("MSGHEREGOES - " + in);
+
 		if (in.startsWith("@"))
 		{
 			String[] tags = in.substring(1)

@@ -42,8 +42,17 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "channel",
             name = "Channel",
-            description = "Channel to join",
+            description = "Channel to join (#rshelp if blank)",
             position = 1
     )
     String channel();
+
+    @ConfigItem(
+            keyName = "password",
+            name = "Password",
+            description = "NickServ password (Optional)",
+            position = 2,
+            secret = true
+    )
+    String password();
 }

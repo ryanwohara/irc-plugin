@@ -1,7 +1,8 @@
-package com.irc;
+package com.example;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
+import com.irc.IrcPlugin;
 
 public class ExamplePluginTest
 {

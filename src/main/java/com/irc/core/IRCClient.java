@@ -31,6 +31,7 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import com.google.common.base.Strings;
 
 @Slf4j
 public class IRCClient extends Thread implements AutoCloseable
@@ -44,6 +45,7 @@ public class IRCClient extends Thread implements AutoCloseable
 
 	private final String username;
 	private final String channel;
+	private final String password;
 
 	private Socket socket;
 	private BufferedReader in;
@@ -51,12 +53,13 @@ public class IRCClient extends Thread implements AutoCloseable
 	private long last;
 	private boolean pingSent;
 
-	public IRCClient(IrcListener ircListener, String username, String channel)
+	public IRCClient(IrcListener ircListener, String username, String channel, String password)
 	{
 		setName("IRC");
 		this.ircListener = ircListener;
 		this.username = username;
 		this.channel = channel;
+		this.password = password;
 	}
 
 	@Override
@@ -99,6 +102,11 @@ public class IRCClient extends Thread implements AutoCloseable
 		try
 		{
 			register(username);
+
+			if (!Strings.isNullOrEmpty(password)) {
+				nickservID(password);
+			}
+
 
 			String line;
 
@@ -191,6 +199,11 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("USER", username, "3", "*", username);
 	}
 
+	private void nickservID(String password) throws IOException
+	{
+		send("PRIVMSG", "NickServ", ":identify", password);
+	}
+
 	private void join(String channel) throws IOException
 	{
 		send("JOIN", channel);
@@ -206,9 +219,9 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("PRIVMSG", channel, message);
 	}
 
-	public void alias(String message) throws IOException
+	public void nickserv(String message) throws IOException
 	{
-		send("PRIVMSG", channel, message);
+		send("PRIVMSG", "NickServ", message);
 	}
 
 	private void send(String command, String... args) throws IOException
