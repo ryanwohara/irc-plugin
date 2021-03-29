@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, Ryan O'Hara <ryan@ryanohara.co>
+ * Copyright (c) 2018, Adam <Adam@sigterm.info>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
