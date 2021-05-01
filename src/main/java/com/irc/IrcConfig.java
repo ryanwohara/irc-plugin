@@ -34,7 +34,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "username",
             name = "Username",
-            description = "IRC Username",
+            description = "//use the chat like this\nIRC Username",
             position = 0
     )
     String username();
@@ -45,14 +45,18 @@ public interface IrcConfig extends Config
             description = "Channel to join (#rshelp if blank)",
             position = 1
     )
-    String channel();
+    default String channel()
+    {
+        return "#rshelp";
+    }
 
     @ConfigItem(
             keyName = "password",
             name = "Password",
-            description = "NickServ password (Optional)",
+            description = "NickServ password (Optional) (NEVER your RS password!)",
             position = 2,
             secret = true
     )
     String password();
+
 }

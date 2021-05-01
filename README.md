@@ -35,10 +35,10 @@ The following services run on SwiftIRC: NickServ, ChanServ, BotServ, and HostSer
 You may communicate via the following commands with the respective service:
 
 ```
-NickServ: /ns
-ChanServ: /cs
-BotServ: /bs
-HostServ: /hs
+NickServ: ///ns
+ChanServ: ///cs
+BotServ: ///bs
+HostServ: ///hs
 ```
 
 ## Configuration
