@@ -276,6 +276,18 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 					IRCClient.actionMsg(trimmed);
 					addChatMessage("* " + ircConfig.username(), trimmed);
 				}
+				else if (message.startsWith("mode "))
+				{
+					// TODO mode support
+				}
+				else if (message.startsWith("umode "))
+				{
+					// TODO user mode support
+				}
+				else if (message.startsWith("topic "))
+				{
+					// TODO topic support - strip color codes
+				}
 			}
 			catch (IOException e)
 			{

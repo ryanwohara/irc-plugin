@@ -124,6 +124,7 @@ public class IRCClient extends Thread implements AutoCloseable
 				pingSent = false;
 
 				Message message = Message.parse(line);
+				// TODO: Strip color codes
 
 				switch (message.getCommand())
 				{
