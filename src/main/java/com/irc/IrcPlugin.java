@@ -264,14 +264,17 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				else if (message.startsWith("notice "))
 				{
 					IRCClient.notice(message);
+					addChatMessage("-> ", message);
 				}
 				else if (message.startsWith("msg "))
 				{
-					IRCClient.privateMsg(message.substring(4));
+					IRCClient.privateMsg(trimmed.substring(1));
+					addChatMessage(ircConfig.username(), trimmed.substring(1));
 				}
 				else if (message.startsWith("me "))
 				{
-					IRCClient.actionMsg(message.substring(3));
+					IRCClient.actionMsg(trimmed);
+					addChatMessage("* " + ircConfig.username(), trimmed);
 				}
 			}
 			catch (IOException e)
