@@ -194,7 +194,14 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 		String displayName = tags.get("display-name");
 
-		addChatMessage(displayName, message);
+		if (message.startsWith("\u0001"))
+		{
+			addChatMessage("* " + displayName, message.replaceAll("\u0001", ""));
+		}
+		else
+		{
+			addChatMessage(displayName, message);
+		}
 	}
 
 	@Override
