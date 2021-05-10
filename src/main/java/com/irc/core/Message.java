@@ -74,7 +74,7 @@ class Message
 				String name = in.split("!")[0].replace(":", "");
 				String target = in.split(" ")[2];
 
-				if (!target.startsWith("#"))
+				if (!target.startsWith("#") && !in.contains("NOTICE"))
 				{
 					name = "(pm) " + name;
 				}

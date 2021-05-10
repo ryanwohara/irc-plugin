@@ -227,7 +227,7 @@ public class IRCClient extends Thread implements AutoCloseable
 
 	public void actionMsg(String message) throws IOException
 	{
-		send("PRIVMSG", channel, "\u0001" + message + "\u0001");
+		send("PRIVMSG", channel, "\u0001ACTION " + message + "\u0001");
 	}
 
 	public void notice(String message) throws IOException
