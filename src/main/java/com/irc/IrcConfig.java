@@ -42,7 +42,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "channel",
             name = "Channel",
-            description = "Channel to join (#rshelp if blank)",
+            description = "Channel to join",
             position = 1
     )
     default String channel()
@@ -52,11 +52,19 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "password",
-            name = "Password",
+            name = "Password (Optional) (not RS)",
             description = "NickServ password (Optional) (NEVER your RS password!)",
             position = 2,
             secret = true
     )
     String password();
+
+    @ConfigItem(
+            keyName = "delimiter",
+            name = "Delimiter",
+            description = "Prefix IRC messages with this token",
+            position = 3
+    )
+    default String delimiter() { return ";"; }
 
 }

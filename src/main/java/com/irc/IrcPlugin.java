@@ -132,7 +132,8 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 					this,
 					ircConfig.username(),
 					channel,
-					ircConfig.password()
+					ircConfig.password(),
+					ircConfig.delimiter()
 			);
 			IRCClient.start();
 		}
@@ -240,9 +241,11 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	public boolean onChatboxInput(ChatboxInput chatboxInput)
 	{
 		String message = chatboxInput.getValue();
-		if (message.startsWith("///"))
+		log.warn(message);
+		log.warn(ircConfig.delimiter() + ircConfig.delimiter());
+		if (message.startsWith(ircConfig.delimiter() + ircConfig.delimiter()))
 		{
-			message = message.substring(3);
+			message = message.substring(2);
 			if (message.isEmpty() || IRCClient == null)
 			{
 				return true;
@@ -303,9 +306,9 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 			return true;
 		}
-		else if (message.startsWith("//"))
+		else if (message.startsWith(ircConfig.delimiter()))
 		{
-			message = message.substring(2);
+			message = message.substring(1);
 			if (message.isEmpty() || IRCClient == null)
 			{
 				return true;

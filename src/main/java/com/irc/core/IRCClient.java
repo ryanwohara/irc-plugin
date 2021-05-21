@@ -46,6 +46,7 @@ public class IRCClient extends Thread implements AutoCloseable
 	private final String username;
 	private final String channel;
 	private final String password;
+	private final String delimiter;
 
 	private Socket socket;
 	private BufferedReader in;
@@ -53,13 +54,14 @@ public class IRCClient extends Thread implements AutoCloseable
 	private long last;
 	private boolean pingSent;
 
-	public IRCClient(IrcListener ircListener, String username, String channel, String password)
+	public IRCClient(IrcListener ircListener, String username, String channel, String password, String delimiter)
 	{
 		setName("IRC");
 		this.ircListener = ircListener;
 		this.username = username;
 		this.channel = channel;
 		this.password = password;
+		this.delimiter = delimiter;
 	}
 
 	@Override
