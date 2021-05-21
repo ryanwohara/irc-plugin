@@ -4,29 +4,33 @@ An integration with SwiftIRC through the OSRS chat box.
 
 ## Functionality
 
+It is ideal to set the delimiter to a character you can easily prefix IRC messages.
+
+The default delimiter is `;`. This document will use the default as reference.
+
 ### Channel Messages
 
 Channel messages will show up in the chat box starting with the username that sent the message.
 
-Sending a channel message: `//words can go here`
+Sending a channel message: `;words can go here`
 
-Example: `//Hello #rshelp!`
+Example: `;Hello #rshelp!`
 
 ### Private Messages
 
 Received private messages will appear prefixed with `(pm)`.
 
-Sending a private message: `///msg <nick> <message>`
+Sending a private message: `;;msg <nick> <message>`
 
-Example: `///msg foobar Thanks for the information`
+Example: `;;msg foobar Thanks for the information`
 
 ### Notices
 
 Notices will appear prefixed with `(notice)` to indicate it was not a channel message.
 
-Sending a notice: `///notice <nick> <message>`
+Sending a notice: `;;notice <nick> <message>`
 
-Example: `///notice foobar Hey there!`
+Example: `;;notice foobar Hey there!`
 
 ### Network Services
 
@@ -35,10 +39,10 @@ The following services run on SwiftIRC: NickServ, ChanServ, BotServ, and HostSer
 You may communicate via the following commands with the respective service:
 
 ```
-NickServ: ///ns
-ChanServ: ///cs
-BotServ: ///bs
-HostServ: ///hs
+NickServ: ;;ns
+ChanServ: ;;cs
+BotServ: ;;bs
+HostServ: ;;hs
 ```
 
 ## Configuration
@@ -59,4 +63,3 @@ The password to identify with NickServ.
 ## Known Issues
 
 * If the username is taken when you try to connect, the connection will fail.
-* Incompatibility with the Twitch RL plugin.
