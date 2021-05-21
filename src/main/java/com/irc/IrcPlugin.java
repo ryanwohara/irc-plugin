@@ -241,8 +241,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	public boolean onChatboxInput(ChatboxInput chatboxInput)
 	{
 		String message = chatboxInput.getValue();
-		log.warn(message);
-		log.warn(ircConfig.delimiter() + ircConfig.delimiter());
 		if (message.startsWith(ircConfig.delimiter() + ircConfig.delimiter()))
 		{
 			message = message.substring(2);
