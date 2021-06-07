@@ -37,6 +37,7 @@ import com.google.common.base.Strings;
 public class IRCClient extends Thread implements AutoCloseable
 {
 	private static final String HOST = "fiery.swiftirc.net";
+	private static final String ident = "runelite";
 	private static final int PORT = 6697;
 	private static final int READ_TIMEOUT = 120000; // ms
 	private static final int PING_TIMEOUT = 60000; // ms
@@ -105,12 +106,6 @@ public class IRCClient extends Thread implements AutoCloseable
 		{
 			register(username);
 
-			if (!Strings.isNullOrEmpty(password))
-			{
-				nickservID(password);
-			}
-
-
 			String line;
 
 			while ((line = read()) != null)
@@ -119,6 +114,11 @@ public class IRCClient extends Thread implements AutoCloseable
 				if(line.startsWith(":Global!services@services.host NOTICE")
 						&& line.contains("We will now perform a passive scan on your IP to check for insecure proxies."))
 				{
+					if (!Strings.isNullOrEmpty(this.password))
+					{
+						nickservID();
+					}
+
 					join(channel);
 				}
 
@@ -126,7 +126,7 @@ public class IRCClient extends Thread implements AutoCloseable
 				pingSent = false;
 
 				Message message = Message.parse(line);
-				// TODO: Strip color codes
+				// TODO: Support color codes https://github.com/ryanwohara/irc-plugin/issues/1
 
 				switch (message.getCommand())
 				{
@@ -204,12 +204,12 @@ public class IRCClient extends Thread implements AutoCloseable
 	private void register(String username) throws IOException
 	{
 		send("NICK", username);
-		send("USER", username, "3", "*", username);
+		send("USER", this.ident, "3", "*", username);
 	}
 
-	private void nickservID(String password) throws IOException
+	private void nickservID() throws IOException
 	{
-		send("PRIVMSG", "NickServ", ":identify", password);
+		nickserv("id " + this.password);
 	}
 
 	private void join(String channel) throws IOException
