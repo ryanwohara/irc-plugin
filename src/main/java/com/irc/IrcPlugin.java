@@ -200,34 +200,34 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 					.build());
 		}
 
-		IrcPanel.message(sender + " " + formatColors(message));
+		IrcPanel.message(formatColors(sender + ": " + message));
 	}
 
 	private String stripColors(String message)
 	{
-		return message.replaceAll("\u0003([0-9]{1,2})?", "");
+		return message.replaceAll("\u0003([0-9]{1,2})?|\u0015", "");
 	}
 
 	private String formatColors(String message)
 	{
 		return escapeHtml4(message)
-				.replaceAll("\u0003[^0-9]", "</font>")
-				.replaceAll("\u000310([^\u0003]+)", "<font color=\"darkcyan\">$1</font>")
-				.replaceAll("\u000311([^\u0003]+)", "<font color=\"cyan\">$1</font>")
-				.replaceAll("\u000312([^\u0003]+)", "<font color=\"blue\">$1</font>")
-				.replaceAll("\u000313([^\u0003]+)", "<font color=\"pink\">$1</font>")
-				.replaceAll("\u000314([^\u0003]+)", "<font color=\"grey\">$1</font>")
-				.replaceAll("\u000315([^\u0003]+)", "<font color=\"lightgrey`\">$1</font>")
-				.replaceAll("\u00030?1([^\u0003]+)", "<font color=\"black\">$1</font>")
-				.replaceAll("\u00030?2([^\u0003]+)", "<font color=\"darkblue\">$1</font>")
-				.replaceAll("\u00030?3([^\u0003]+)", "<font color=\"green\">$1</font>")
-				.replaceAll("\u00030?4([^\u0003]+)", "<font color=\"red\">$1</font>")
-				.replaceAll("\u00030?5([^\u0003]+)", "<font color=\"brown\">$1</font>")
-				.replaceAll("\u00030?6([^\u0003]+)", "<font color=\"purple\">$1</font>")
-				.replaceAll("\u00030?7([^\u0003]+)", "<font color=\"orange\">$1</font>")
-				.replaceAll("\u00030?8([^\u0003]+)", "<font color=\"yellow\">$1</font>")
-				.replaceAll("\u00030?9([^\u0003]+)", "<font color=\"chartreuse\">$1</font>")
-				.replaceAll("\u000300?([^\u0003]+)", "<font color=\"white\">$1</font>");
+				.replaceAll("[\u000F\u0003]([^0-9]|$)", "</font>$1")
+				.replaceAll("\u000310([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
+				.replaceAll("\u000311([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
+				.replaceAll("\u000312([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
+				.replaceAll("\u000313([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
+				.replaceAll("\u000314([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
+				.replaceAll("\u000315([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
+				.replaceAll("\u00030?1([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
+				.replaceAll("\u00030?2([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
+				.replaceAll("\u00030?3([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
+				.replaceAll("\u00030?4([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
+				.replaceAll("\u00030?5([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
+				.replaceAll("\u00030?6([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
+				.replaceAll("\u00030?7([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
+				.replaceAll("\u00030?8([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
+				.replaceAll("\u00030?9([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
+				.replaceAll("\u000300?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>");
 	}
 
 	@Override

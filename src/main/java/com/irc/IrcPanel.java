@@ -23,7 +23,7 @@ public class IrcPanel extends PluginPanel
     {
         panel.removeAll();
 
-        label.setText("<html><table width=230 style=\"word-wrap:break-word;\"></table></html>");
+        label.setText("<html><body style=\"width:180px;overflow:hidden;\"></body></html>");
 
         panel.add(label);
 
@@ -34,11 +34,11 @@ public class IrcPanel extends PluginPanel
     {
         panel.removeAll();
 
-        String existingMessages = label.getText().replace("</table></html>", "");
+        String existingMessages = label.getText().replace("</body></html>", "");
 
-        label.setText(existingMessages + "<tr><td>" + message + "</td></tr></table></html>");
+        message = message.replaceAll("(http[^ ]+)", "<a href=\"$1\" alt=\"$1\">link</a>");
 
-        log.warn(label.getText());
+        label.setText(existingMessages + "<div style=\"width:180px;word-wrap:break-word;overflow:hidden;\">" + message + "</div></body></html>");
 
         panel.add(label);
     }
