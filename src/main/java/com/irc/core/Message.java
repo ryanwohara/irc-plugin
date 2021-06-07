@@ -59,7 +59,6 @@ class Message
 					.replace("\\\\", "\\")
 					.replace("\\r", "\r")
 					.replace("\\n", "\n");
-//					.replaceAll("\u0003([0-9]{1,2})?", "");
 
 				message.tags.put(key, value);
 			}
