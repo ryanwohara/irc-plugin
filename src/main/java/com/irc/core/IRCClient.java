@@ -117,6 +117,8 @@ public class IRCClient extends Thread implements AutoCloseable
 					if (!Strings.isNullOrEmpty(this.password))
 					{
 						nickservID();
+
+						sleep(500);
 					}
 
 					join(channel);
@@ -126,7 +128,6 @@ public class IRCClient extends Thread implements AutoCloseable
 				pingSent = false;
 
 				Message message = Message.parse(line);
-				// TODO: Support color codes https://github.com/ryanwohara/irc-plugin/issues/1
 
 				switch (message.getCommand())
 				{
@@ -151,7 +152,7 @@ public class IRCClient extends Thread implements AutoCloseable
 				}
 			}
 		}
-		catch (IOException ex)
+		catch (IOException | InterruptedException ex)
 		{
 			log.debug("error in irc client", ex);
 		}

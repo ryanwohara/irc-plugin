@@ -24,6 +24,7 @@
  */
 package com.irc;
 
+import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 import com.google.common.base.Strings;
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,9 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.client.chat.*;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatboxInput;
@@ -40,12 +44,15 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.irc.core.IRCClient;
 import com.irc.core.IrcListener;
+import com.irc.IrcPanel;
 import net.runelite.client.task.Schedule;
 
 import javax.inject.Inject;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 
 @PluginDescriptor(
 		name = "IRC",
@@ -67,6 +74,11 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	@Inject
 	private CommandManager commandManager;
 
+	@Inject
+	private ClientToolbar clientToolbar;
+	private IrcPanel panel;
+	private NavigationButton uiButton;
+
 	private IRCClient IRCClient;
 
 	@Override
@@ -74,6 +86,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	{
 		connect();
 		commandManager.register(this);
+		startIrcPanel();
 	}
 
 	@Override
@@ -176,28 +189,56 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				.append(message)
 				.build();
 
-		chatMessageManager.queue(QueuedMessage.builder()
-				.type(ChatMessageType.FRIENDSCHAT)
-				.sender("IRC")
-				.name(sender)
-				.runeLiteFormattedMessage(chatMessage)
-				.timestamp((int) (System.currentTimeMillis() / 1000))
-				.build());
+		if (client.getGameState() == GameState.LOGGED_IN)
+		{
+			chatMessageManager.queue(QueuedMessage.builder()
+					.type(ChatMessageType.FRIENDSCHAT)
+					.sender("IRC")
+					.name(sender)
+					.runeLiteFormattedMessage(stripColors(chatMessage))
+					.timestamp((int) (System.currentTimeMillis() / 1000))
+					.build());
+		}
+
+		IrcPanel.message(sender + " " + formatColors(message));
+	}
+
+	private String stripColors(String message)
+	{
+		return message.replaceAll("\u0003([0-9]{1,2})?", "");
+	}
+
+	private String formatColors(String message)
+	{
+		return escapeHtml4(message)
+				.replaceAll("\u0003[^0-9]", "</font>")
+				.replaceAll("\u000310([^\u0003]+)", "<font color=\"darkcyan\">$1</font>")
+				.replaceAll("\u000311([^\u0003]+)", "<font color=\"cyan\">$1</font>")
+				.replaceAll("\u000312([^\u0003]+)", "<font color=\"blue\">$1</font>")
+				.replaceAll("\u000313([^\u0003]+)", "<font color=\"pink\">$1</font>")
+				.replaceAll("\u000314([^\u0003]+)", "<font color=\"grey\">$1</font>")
+				.replaceAll("\u000315([^\u0003]+)", "<font color=\"lightgrey`\">$1</font>")
+				.replaceAll("\u00030?1([^\u0003]+)", "<font color=\"black\">$1</font>")
+				.replaceAll("\u00030?2([^\u0003]+)", "<font color=\"darkblue\">$1</font>")
+				.replaceAll("\u00030?3([^\u0003]+)", "<font color=\"green\">$1</font>")
+				.replaceAll("\u00030?4([^\u0003]+)", "<font color=\"red\">$1</font>")
+				.replaceAll("\u00030?5([^\u0003]+)", "<font color=\"brown\">$1</font>")
+				.replaceAll("\u00030?6([^\u0003]+)", "<font color=\"purple\">$1</font>")
+				.replaceAll("\u00030?7([^\u0003]+)", "<font color=\"orange\">$1</font>")
+				.replaceAll("\u00030?8([^\u0003]+)", "<font color=\"yellow\">$1</font>")
+				.replaceAll("\u00030?9([^\u0003]+)", "<font color=\"chartreuse\">$1</font>")
+				.replaceAll("\u000300?([^\u0003]+)", "<font color=\"white\">$1</font>");
 	}
 
 	@Override
 	public void privmsg(Map<String, String> tags, String message)
 	{
-		if (client.getGameState() != GameState.LOGGED_IN)
-		{
-			return;
-		}
-
 		String displayName = tags.get("display-name");
 
 		if (message.startsWith("\u0001"))
 		{
-			addChatMessage("* " + displayName, message.replaceAll("\u0001(ACTION)?", ""));
+			message = message.replaceAll("\u0001(ACTION)?", "");
+			addChatMessage("* " + displayName, message);
 		}
 		else
 		{
@@ -334,5 +375,20 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	public boolean onPrivateMessageInput(PrivateMessageInput privateMessageInput)
 	{
 		return false;
+	}
+
+	private void startIrcPanel()
+	{
+		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+		panel = injector.getInstance(IrcPanel.class);
+		panel.init();
+		uiButton = NavigationButton.builder()
+				.tooltip("SwiftIRC")
+				.icon(icon)
+				.priority(10)
+				.panel(panel)
+				.build();
+
+		clientToolbar.addNavigation(uiButton);
 	}
 }

@@ -58,8 +58,8 @@ class Message
 					.replace("\\s", " ")
 					.replace("\\\\", "\\")
 					.replace("\\r", "\r")
-					.replace("\\n", "\n")
-					.replaceAll("\u0001[0-9]{0,2}", "");
+					.replace("\\n", "\n");
+//					.replaceAll("\u0003([0-9]{1,2})?", "");
 
 				message.tags.put(key, value);
 			}
