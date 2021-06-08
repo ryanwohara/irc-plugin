@@ -34,7 +34,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "username",
             name = "Username",
-            description = "//use the chat like this\nIRC Username",
+            description = ";use the chat like this.",
             position = 0
     )
     String username();
@@ -62,7 +62,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "delimiter",
             name = "Delimiter",
-            description = "Prefix IRC messages with this token",
+            description = ";chat with this character like this",
             position = 3
     )
     default String delimiter() { return ";"; }

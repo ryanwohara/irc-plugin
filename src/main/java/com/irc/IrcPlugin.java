@@ -99,6 +99,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		}
 
 		commandManager.unregister(this);
+		stopIrcPanel();
 	}
 
 	@Provides
@@ -389,5 +390,12 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				.build();
 
 		clientToolbar.addNavigation(uiButton);
+	}
+
+	private void stopIrcPanel()
+	{
+		panel.removeAll();
+
+		clientToolbar.removeNavigation(uiButton);
 	}
 }
