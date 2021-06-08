@@ -335,6 +335,10 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				{
 					// TODO topic support - strip color codes
 				}
+				else if (message.startsWith("nick "))
+				{
+					IRCClient.nick(trimmed.substring(2));
+				}
 			}
 			catch (IOException e)
 			{

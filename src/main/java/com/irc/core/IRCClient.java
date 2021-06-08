@@ -265,6 +265,11 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("PRIVMSG", "HostServ", message);
 	}
 
+	public void nick(String nick) throws IOException
+	{
+		send("NICK", nick);
+	}
+
 	private void send(String command, String... args) throws IOException
 	{
 		StringBuilder stringBuilder = new StringBuilder();
