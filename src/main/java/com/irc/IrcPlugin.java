@@ -263,8 +263,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	@Override
 	public void usernotice(Map<String, String> tags, String message)
 	{
-		log.debug("Usernotice tags: {} message: {}", tags, message);
-
 		if (client.getGameState() != GameState.LOGGED_IN)
 		{
 			return;
@@ -272,6 +270,12 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 		String sysmsg = tags.get("system-msg");
 		addChatMessage("[System]", sysmsg);
+	}
+
+	@Override
+	public void nick(Map<String, String> tags, String nick)
+	{
+		addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
 	}
 
 	@Override
@@ -291,54 +295,41 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 			try
 			{
-				String trimmed = message.substring(3);
+				if (message.length() > 3) {
+					String trimmed = message.substring(3);
 
-				if (message.startsWith(("ns ")))
-				{
-					IRCClient.nickserv(trimmed);
-				}
-				else if (message.startsWith("cs "))
-				{
-					IRCClient.chanserv(trimmed);
-				}
-				else if (message.startsWith("bs "))
-				{
-					IRCClient.botserv(trimmed);
-				}
-				else if (message.startsWith("hs "))
-				{
-					IRCClient.hostserv(trimmed);
-				}
-				else if (message.startsWith("notice "))
-				{
-					IRCClient.notice(message);
-					addChatMessage("-> ", message);
-				}
-				else if (message.startsWith("msg "))
-				{
-					IRCClient.privateMsg(trimmed.substring(1));
-					addChatMessage(ircConfig.username(), trimmed.substring(1));
-				}
-				else if (message.startsWith("me "))
-				{
-					IRCClient.actionMsg(trimmed);
-					addChatMessage("* " + ircConfig.username(), trimmed);
-				}
-				else if (message.startsWith("mode "))
-				{
-					// TODO mode support
-				}
-				else if (message.startsWith("umode "))
-				{
-					// TODO user mode support
-				}
-				else if (message.startsWith("topic "))
-				{
-					// TODO topic support - strip color codes
-				}
-				else if (message.startsWith("nick "))
-				{
-					IRCClient.nick(trimmed.substring(2));
+					if (message.startsWith(("ns "))) {
+						IRCClient.nickserv(trimmed);
+					} else if (message.startsWith("cs ")) {
+						IRCClient.chanserv(trimmed);
+					} else if (message.startsWith("bs ")) {
+						IRCClient.botserv(trimmed);
+					} else if (message.startsWith("hs ")) {
+						IRCClient.hostserv(trimmed);
+					} else if (message.startsWith("notice ")) {
+						IRCClient.notice(message);
+						addChatMessage("-> ", message);
+					} else if (message.startsWith("msg ")) {
+						IRCClient.privateMsg(trimmed.substring(1));
+						addChatMessage(ircConfig.username(), trimmed.substring(1));
+					} else if (message.startsWith("me ")) {
+						IRCClient.actionMsg(trimmed);
+						addChatMessage("* " + ircConfig.username(), trimmed);
+					} else if (message.startsWith("mode ")) {
+						IRCClient.mode(trimmed.substring(2));
+					} else if (message.startsWith("umode ")) {
+						IRCClient.umode(trimmed.substring(3));
+					} else if (message.startsWith("topic")) {
+						String channel = trimmed.substring(2);
+
+						if ((channel.length() == 0) || (channel == " ")) {
+							channel = ircConfig.channel();
+						}
+
+						IRCClient.topic(channel);
+					} else if (message.startsWith("nick ")) {
+						IRCClient.nick(trimmed.substring(2));
+					}
 				}
 			}
 			catch (IOException e)
@@ -359,7 +350,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			try
 			{
 				IRCClient.privmsg(message);
-				addChatMessage(ircConfig.username(), message);
+				addChatMessage(IRCClient.getUsername(), message);
 			}
 			catch (IOException e)
 			{

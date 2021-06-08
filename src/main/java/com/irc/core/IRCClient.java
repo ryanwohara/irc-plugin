@@ -36,7 +36,7 @@ import com.google.common.base.Strings;
 @Slf4j
 public class IRCClient extends Thread implements AutoCloseable
 {
-	private static final String HOST = "fiery.swiftirc.net";
+	private static final String HOST = "irc.swiftirc.net";
 	private static final String ident = "runelite";
 	private static final int PORT = 6697;
 	private static final int READ_TIMEOUT = 120000; // ms
@@ -44,7 +44,7 @@ public class IRCClient extends Thread implements AutoCloseable
 
 	private final IrcListener ircListener;
 
-	private final String username;
+	private String username;
 	private final String channel;
 	private final String password;
 	private final String delimiter;
@@ -111,6 +111,7 @@ public class IRCClient extends Thread implements AutoCloseable
 			while ((line = read()) != null)
 			{
 				log.debug("<- {}", line);
+
 				if(line.startsWith(":Global!services@services.host NOTICE")
 						&& line.contains("We will now perform a passive scan on your IP to check for insecure proxies."))
 				{
@@ -122,6 +123,10 @@ public class IRCClient extends Thread implements AutoCloseable
 					}
 
 					join(channel);
+				}
+				else if (line.split(" ")[1].equals("433"))
+				{
+					ircListener.notice(Message.parse(line).getTags(), "Nick already in use. Please choose a new one.");
 				}
 
 				last = System.currentTimeMillis();
@@ -149,6 +154,11 @@ public class IRCClient extends Thread implements AutoCloseable
 						ircListener.usernotice(message.getTags(),
 							message.getArguments().length > 0 ? message.getArguments()[0] : null);
 						break;
+					case "NICK":
+						String nick = message.getArguments()[0];
+
+						this.username = nick;
+						ircListener.nick(message.getTags(), nick);
 				}
 			}
 		}
@@ -268,6 +278,22 @@ public class IRCClient extends Thread implements AutoCloseable
 	public void nick(String nick) throws IOException
 	{
 		send("NICK", nick);
+		this.username = nick;
+	}
+
+	public void topic(String channel) throws IOException
+	{
+		send("TOPIC", channel);
+	}
+
+	public void umode(String modes) throws IOException
+	{
+		send("umode2", modes);
+	}
+
+	public void mode(String modes) throws IOException
+	{
+		send("mode", modes);
 	}
 
 	private void send(String command, String... args) throws IOException
@@ -306,5 +332,10 @@ public class IRCClient extends Thread implements AutoCloseable
 		}
 
 		return line.substring(0, len);
+	}
+
+	public String getUsername()
+	{
+		return this.username;
 	}
 }

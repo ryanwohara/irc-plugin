@@ -35,4 +35,6 @@ public interface IrcListener
 	void roomstate(Map<String, String> tags);
 
 	void usernotice(Map<String, String> tags, String message);
+
+	void nick(Map<String, String> tags, String nick);
 }

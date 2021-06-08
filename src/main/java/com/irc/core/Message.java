@@ -83,6 +83,15 @@ class Message
 				message.tags.put(target, target);
 			}
 		}
+		if (in.contains("NICK"))
+		{
+			if (in.startsWith(":"))
+			{
+				String name = in.split("!")[0].replace(":", "");
+
+				message.tags.put("display-name", name);
+			}
+		}
 
 		if (in.startsWith(":"))
 		{
