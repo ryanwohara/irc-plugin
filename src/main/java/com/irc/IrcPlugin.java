@@ -200,7 +200,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 					.build());
 		}
 
-		IrcPanel.message(formatColors(sender + ": " + message));
+		IrcPanel.message(formatMessage(sender + ": " + message));
 	}
 
 	private String stripColors(String message)
@@ -208,7 +208,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		return message.replaceAll("\u0003([0-9]{1,2})?|\u0015", "");
 	}
 
-	private String formatColors(String message)
+	private String formatMessage(String message)
 	{
 		return escapeHtml4(message)
 				.replaceAll("[\u000F\u0003]([^0-9]|$)", "</font>$1")
@@ -249,11 +249,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	@Override
 	public void notice(Map<String, String> tags, String message)
 	{
-		if (client.getGameState() != GameState.LOGGED_IN)
-		{
-			return;
-		}
-
 		String displayName = "(notice) " + tags.get("display-name");
 		addChatMessage(displayName, message);
 	}
