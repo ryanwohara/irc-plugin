@@ -45,6 +45,15 @@ BotServ: ;;bs
 HostServ: ;;hs
 ```
 
+### Miscellaneous Commands
+
+Change user modes: `;;umode +R` (as an example)
+
+Change channel modes: `;;mode #rshelp -s`
+
+Change the topic: `;;topic #rshelp Hi this was a bad idea`
+
+
 ## Configuration
 
 ### username
@@ -59,7 +68,11 @@ The channel you intend to join. Leaving this blank will default to #rshelp.
 
 The password to identify with NickServ.
 
+### delimiter
+
+Defaults to `;`. Prefixed to messages destined for IRC.
+
 
 ## Known Issues
 
-* If the username is taken when you try to connect, the connection will fail.
+* Various output is hidden, such as channel and user modes, topics, and other raw server output.
