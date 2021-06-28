@@ -157,7 +157,6 @@ public class IRCClient extends Thread implements AutoCloseable
 					case "NICK":
 						String nick = message.getArguments()[0];
 
-						this.username = nick;
 						ircListener.nick(message.getTags(), nick);
 				}
 			}
