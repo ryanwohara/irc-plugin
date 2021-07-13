@@ -38,7 +38,7 @@ The following services run on SwiftIRC: NickServ, ChanServ, BotServ, and HostSer
 
 You may communicate via the following commands with the respective service:
 
-```
+```text
 NickServ: ;;ns
 ChanServ: ;;cs
 BotServ: ;;bs
@@ -53,6 +53,7 @@ Change channel modes: `;;mode #rshelp -s`
 
 Change the topic: `;;topic #rshelp Hi this was a bad idea`
 
+Clear the side panel: `;;clear`
 
 ## Configuration
 
@@ -71,7 +72,6 @@ The password to identify with NickServ.
 ### delimiter
 
 Defaults to `;`. Prefixed to messages destined for IRC.
-
 
 ## Known Issues
 
