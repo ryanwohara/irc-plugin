@@ -45,11 +45,7 @@ public class IrcPanel extends PluginPanel
 
     void init()
     {
-        panel.removeAll();
-
-        label.setText("<html><body style=\"width:180px;overflow:hidden;\"></body></html>");
-
-        panel.add(label);
+        this.clearMessages();
 
         this.add(panel, BorderLayout.NORTH);
     }
@@ -67,8 +63,19 @@ public class IrcPanel extends PluginPanel
         panel.add(label);
     }
 
+    private static void clearMessages()
+    {
+        panel.removeAll();
+
+        label.setText("<html><body style=\"width:180px;overflow:hidden;\"></body></html>");
+
+        panel.add(label);
+    }
+
     public static void message(String message)
     {
         addMessage(message);
     }
+
+    public static void clearLogs() { clearMessages(); }
 }

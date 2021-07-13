@@ -307,11 +307,20 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 					} else if (message.startsWith("hs ")) {
 						IRCClient.hostserv(trimmed);
 					} else if (message.startsWith("notice ")) {
-						IRCClient.notice(message);
-						addChatMessage("-> ", message);
+						String[] split = message.split(" ", 3);
+
+						if (split.length > 2) {
+							IRCClient.notice(message);
+							addChatMessage("(notice) -> " + split[1], split[2]);
+						}
 					} else if (message.startsWith("msg ")) {
-						IRCClient.privateMsg(trimmed.substring(1));
-						addChatMessage(ircConfig.username(), trimmed.substring(1));
+						String msg = trimmed.substring(1);
+
+						String[] split = msg.split(" ", 2);
+						if (split.length > 1) {
+							IRCClient.privateMsg(trimmed.substring(1));
+							addChatMessage("(pm) -> " + split[0], split[1]);
+						}
 					} else if (message.startsWith("me ")) {
 						IRCClient.actionMsg(trimmed);
 						addChatMessage("* " + ircConfig.username(), trimmed);
@@ -329,6 +338,8 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 						IRCClient.topic(channel);
 					} else if (message.startsWith("nick ")) {
 						IRCClient.nick(trimmed.substring(2));
+					} else if (message.startsWith("clear")) {
+						IrcPanel.clearLogs();
 					}
 				}
 			}
