@@ -112,8 +112,8 @@ public class IRCClient extends Thread implements AutoCloseable
 			{
 				log.debug("<- {}", line);
 
-				if(line.startsWith(":Global!services@swiftirc.services NOTICE")
-						&& line.contains("We will now perform a passive scan on your IP to check for insecure proxies."))
+				if((line.startsWith(":fiery.ca.us.SwiftIRC.net NOTICE") || line.startsWith(":tardis.en.uk.SwiftIRC.net NOTICE"))
+						&& line.contains("Looking up your hostname..."))
 				{
 
 					sleep(1000);
