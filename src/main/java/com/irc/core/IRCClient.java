@@ -112,12 +112,9 @@ public class IRCClient extends Thread implements AutoCloseable
 			{
 				log.debug("<- {}", line);
 
-				if((line.startsWith(":fiery.ca.us.SwiftIRC.net NOTICE") || line.startsWith(":tardis.en.uk.SwiftIRC.net NOTICE"))
-						&& line.contains("Looking up your hostname..."))
+				if((line.startsWith(":fiery.ca.us.SwiftIRC.net 001") || line.startsWith(":tardis.en.uk.SwiftIRC.net 001"))
+						&& line.contains("Welcome to the SwiftIRC IRC Network"))
 				{
-
-					sleep(1000);
-
 					if (!Strings.isNullOrEmpty(this.password))
 					{
 						nickservID();
@@ -222,7 +219,7 @@ public class IRCClient extends Thread implements AutoCloseable
 
 	private void nickservID() throws IOException
 	{
-		nickserv("id " + this.password);
+		nickserv("identify " + this.password);
 	}
 
 	private void join(String channel) throws IOException
