@@ -37,9 +37,9 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.events.ChatboxInput;
+import net.runelite.api.VarClientStr;
+import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.PrivateMessageInput;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.irc.core.IRCClient;
@@ -56,11 +56,11 @@ import java.io.IOException;
 
 @PluginDescriptor(
 		name = "IRC",
-		description = "Integrates IRC with RS",
+		description = "Integrates IRC with the OSRS chatbox",
 		enabledByDefault = false
 )
 @Slf4j
-public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListener
+public class IrcPlugin extends Plugin implements IrcListener
 {
 	@Inject
 	private IrcConfig ircConfig;
@@ -70,9 +70,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 
 	@Inject
 	private ChatMessageManager chatMessageManager;
-
-	@Inject
-	private CommandManager commandManager;
 
 	@Inject
 	private ClientToolbar clientToolbar;
@@ -85,7 +82,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 	protected void startUp()
 	{
 		connect();
-		commandManager.register(this);
 		startIrcPanel();
 	}
 
@@ -98,7 +94,6 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			IRCClient = null;
 		}
 
-		commandManager.unregister(this);
 		stopIrcPanel();
 	}
 
@@ -278,10 +273,18 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 		addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
 	}
 
-	@Override
-	public boolean onChatboxInput(ChatboxInput chatboxInput)
+	@Subscribe
+	public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent)
 	{
-		String message = chatboxInput.getValue();
+		if (!"chatDefaultReturn".equals(scriptCallbackEvent.getEventName()))
+		{
+			return;
+		}
+
+		final int[] intStack = client.getIntStack();
+		int intStackCount = client.getIntStackSize();
+
+		String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
 
 		String delimiter = ircConfig.delimiter();
 
@@ -290,8 +293,10 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			message = message.substring(2);
 			if (message.isEmpty() || IRCClient == null)
 			{
-				return true;
+				return;
 			}
+
+			intStack[intStackCount - 3] = 1;
 
 			try
 			{
@@ -348,15 +353,17 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 				log.warn("failed to send message", e);
 			}
 
-			return true;
+			return;
 		}
 		else if (message.startsWith(ircConfig.delimiter()))
 		{
 			message = message.substring(1);
 			if (message.isEmpty() || IRCClient == null)
 			{
-				return true;
+				return;
 			}
+
+			intStack[intStackCount - 3] = 1;
 
 			try
 			{
@@ -367,16 +374,7 @@ public class IrcPlugin extends Plugin implements IrcListener, ChatboxInputListen
 			{
 				log.warn("failed to send message", e);
 			}
-
-			return true;
 		}
-		return false;
-	}
-
-	@Override
-	public boolean onPrivateMessageInput(PrivateMessageInput privateMessageInput)
-	{
-		return false;
 	}
 
 	private void startIrcPanel()
