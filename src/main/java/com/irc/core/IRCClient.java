@@ -24,6 +24,7 @@
  */
 package com.irc.core;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.net.SocketFactory;
@@ -44,10 +45,11 @@ public class IRCClient extends Thread implements AutoCloseable
 
 	private final IrcListener ircListener;
 
-	private String username;
+	@Getter
+    private String username;
 	private final String channel;
 	private final String password;
-	private final String delimiter;
+	private final String prefix;
 
 	private Socket socket;
 	private BufferedReader in;
@@ -55,14 +57,14 @@ public class IRCClient extends Thread implements AutoCloseable
 	private long last;
 	private boolean pingSent;
 
-	public IRCClient(IrcListener ircListener, String username, String channel, String password, String delimiter)
+	public IRCClient(IrcListener ircListener, String username, String channel, String password, String prefix)
 	{
 		setName("IRC");
 		this.ircListener = ircListener;
 		this.username = username;
 		this.channel = channel;
 		this.password = password;
-		this.delimiter = delimiter;
+		this.prefix = prefix;
 	}
 
 	@Override
@@ -333,8 +335,4 @@ public class IRCClient extends Thread implements AutoCloseable
 		return line.substring(0, len);
 	}
 
-	public String getUsername()
-	{
-		return this.username;
-	}
 }

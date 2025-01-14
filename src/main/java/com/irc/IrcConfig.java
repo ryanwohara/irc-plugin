@@ -60,11 +60,11 @@ public interface IrcConfig extends Config
     String password();
 
     @ConfigItem(
-            keyName = "delimiter",
-            name = "Delimiter",
+            keyName = "prefix",
+            name = "Prefix",
             description = ";chat with this character like this",
             position = 3
     )
-    default String delimiter() { return ";"; }
+    default String prefix() { return ";"; }
 
 }

@@ -4,9 +4,9 @@ An integration with SwiftIRC through the OSRS chat box.
 
 ## Functionality
 
-It is ideal to set the delimiter to a character you can easily prefix IRC messages.
+It is ideal to set the prefix to a character you can easily prefix IRC messages.
 
-The default delimiter is `;`. This document will use the default as reference.
+The default prefix is `;`. This document will use the default as reference.
 
 ### Channel Messages
 
@@ -69,7 +69,7 @@ The channel you intend to join. Leaving this blank will default to #rshelp.
 
 The password to identify with NickServ.
 
-### delimiter
+### prefix
 
 Defaults to `;`. Prefixed to messages destined for IRC.
 

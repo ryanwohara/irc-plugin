@@ -142,7 +142,7 @@ public class IrcPlugin extends Plugin implements IrcListener
 					ircConfig.username(),
 					channel,
 					ircConfig.password(),
-					ircConfig.delimiter()
+					ircConfig.prefix()
 			);
 			IRCClient.start();
 		}
@@ -286,9 +286,9 @@ public class IrcPlugin extends Plugin implements IrcListener
 
 		String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
 
-		String delimiter = ircConfig.delimiter();
+		String prefix = ircConfig.prefix();
 
-		if (message.startsWith(delimiter + delimiter))
+		if (message.startsWith(prefix + prefix))
 		{
 			message = message.substring(2);
 			if (message.isEmpty() || IRCClient == null)
@@ -355,7 +355,7 @@ public class IrcPlugin extends Plugin implements IrcListener
 
 			return;
 		}
-		else if (message.startsWith(ircConfig.delimiter()))
+		else if (message.startsWith(ircConfig.prefix()))
 		{
 			message = message.substring(1);
 			if (message.isEmpty() || IRCClient == null)
