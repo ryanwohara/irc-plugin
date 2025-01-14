@@ -25,6 +25,7 @@
 package com.irc;
 
 import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
+
 import com.google.common.base.Strings;
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
@@ -55,347 +56,308 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 @PluginDescriptor(
-		name = "IRC",
-		description = "Integrates IRC with the OSRS chatbox",
-		enabledByDefault = false
+        name = "IRC",
+        description = "Integrates IRC with the OSRS chatbox",
+        enabledByDefault = false
 )
 @Slf4j
-public class IrcPlugin extends Plugin implements IrcListener
-{
-	@Inject
-	private IrcConfig ircConfig;
+public class IrcPlugin extends Plugin implements IrcListener {
+    @Inject
+    private IrcConfig ircConfig;
 
-	@Inject
-	private Client client;
+    @Inject
+    private Client client;
 
-	@Inject
-	private ChatMessageManager chatMessageManager;
+    @Inject
+    private ChatMessageManager chatMessageManager;
 
-	@Inject
-	private ClientToolbar clientToolbar;
-	private IrcPanel panel;
-	private NavigationButton uiButton;
+    @Inject
+    private ClientToolbar clientToolbar;
+    private IrcPanel panel;
+    private NavigationButton uiButton;
 
-	private IRCClient IRCClient;
+    private IRCClient IRCClient;
 
-	@Override
-	protected void startUp()
-	{
-		connect();
-		startIrcPanel();
-	}
+    @Override
+    protected void startUp() {
+        connect();
 
-	@Override
-	protected void shutDown()
-	{
-		if (IRCClient != null)
-		{
-			IRCClient.close();
-			IRCClient = null;
-		}
+        if (ircConfig.sidepanel()) {
+            startIrcPanel();
+        }
+    }
 
-		stopIrcPanel();
-	}
+    @Override
+    protected void shutDown() {
+        if (IRCClient != null) {
+            IRCClient.close();
+            IRCClient = null;
+        }
 
-	@Provides
-	IrcConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(IrcConfig.class);
-	}
+        stopIrcPanel();
+    }
 
-	private synchronized void connect()
-	{
-		if (IRCClient != null)
-		{
-			log.debug("Terminating IRC client {}", IRCClient);
-			IRCClient.close();
-			IRCClient = null;
-		}
+    @Provides
+    IrcConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(IrcConfig.class);
+    }
 
-		if (!Strings.isNullOrEmpty(ircConfig.username()))
-		{
-			String channel;
+    private synchronized void connect() {
+        if (IRCClient != null) {
+            log.debug("Terminating IRC client {}", IRCClient);
+            IRCClient.close();
+            IRCClient = null;
+        }
 
-			if (Strings.isNullOrEmpty(ircConfig.channel()))
-			{
-				channel = "#rshelp";
-			}
-			else
-			{
-				channel = ircConfig.channel().toLowerCase();
-				if (!channel.startsWith("#"))
-				{
-					channel = "#" + channel;
-				}
+        if (!Strings.isNullOrEmpty(ircConfig.username())) {
+            String channel;
 
-				if (channel.contains(","))
-				{
-					channel = channel.split(",")[0];
-				}
+            if (Strings.isNullOrEmpty(ircConfig.channel())) {
+                channel = "#rshelp";
+            } else {
+                channel = ircConfig.channel().toLowerCase();
+                if (!channel.startsWith("#")) {
+                    channel = "#" + channel;
+                }
 
-			}
+                if (channel.contains(",")) {
+                    channel = channel.split(",")[0];
+                }
 
-			log.debug("Connecting to IRC as {}", ircConfig.username());
+            }
 
-			IRCClient = new IRCClient(
-					this,
-					ircConfig.username(),
-					channel,
-					ircConfig.password(),
-					ircConfig.prefix()
-			);
-			IRCClient.start();
-		}
-	}
+            log.debug("Connecting to IRC as {}", ircConfig.username());
 
-	@Schedule(period = 30, unit = ChronoUnit.SECONDS, asynchronous = true)
-	public void checkClient()
-	{
-		if (IRCClient != null)
-		{
-			if (IRCClient.isConnected())
-			{
-				IRCClient.pingCheck();
-			}
+            IRCClient = new IRCClient(
+                    this,
+                    ircConfig.username(),
+                    channel,
+                    ircConfig.password(),
+                    ircConfig.prefix()
+            );
+            IRCClient.start();
+        }
+    }
 
-			if (!IRCClient.isConnected())
-			{
-				log.debug("Reconnecting...");
+    @Schedule(period = 30, unit = ChronoUnit.SECONDS, asynchronous = true)
+    public void checkClient() {
+        if (IRCClient != null) {
+            if (IRCClient.isConnected()) {
+                IRCClient.pingCheck();
+            }
 
-				connect();
-			}
-		}
-	}
+            if (!IRCClient.isConnected()) {
+                log.debug("Reconnecting...");
 
-	@Subscribe
-	public void onConfigChanged(ConfigChanged configChanged)
-	{
-		if (!configChanged.getGroup().equals("irc"))
-		{
-			return;
-		}
+                connect();
+            }
+        }
+    }
 
-		connect();
-	}
+    @Subscribe
+    public void onConfigChanged(ConfigChanged configChanged) {
+        if (!configChanged.getGroup().equals("irc")) {
+            return;
+        }
 
-	private void addChatMessage(String sender, String message)
-	{
-		String chatMessage = new ChatMessageBuilder()
-				.append(ChatColorType.NORMAL)
-				.append(message)
-				.build();
+        stopIrcPanel();
+        if (ircConfig.sidepanel()) {
+            startIrcPanel();
+        }
+    }
 
-		if (client.getGameState() == GameState.LOGGED_IN)
-		{
-			chatMessageManager.queue(QueuedMessage.builder()
-					.type(ChatMessageType.FRIENDSCHAT)
-					.sender("IRC")
-					.name(sender)
-					.runeLiteFormattedMessage(stripColors(chatMessage))
-					.timestamp((int) (System.currentTimeMillis() / 1000))
-					.build());
-		}
+    private void addChatMessage(String sender, String message) {
+        String chatMessage = new ChatMessageBuilder()
+                .append(ChatColorType.NORMAL)
+                .append(message)
+                .build();
 
-		IrcPanel.message(formatMessage(sender + ": " + message));
-	}
+        if (client.getGameState() == GameState.LOGGED_IN) {
+            chatMessageManager.queue(QueuedMessage.builder()
+                    .type(ChatMessageType.FRIENDSCHAT)
+                    .sender("IRC")
+                    .name(sender)
+                    .runeLiteFormattedMessage(stripColors(chatMessage))
+                    .timestamp((int) (System.currentTimeMillis() / 1000))
+                    .build());
+        }
 
-	private String stripColors(String message)
-	{
-		return message.replaceAll("\u0003([0-9]{1,2})?|\u0015", "");
-	}
+        if (ircConfig.sidepanel()) {
+            IrcPanel.message(formatMessage(sender + ": " + message));
+        }
+    }
 
-	private String formatMessage(String message)
-	{
-		return escapeHtml4(message)
-				.replaceAll("[\u000F\u0003]([^0-9]|$)", "</font>$1")
-				.replaceAll("\u000310([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
-				.replaceAll("\u000311([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
-				.replaceAll("\u000312([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
-				.replaceAll("\u000313([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
-				.replaceAll("\u000314([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
-				.replaceAll("\u000315([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
-				.replaceAll("\u00030?1([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
-				.replaceAll("\u00030?2([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
-				.replaceAll("\u00030?3([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
-				.replaceAll("\u00030?4([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
-				.replaceAll("\u00030?5([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
-				.replaceAll("\u00030?6([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
-				.replaceAll("\u00030?7([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
-				.replaceAll("\u00030?8([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
-				.replaceAll("\u00030?9([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
-				.replaceAll("\u000300?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>");
-	}
+    private String stripColors(String message) {
+        return message.replaceAll("\u0003([0-9]{1,2})?|\u0015", "");
+    }
 
-	@Override
-	public void privmsg(Map<String, String> tags, String message)
-	{
-		String displayName = tags.get("display-name");
+    private String formatMessage(String message) {
+        return escapeHtml4(message)
+                .replaceAll("[\u000F\u0003]([^0-9]|$)", "</font>$1")
+                .replaceAll("\u000310([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
+                .replaceAll("\u000311([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
+                .replaceAll("\u000312([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
+                .replaceAll("\u000313([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
+                .replaceAll("\u000314([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
+                .replaceAll("\u000315([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
+                .replaceAll("\u00030?1([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
+                .replaceAll("\u00030?2([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
+                .replaceAll("\u00030?3([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
+                .replaceAll("\u00030?4([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
+                .replaceAll("\u00030?5([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
+                .replaceAll("\u00030?6([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
+                .replaceAll("\u00030?7([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
+                .replaceAll("\u00030?8([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
+                .replaceAll("\u00030?9([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
+                .replaceAll("\u000300?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>");
+    }
 
-		if (message.startsWith("\u0001"))
-		{
-			message = message.replaceAll("\u0001(ACTION)?", "");
-			addChatMessage("* " + displayName, message);
-		}
-		else
-		{
-			addChatMessage(displayName, message);
-		}
-	}
+    @Override
+    public void privmsg(Map<String, String> tags, String message) {
+        String displayName = tags.get("display-name");
 
-	@Override
-	public void notice(Map<String, String> tags, String message)
-	{
-		String displayName = "(notice) " + tags.get("display-name");
-		addChatMessage(displayName, message);
-	}
+        if (message.startsWith("\u0001")) {
+            message = message.replaceAll("\u0001(ACTION)?", "");
+            addChatMessage("* " + displayName, message);
+        } else {
+            addChatMessage(displayName, message);
+        }
+    }
 
-	@Override
-	public void roomstate(Map<String, String> tags)
-	{
-		log.debug("Room state: {}", tags);
-	}
+    @Override
+    public void notice(Map<String, String> tags, String message) {
+        String displayName = "(notice) " + tags.get("display-name");
+        addChatMessage(displayName, message);
+    }
 
-	@Override
-	public void usernotice(Map<String, String> tags, String message)
-	{
-		if (client.getGameState() != GameState.LOGGED_IN)
-		{
-			return;
-		}
+    @Override
+    public void roomstate(Map<String, String> tags) {
+        log.debug("Room state: {}", tags);
+    }
 
-		String sysmsg = tags.get("system-msg");
-		addChatMessage("[System]", sysmsg);
-	}
+    @Override
+    public void usernotice(Map<String, String> tags, String message) {
+        if (client.getGameState() != GameState.LOGGED_IN) {
+            return;
+        }
 
-	@Override
-	public void nick(Map<String, String> tags, String nick)
-	{
-		addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
-	}
+        String sysmsg = tags.get("system-msg");
+        addChatMessage("[System]", sysmsg);
+    }
 
-	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent)
-	{
-		if (!"chatDefaultReturn".equals(scriptCallbackEvent.getEventName()))
-		{
-			return;
-		}
+    @Override
+    public void nick(Map<String, String> tags, String nick) {
+        addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
+    }
 
-		final int[] intStack = client.getIntStack();
-		int intStackCount = client.getIntStackSize();
+    @Subscribe
+    public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent) {
+        if (!"chatDefaultReturn".equals(scriptCallbackEvent.getEventName())) {
+            return;
+        }
 
-		String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
+        final int[] intStack = client.getIntStack();
+        int intStackCount = client.getIntStackSize();
 
-		String prefix = ircConfig.prefix();
+        String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
 
-		if (message.startsWith(prefix + prefix))
-		{
-			message = message.substring(2);
-			if (message.isEmpty() || IRCClient == null)
-			{
-				return;
-			}
+        String prefix = ircConfig.prefix();
 
-			intStack[intStackCount - 3] = 1;
+        if (message.startsWith(prefix + prefix)) {
+            message = message.substring(2);
+            if (message.isEmpty() || IRCClient == null) {
+                return;
+            }
 
-			try
-			{
-				if (message.length() > 3) {
-					String trimmed = message.substring(3);
+            intStack[intStackCount - 3] = 1;
 
-					if (message.startsWith(("ns "))) {
-						IRCClient.nickserv(trimmed);
-					} else if (message.startsWith("cs ")) {
-						IRCClient.chanserv(trimmed);
-					} else if (message.startsWith("bs ")) {
-						IRCClient.botserv(trimmed);
-					} else if (message.startsWith("hs ")) {
-						IRCClient.hostserv(trimmed);
-					} else if (message.startsWith("notice ")) {
-						String[] split = message.split(" ", 3);
+            try {
+                if (message.length() > 3) {
+                    String trimmed = message.substring(3);
 
-						if (split.length > 2) {
-							IRCClient.notice(message);
-							addChatMessage("(notice) -> " + split[1], split[2]);
-						}
-					} else if (message.startsWith("msg ")) {
-						String msg = trimmed.substring(1);
+                    if (message.startsWith(("ns "))) {
+                        IRCClient.nickserv(trimmed);
+                    } else if (message.startsWith("cs ")) {
+                        IRCClient.chanserv(trimmed);
+                    } else if (message.startsWith("bs ")) {
+                        IRCClient.botserv(trimmed);
+                    } else if (message.startsWith("hs ")) {
+                        IRCClient.hostserv(trimmed);
+                    } else if (message.startsWith("notice ")) {
+                        String[] split = message.split(" ", 3);
 
-						String[] split = msg.split(" ", 2);
-						if (split.length > 1) {
-							IRCClient.privateMsg(trimmed.substring(1));
-							addChatMessage("(pm) -> " + split[0], split[1]);
-						}
-					} else if (message.startsWith("me ")) {
-						IRCClient.actionMsg(trimmed);
-						addChatMessage("* " + ircConfig.username(), trimmed);
-					} else if (message.startsWith("mode ")) {
-						IRCClient.mode(trimmed.substring(2));
-					} else if (message.startsWith("umode ")) {
-						IRCClient.umode(trimmed.substring(3));
-					} else if (message.startsWith("topic")) {
-						String channel = trimmed.substring(2);
+                        if (split.length > 2) {
+                            IRCClient.notice(message);
+                            addChatMessage("(notice) -> " + split[1], split[2]);
+                        }
+                    } else if (message.startsWith("msg ")) {
+                        String msg = trimmed.substring(1);
 
-						if ((channel.length() == 0) || (channel == " ")) {
-							channel = ircConfig.channel();
-						}
+                        String[] split = msg.split(" ", 2);
+                        if (split.length > 1) {
+                            IRCClient.privateMsg(trimmed.substring(1));
+                            addChatMessage("(pm) -> " + split[0], split[1]);
+                        }
+                    } else if (message.startsWith("me ")) {
+                        IRCClient.actionMsg(trimmed);
+                        addChatMessage("* " + ircConfig.username(), trimmed);
+                    } else if (message.startsWith("mode ")) {
+                        IRCClient.mode(trimmed.substring(2));
+                    } else if (message.startsWith("umode ")) {
+                        IRCClient.umode(trimmed.substring(3));
+                    } else if (message.startsWith("topic")) {
+                        String channel = trimmed.substring(2);
 
-						IRCClient.topic(channel);
-					} else if (message.startsWith("nick ")) {
-						IRCClient.nick(trimmed.substring(2));
-					} else if (message.startsWith("clear")) {
-						IrcPanel.clearLogs();
-					}
-				}
-			}
-			catch (IOException e)
-			{
-				log.warn("failed to send message", e);
-			}
+                        if ((channel.length() == 0) || (channel == " ")) {
+                            channel = ircConfig.channel();
+                        }
 
-			return;
-		}
-		else if (message.startsWith(ircConfig.prefix()))
-		{
-			message = message.substring(1);
-			if (message.isEmpty() || IRCClient == null)
-			{
-				return;
-			}
+                        IRCClient.topic(channel);
+                    } else if (message.startsWith("nick ")) {
+                        IRCClient.nick(trimmed.substring(2));
+                    } else if (message.startsWith("clear")) {
+                        IrcPanel.clearLogs();
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("failed to send message", e);
+            }
 
-			intStack[intStackCount - 3] = 1;
+            return;
+        } else if (message.startsWith(ircConfig.prefix() + "")) {
+            message = message.substring(1);
+            if (message.isEmpty() || IRCClient == null) {
+                return;
+            }
 
-			try
-			{
-				IRCClient.privmsg(message);
-				addChatMessage(IRCClient.getUsername(), message);
-			}
-			catch (IOException e)
-			{
-				log.warn("failed to send message", e);
-			}
-		}
-	}
+            intStack[intStackCount - 3] = 1;
 
-	private void startIrcPanel()
-	{
-		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
-		panel = injector.getInstance(IrcPanel.class);
-		panel.init();
-		uiButton = NavigationButton.builder()
-				.tooltip("SwiftIRC")
-				.icon(icon)
-				.priority(10)
-				.panel(panel)
-				.build();
+            try {
+                IRCClient.privmsg(message);
+                addChatMessage(IRCClient.getUsername(), message);
+            } catch (IOException e) {
+                log.warn("failed to send message", e);
+            }
+        }
+    }
 
-		clientToolbar.addNavigation(uiButton);
-	}
+    private void startIrcPanel() {
+        final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+        panel = injector.getInstance(IrcPanel.class);
+        panel.init();
+        uiButton = NavigationButton.builder()
+                .tooltip("SwiftIRC")
+                .icon(icon)
+                .priority(10)
+                .panel(panel)
+                .build();
 
-	private void stopIrcPanel()
-	{
-		panel.removeAll();
+        clientToolbar.addNavigation(uiButton);
+    }
 
-		clientToolbar.removeNavigation(uiButton);
-	}
+    private void stopIrcPanel() {
+        panel.removeAll();
+
+        clientToolbar.removeNavigation(uiButton);
+    }
 }

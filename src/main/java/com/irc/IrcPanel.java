@@ -45,7 +45,7 @@ public class IrcPanel extends PluginPanel
 
     void init()
     {
-        this.clearMessages();
+        clearMessages();
 
         this.add(panel, BorderLayout.NORTH);
     }
