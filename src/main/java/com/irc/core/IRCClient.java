@@ -138,8 +138,7 @@ public class IRCClient extends Thread implements AutoCloseable
 
 				Message message = Message.parse(line);
 
-				String[] args = message.getArguments();
-				String arg_string = String.join(" ", args);
+				String[] args = line.split(" ");
 
 				switch (message.getCommand())
 				{
@@ -151,8 +150,10 @@ public class IRCClient extends Thread implements AutoCloseable
 							message.getArguments()[1]);
 						break;
 					case "NOTICE":
+						if (!message.getSource().endsWith("SwiftIRC.net")) {
 						ircListener.notice(message.getTags(),
 								message.getArguments()[1]);
+						}
 						break;
 					case "ROOMSTATE":
 						ircListener.roomstate(message.getTags());
@@ -165,6 +166,18 @@ public class IRCClient extends Thread implements AutoCloseable
 						String nick = message.getArguments()[0];
 
 						ircListener.nick(message.getTags(), nick);
+						break;
+					case "KICK":
+						String target = message.getArguments()[0];
+						String kicked = message.getArguments()[1];
+						String reason = message.getArguments()[2];
+						String kicker = message.getSource().split("!")[0];
+
+						ircListener.kick(target, kicker, kicked, reason);
+
+						if (kicked.equals(username)) {
+							join(target);
+						}
 						break;
 					// Whois
 					case "307":
@@ -197,6 +210,18 @@ public class IRCClient extends Thread implements AutoCloseable
 					// Results of /names
 					case "353":
 						ircListener.names(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
+						break;
+//					case "002": // *** These
+//					case "003": // *** lines
+//					case "004": // *** are
+//					case "005": // *** for
+					case "396": // *** server
+					case "372": // *** connection
+					case "375": // *** messages
+					case "331": // No topic is set.
+					case "482": // You're not the channel operator.
+					case "477": // You need a registered nick to join that channel.
+						ircListener.raw(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
 						break;
 				}
 			}
@@ -350,6 +375,11 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("NAMES", channel);
 	}
 
+	public void kick(String nick, String reason) throws IOException
+	{
+		send("KICK", channel, nick, reason);
+	}
+
 	private void send(String command, String... args) throws IOException
 	{
 		StringBuilder stringBuilder = new StringBuilder();
@@ -364,11 +394,11 @@ public class IRCClient extends Thread implements AutoCloseable
 			stringBuilder.append(args[i]);
 		}
 
-		log.debug("-> {}", stringBuilder.toString());
+		String output = stringBuilder.toString();
 
-		stringBuilder.append("\r\n");
+		log.debug("-> {}", output);
 
-		out.write(stringBuilder.toString());
+		out.write(output + "\r\n");
 		out.flush();
 	}
 

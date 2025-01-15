@@ -41,4 +41,8 @@ public interface IrcListener
 	void whois(String tags);
 
 	void names(String tags);
+
+	void raw(String message);
+
+	void kick(String target, String kicker, String kicked, String reason);
 }

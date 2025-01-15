@@ -260,6 +260,15 @@ public class IrcPlugin extends Plugin implements IrcListener {
         addChatMessage("* Names", message);
     }
 
+    public void raw(String message) {
+        addChatMessage("*", message);
+    }
+
+    @Override
+    public void kick(String target, String kicker, String kicked, String reason) {
+        addChatMessage("* KICK", kicker + " KICKED " + kicked + ": " + reason);
+    }
+
     @Subscribe
     public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent) {
         if (!"chatDefaultReturn".equals(scriptCallbackEvent.getEventName())) {
@@ -327,6 +336,24 @@ public class IrcPlugin extends Plugin implements IrcListener {
                         IRCClient.topic(channel);
                     } else if (message.startsWith("nick ")) {
                         IRCClient.nick(trimmed.substring(2));
+                    } else if (message.startsWith("kick ")) {
+                        String[] split = message.split(" ", 3);
+                        String target;
+                        String reason;
+
+                        if (split.length > 1) {
+                            target = split[1];
+                        } else {
+                            return;
+                        }
+
+                        if (split.length > 2) {
+                            reason = split[2];
+                        } else {
+                            reason = "";
+                        }
+
+                        IRCClient.kick(target, reason);
                     } else if (message.startsWith("clear")) {
                         IrcPanel.clearLogs();
                     } else if (message.startsWith("whois ")) {
