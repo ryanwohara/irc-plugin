@@ -250,6 +250,16 @@ public class IrcPlugin extends Plugin implements IrcListener {
         addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
     }
 
+    @Override
+    public void whois(String message) {
+        addChatMessage("*", message);
+    }
+
+    @Override
+    public void names(String message) {
+        addChatMessage("* Names", message);
+    }
+
     @Subscribe
     public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent) {
         if (!"chatDefaultReturn".equals(scriptCallbackEvent.getEventName())) {
@@ -283,6 +293,8 @@ public class IrcPlugin extends Plugin implements IrcListener {
                         IRCClient.botserv(trimmed);
                     } else if (message.startsWith("hs ")) {
                         IRCClient.hostserv(trimmed);
+                    } else if (message.startsWith("ms ")) {
+                        IRCClient.memoserv(trimmed);
                     } else if (message.startsWith("notice ")) {
                         String[] split = message.split(" ", 3);
 
@@ -308,7 +320,7 @@ public class IrcPlugin extends Plugin implements IrcListener {
                     } else if (message.startsWith("topic")) {
                         String channel = trimmed.substring(2);
 
-                        if ((channel.length() == 0) || (channel == " ")) {
+                        if ((channel.isEmpty()) || (channel.equals(" "))) {
                             channel = ircConfig.channel();
                         }
 
@@ -317,6 +329,12 @@ public class IrcPlugin extends Plugin implements IrcListener {
                         IRCClient.nick(trimmed.substring(2));
                     } else if (message.startsWith("clear")) {
                         IrcPanel.clearLogs();
+                    } else if (message.startsWith("whois ")) {
+                        String[] split = message.split(" ", 2);
+
+                        IRCClient.whois(split[1]);
+                    } else if (message.startsWith("names")) {
+                        IRCClient.names();
                     }
                 }
             } catch (IOException e) {
@@ -356,8 +374,10 @@ public class IrcPlugin extends Plugin implements IrcListener {
     }
 
     private void stopIrcPanel() {
-        panel.removeAll();
+        if (panel.isValid()) {
+            panel.removeAll();
 
-        clientToolbar.removeNavigation(uiButton);
+            clientToolbar.removeNavigation(uiButton);
+        }
     }
 }

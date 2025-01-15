@@ -32,6 +32,8 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
 import com.google.common.base.Strings;
 
 @Slf4j
@@ -136,6 +138,9 @@ public class IRCClient extends Thread implements AutoCloseable
 
 				Message message = Message.parse(line);
 
+				String[] args = message.getArguments();
+				String arg_string = String.join(" ", args);
+
 				switch (message.getCommand())
 				{
 					case "PING":
@@ -160,6 +165,39 @@ public class IRCClient extends Thread implements AutoCloseable
 						String nick = message.getArguments()[0];
 
 						ircListener.nick(message.getTags(), nick);
+						break;
+					// Whois
+					case "307":
+					case "308":
+					case "309":
+					case "310":
+					case "311":
+					case "312":
+					case "313":
+					case "314":
+					case "315":
+					case "316":
+//					case "317": 182 1734738173 :seconds idle, signon time
+//					case "318": :End of /WHOIS list.
+					case "319":
+					case "320":
+					case "321":
+					case "322":
+					case "323":
+					case "324":
+					case "325":
+					case "326":
+					case "327":
+					case "328":
+					case "329":
+//					case "330": <nick> :is logged in as
+					case "671":
+						ircListener.whois(String.join(" ", Arrays.copyOfRange(args, 2, args.length)));
+						break;
+					// Results of /names
+					case "353":
+						ircListener.names(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
+						break;
 				}
 			}
 		}
@@ -276,6 +314,11 @@ public class IRCClient extends Thread implements AutoCloseable
 		send("PRIVMSG", "HostServ", message);
 	}
 
+	public void memoserv(String message) throws IOException
+	{
+		send("PRIVMSG", "MemoServ", message);
+	}
+
 	public void nick(String nick) throws IOException
 	{
 		send("NICK", nick);
@@ -295,6 +338,16 @@ public class IRCClient extends Thread implements AutoCloseable
 	public void mode(String modes) throws IOException
 	{
 		send("mode", modes);
+	}
+
+	public void whois(String name) throws IOException
+	{
+		send("whois", name);
+	}
+
+	public void names() throws IOException
+	{
+		send("NAMES", channel);
 	}
 
 	private void send(String command, String... args) throws IOException

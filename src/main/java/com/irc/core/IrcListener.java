@@ -37,4 +37,8 @@ public interface IrcListener
 	void usernotice(Map<String, String> tags, String message);
 
 	void nick(Map<String, String> tags, String nick);
+
+	void whois(String tags);
+
+	void names(String tags);
 }
