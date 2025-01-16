@@ -221,7 +221,10 @@ public class IRCClient extends Thread implements AutoCloseable
 					case "331": // No topic is set.
 					case "482": // You're not the channel operator.
 					case "477": // You need a registered nick to join that channel.
-						ircListener.raw(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
+						ircListener.raw(String.join(" ", Arrays.copyOfRange(args, 4, args.length)));
+						break;
+					case "433": // Nick in use
+						ircListener.raw("Nick (" + username + ") already in use. Please choose a new one.");
 						break;
 				}
 			}
