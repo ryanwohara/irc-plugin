@@ -194,22 +194,22 @@ public class IrcPlugin extends Plugin implements IrcListener {
     private String formatMessage(String message) {
         return escapeHtml4(message)
                 .replaceAll("[\u000F\u0003]([^0-9]|$)", "</font>$1")
-                .replaceAll("\u000310([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
-                .replaceAll("\u000311([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
-                .replaceAll("\u000312([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
-                .replaceAll("\u000313([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
-                .replaceAll("\u000314([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
-                .replaceAll("\u000315([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
-                .replaceAll("\u00030?1([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
-                .replaceAll("\u00030?2([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
-                .replaceAll("\u00030?3([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
-                .replaceAll("\u00030?4([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
-                .replaceAll("\u00030?5([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
-                .replaceAll("\u00030?6([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
-                .replaceAll("\u00030?7([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
-                .replaceAll("\u00030?8([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
-                .replaceAll("\u00030?9([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
-                .replaceAll("\u000300?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>");
+                .replaceAll("\u000310(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
+                .replaceAll("\u000311(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
+                .replaceAll("\u000312(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
+                .replaceAll("\u000313(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
+                .replaceAll("\u000314(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
+                .replaceAll("\u000315(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
+                .replaceAll("\u00030?1(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
+                .replaceAll("\u00030?2(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
+                .replaceAll("\u00030?3(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
+                .replaceAll("\u00030?4(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
+                .replaceAll("\u00030?5(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
+                .replaceAll("\u00030?6(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
+                .replaceAll("\u00030?7(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
+                .replaceAll("\u00030?8(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
+                .replaceAll("\u00030?9(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
+                .replaceAll("\u000300?(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>");
     }
 
     @Override

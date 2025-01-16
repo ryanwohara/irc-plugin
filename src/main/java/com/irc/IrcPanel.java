@@ -26,50 +26,90 @@ package com.irc;
 
 import net.runelite.client.ui.PluginPanel;
 import java.awt.*;
-import java.awt.event.*;
-import java.util.List;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.net.URI;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.*;
-import javax.swing.ImageIcon;
-import javax.swing.JComboBox;
-import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.util.ImageUtil;
-import lombok.SneakyThrows;
+
 import lombok.extern.slf4j.Slf4j;
+
 
 @Slf4j
 public class IrcPanel extends PluginPanel
 {
     private static final JPanel panel = new JPanel();
-    private static final JLabel label = new JLabel();
+    private static final JLabel container = new JLabel();
+    private static final JScrollPane scroller = new JScrollPane(panel, JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+    private static final Integer width = 2100;
+    private static final Integer height = 5000;
 
     void init()
     {
         clearMessages();
+        container.setSize(width, height);
+        container.setHorizontalTextPosition(SwingConstants.LEFT);
+        container.setHorizontalAlignment(SwingConstants.LEFT);
+        container.setVerticalTextPosition(SwingConstants.TOP);
+        container.setVerticalAlignment(SwingConstants.TOP);
+        container.setMaximumSize(new Dimension(width, height));
+        container.setPreferredSize(new Dimension(width, height));
 
-        this.add(panel, BorderLayout.NORTH);
+        scroller.setPreferredSize(new Dimension(width, height));
+        scroller.setMaximumSize(new Dimension(width, height));
+
+        this.add(scroller, BorderLayout.NORTH);
     }
 
     private static void addMessage(String message)
     {
-        panel.removeAll();
+        System.out.println(message);
 
-        String existingMessages = label.getText().replace("</body></html>", "");
+        Pattern r = Pattern.compile("(http[^ ]+)");
+        Matcher m = r.matcher(message);
 
-        message = message.replaceAll("(http[^ ]+)", "<a href=\"$1\" alt=\"$1\">link</a>");
+        final String url;
 
-        label.setText(existingMessages + "<div style=\"width:180px;word-wrap:break-word;overflow:hidden;\">" + message + "</div></body></html>");
+        if (m.find()) {
+            url = m.group(0);
 
-        panel.add(label);
+            message = message.replaceAll(url, "<a href=\"" + url + "\" alt=\"" + url + "\">link</a>");
+        } else {
+            url = "";
+        }
+
+        int line_height = 20;
+
+        JLabel label = new JLabel("<html>" + message + "</html>");
+        label.setSize(width, line_height);
+        label.setHorizontalAlignment(SwingConstants.LEFT);
+        label.setVerticalAlignment(SwingConstants.TOP);
+        label.setLocation(0, container.getComponentCount() * line_height);
+
+        if (!url.isEmpty()) {
+            label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Change cursor to hand
+            label.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    try {
+                        Desktop.getDesktop().browse(new URI(url));
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            });
+        }
+
+        container.add(label);
+        container.repaint();
     }
 
     private static void clearMessages()
     {
         panel.removeAll();
 
-        label.setText("<html><body style=\"width:180px;overflow:hidden;\"></body></html>");
-
-        panel.add(label);
+        panel.add(container);
     }
 
     public static void message(String message)
@@ -78,4 +118,5 @@ public class IrcPanel extends PluginPanel
     }
 
     public static void clearLogs() { clearMessages(); }
+
 }

@@ -128,10 +128,6 @@ public class IRCClient extends Thread implements AutoCloseable
 
 					join(channel);
 				}
-				else if (line.split(" ")[1].equals("433"))
-				{
-					ircListener.notice(Message.parse(line).getTags(), "Nick already in use. Please choose a new one.");
-				}
 
 				last = System.currentTimeMillis();
 				pingSent = false;
