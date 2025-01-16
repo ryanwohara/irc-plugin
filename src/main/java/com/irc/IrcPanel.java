@@ -64,8 +64,6 @@ public class IrcPanel extends PluginPanel
 
     private static void addMessage(String message)
     {
-        System.out.println(message);
-
         Pattern r = Pattern.compile("(http[^ ]+)");
         Matcher m = r.matcher(message);
 

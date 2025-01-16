@@ -55,8 +55,7 @@ import java.awt.image.BufferedImage;
 
 @PluginDescriptor(
         name = "IRC",
-        description = "Integrates IRC with the OSRS chatbox",
-        enabledByDefault = false
+        description = "Integrates IRC with the OSRS chatbox"
 )
 @Slf4j
 public class IrcPlugin extends Plugin implements IrcListener {

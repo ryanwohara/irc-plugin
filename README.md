@@ -34,7 +34,7 @@ Example: `;;notice foobar Hey there!`
 
 ### Network Services
 
-The following services run on SwiftIRC: NickServ, ChanServ, BotServ, and HostServ.
+The following services run on SwiftIRC: NickServ, ChanServ, BotServ, HostServ, and MemoServ.
 
 You may communicate via the following commands with the respective service:
 
@@ -43,6 +43,7 @@ NickServ: ;;ns
 ChanServ: ;;cs
 BotServ: ;;bs
 HostServ: ;;hs
+MemoServ: ;;ms
 ```
 
 ### Miscellaneous Commands
@@ -51,7 +52,7 @@ Change user modes: `;;umode +R` (as an example)
 
 Change channel modes: `;;mode #rshelp -s`
 
-Change the topic: `;;topic #rshelp Hi this was a bad idea`
+View the topic: `;;topic`
 
 Clear the side panel: `;;clear`
 
@@ -72,7 +73,3 @@ The password to identify with NickServ.
 ### prefix
 
 Defaults to `;`. Prefixed to messages destined for IRC.
-
-## Known Issues
-
-* Various output is hidden, such as channel and user modes, topics, and other raw server output.
