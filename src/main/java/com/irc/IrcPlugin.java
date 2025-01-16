@@ -260,6 +260,11 @@ public class IrcPlugin extends Plugin implements IrcListener {
         addChatMessage("* Names", message);
     }
 
+    @Override
+    public void topic(String target, String topic) {
+        addChatMessage("* Topic", "[" + target + "] " + topic);
+    }
+
     public void raw(String message) {
         addChatMessage("*", message);
     }

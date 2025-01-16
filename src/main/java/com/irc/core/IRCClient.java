@@ -135,6 +135,7 @@ public class IRCClient extends Thread implements AutoCloseable
 				Message message = Message.parse(line);
 
 				String[] args = line.split(" ");
+				String[] split = line.split(" :", 2);
 
 				switch (message.getCommand())
 				{
@@ -175,6 +176,9 @@ public class IRCClient extends Thread implements AutoCloseable
 							join(target);
 						}
 						break;
+					case "TOPIC":
+						ircListener.topic(args[2], message.getArguments()[1]);
+						break;
 					// Whois
 					case "307":
 					case "308":
@@ -205,7 +209,7 @@ public class IRCClient extends Thread implements AutoCloseable
 						break;
 					// Results of /names
 					case "353":
-						ircListener.names(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
+						ircListener.names(split[1]);
 						break;
 //					case "002": // *** These
 //					case "003": // *** lines
@@ -217,7 +221,10 @@ public class IRCClient extends Thread implements AutoCloseable
 					case "331": // No topic is set.
 					case "482": // You're not the channel operator.
 					case "477": // You need a registered nick to join that channel.
-						ircListener.raw(String.join(" ", Arrays.copyOfRange(args, 4, args.length)));
+						ircListener.raw(split[1]);
+						break;
+					case "332": // Topic contents
+						ircListener.topic(args[3], split[1]);
 						break;
 					case "433": // Nick in use
 						ircListener.raw("Nick (" + username + ") already in use. Please choose a new one.");
