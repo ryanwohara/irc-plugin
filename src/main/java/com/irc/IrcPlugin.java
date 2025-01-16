@@ -45,7 +45,6 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.irc.core.IRCClient;
 import com.irc.core.IrcListener;
-import com.irc.IrcPanel;
 import net.runelite.client.task.Schedule;
 
 import javax.inject.Inject;
@@ -53,7 +52,6 @@ import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 
 @PluginDescriptor(
         name = "IRC",
@@ -271,7 +269,22 @@ public class IrcPlugin extends Plugin implements IrcListener {
 
     @Override
     public void kick(String target, String kicker, String kicked, String reason) {
-        addChatMessage("* KICK", kicker + " KICKED " + kicked + ": " + reason);
+        addChatMessage("! Kick", kicker + " kicked " + kicked + " (" + reason + ")");
+    }
+
+    @Override
+    public void join(String user, String chan) {
+        addChatMessage("-> Join", user + " joined " + chan);
+    }
+
+    @Override
+    public void part(String user, String chan, String message) {
+        addChatMessage("<- Part", user + " left " + chan + " (" + message + ")");
+    }
+
+    @Override
+    public void quit(String user, String message) {
+        addChatMessage("<- Quit", user + " quit (" + message + ")");
     }
 
     @Subscribe

@@ -180,6 +180,15 @@ public class IRCClient extends Thread implements AutoCloseable
 					case "TOPIC":
 						ircListener.topic(args[2], message.getArguments()[1]);
 						break;
+					case "JOIN":
+						ircListener.join(message.getSource().split("!")[0], message.getArguments()[0]);
+						break;
+					case "PART":
+						ircListener.part(message.getSource().split("!")[0], message.getArguments()[0], message.getArguments()[1]);
+						break;
+					case "QUIT":
+						ircListener.quit(message.getSource().split("!")[0], message.getArguments()[1]);
+						break;
 					// Whois
 					case "307":
 					case "308":

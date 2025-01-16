@@ -47,4 +47,10 @@ public interface IrcListener
 	void kick(String target, String kicker, String kicked, String reason);
 
 	void topic(String target, String topic);
+
+	void join(String user, String chan);
+
+	void part(String user, String chan, String message);
+
+	void quit(String user, String message);
 }
