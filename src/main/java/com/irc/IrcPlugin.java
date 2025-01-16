@@ -246,8 +246,8 @@ public class IrcPlugin extends Plugin implements IrcListener {
     }
 
     @Override
-    public void nick(Map<String, String> tags, String nick) {
-        addChatMessage("* Nick change", tags.get("display-name") + " is now known as " + nick);
+    public void nick(String previous_nick, String nick) {
+        addChatMessage("* Nick change", previous_nick + " is now known as " + nick);
     }
 
     @Override

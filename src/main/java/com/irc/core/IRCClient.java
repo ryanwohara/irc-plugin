@@ -161,8 +161,9 @@ public class IRCClient extends Thread implements AutoCloseable
 						break;
 					case "NICK":
 						String nick = message.getArguments()[0];
+						String previous_nick = args[0].substring(1);
 
-						ircListener.nick(message.getTags(), nick);
+						ircListener.nick(previous_nick, nick);
 						break;
 					case "KICK":
 						String target = message.getArguments()[0];
