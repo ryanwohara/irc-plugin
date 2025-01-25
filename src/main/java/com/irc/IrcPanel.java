@@ -34,7 +34,6 @@ import java.util.regex.Pattern;
 import javax.swing.*;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.text.StringEscapeUtils;
 
 
 @Slf4j
@@ -80,7 +79,7 @@ public class IrcPanel extends PluginPanel
 
         int line_height = 20;
 
-        JLabel label = new JLabel("<html>" + StringEscapeUtils.escapeHtml4(message) + "</html>");
+        JLabel label = new JLabel("<html>" + message + "</html>");
         label.setSize(width, line_height);
         label.setHorizontalAlignment(SwingConstants.LEFT);
         label.setVerticalAlignment(SwingConstants.TOP);
