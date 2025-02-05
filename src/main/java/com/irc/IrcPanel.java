@@ -1,97 +1,160 @@
-/*
- * Copyright (c) 2020, Ryan W. O'Hara <ryan@ryanwohara.com>, Adam <Adam@sigterm.info>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 package com.irc;
 
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
-import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.net.URI;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 import javax.swing.*;
+import javax.swing.event.HyperlinkEvent;
+import net.runelite.client.util.ImageUtil;
 
-import lombok.extern.slf4j.Slf4j;
+import java.awt.*;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import net.runelite.client.util.ColorUtil;
 
+public class IrcPanel extends PluginPanel {
 
-@Slf4j
-public class IrcPanel extends PluginPanel
-{
-    private static final JPanel panel = new JPanel();
-    private static final JLabel container = new JLabel();
-    private static final JScrollPane scroller = new JScrollPane(panel, JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-    private static final Integer width = 2100;
-    private static final Integer height = 5000;
+    private JTabbedPane tabbedPane;
+    private JTextField inputField;
+    private Map<String, ChannelPane> channelPanes;
+    private NavigationButton navigationButton;
 
-    void init()
-    {
-        clearMessages();
-        container.setSize(width, height);
-        container.setHorizontalTextPosition(SwingConstants.LEFT);
-        container.setHorizontalAlignment(SwingConstants.LEFT);
-        container.setVerticalTextPosition(SwingConstants.TOP);
-        container.setVerticalAlignment(SwingConstants.TOP);
-        container.setMaximumSize(new Dimension(width, height));
-        container.setPreferredSize(new Dimension(width, height));
+    private BiConsumer<String, String> onMessageSend;
+    private Consumer<String> onChannelJoin;
+    private Consumer<String> onChannelLeave;
 
-        scroller.setPreferredSize(new Dimension(width, height));
-        scroller.setMaximumSize(new Dimension(width, height));
+    public void initializeGui() {
+        setLayout(new BorderLayout());
 
-        this.add(scroller, BorderLayout.NORTH);
+        tabbedPane = new JTabbedPane();
+        tabbedPane.setPreferredSize(new Dimension(300, 425));
+        inputField = new JTextField();
+        channelPanes = new LinkedHashMap<>();
+
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+
+        JButton addButton = new JButton("+");
+        JButton removeButton = new JButton("-");
+        addButton.setPreferredSize(new Dimension(45, 25));
+        removeButton.setPreferredSize(new Dimension(45, 25));
+
+        addButton.addActionListener(e -> promptAddChannel());
+        removeButton.addActionListener(e -> promptRemoveChannel());
+
+        controlPanel.add(addButton);
+        controlPanel.add(removeButton);
+
+        inputField.addActionListener(e -> {
+            String message = inputField.getText().trim();
+            if (!message.isEmpty() && onMessageSend != null) {
+                onMessageSend.accept(getCurrentChannel(), message);
+                inputField.setText("");
+            }
+        });
+
+        add(controlPanel, BorderLayout.NORTH);
+        add(tabbedPane, BorderLayout.CENTER);
+        add(inputField, BorderLayout.SOUTH);
+
+        navigationButton = NavigationButton.builder()
+                .tooltip("IRC")
+                .icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
+                .priority(10)
+                .panel(this)
+                .build();
+
+        SwingUtilities.invokeLater(() -> addChannel("System"));
     }
 
-    private static void addMessage(String message)
-    {
-        Pattern r = Pattern.compile("(http[^ ]+)");
-        Matcher m = r.matcher(message);
+    public void init(BiConsumer<String, String> messageSendCallback,
+                     Consumer<String> channelJoinCallback,
+                     Consumer<String> channelLeaveCallback) {
+        this.onMessageSend = messageSendCallback;
+        this.onChannelJoin = channelJoinCallback;
+        this.onChannelLeave = channelLeaveCallback;
+    }
 
-        final String url;
+    public NavigationButton getNavigationButton() {
+        return navigationButton;
+    }
 
-        if (m.find()) {
-            url = m.group(0);
+    public String getCurrentChannel() {
+        int index = tabbedPane.getSelectedIndex();
+        return index != -1 ? tabbedPane.getTitleAt(index) : "System";
+    }
 
-            message = message.replaceAll(url, "<a href=\"" + url + "\" alt=\"" + url + "\">link</a>");
-        } else {
-            url = "";
+    public void addChannel(String channel) {
+        if (!channelPanes.containsKey(channel)) {
+            ChannelPane pane = new ChannelPane();
+            channelPanes.put(channel, pane);
+            tabbedPane.addTab(channel, new JScrollPane(pane));
+            tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
         }
+    }
 
-        int line_height = 20;
+    public void removeChannel(String channel) {
+        if (channelPanes.containsKey(channel) && !channel.equals("System")) {
+            int index = tabbedPane.indexOfTab(channel);
+            if (index != -1) {
+                tabbedPane.removeTabAt(index);
+                channelPanes.remove(channel);
+            }
+        }
+    }
 
-        JLabel label = new JLabel("<html>" + message + "</html>");
-        label.setSize(width, line_height);
-        label.setHorizontalAlignment(SwingConstants.LEFT);
-        label.setVerticalAlignment(SwingConstants.TOP);
-        label.setLocation(0, container.getComponentCount() * line_height);
+    public void addMessage(IrcMessage message) {
+        ChannelPane pane = channelPanes.get(message.getChannel());
+        if (pane == null) {
+            addChannel(message.getChannel());
+            pane = channelPanes.get(message.getChannel());
+        }
+        pane.appendMessage(message);
+    }
 
-        if (!url.isEmpty()) {
-            label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Change cursor to hand
-            label.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
+    private void promptAddChannel() {
+        String channel = JOptionPane.showInputDialog(this, "Enter channel name:");
+        if (channel != null && !channel.trim().isEmpty()) {
+            if (!channel.startsWith("#")) {
+                channel = "#" + channel;
+            }
+            if (onChannelJoin != null) {
+                onChannelJoin.accept(channel);
+            }
+        }
+    }
+
+    private void promptRemoveChannel() {
+        String channel = getCurrentChannel();
+        if (!channel.equals("System")) {
+            int result = JOptionPane.showConfirmDialog(
+                    this,
+                    "Leave " + channel + "?",
+                    "Confirm",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if (result == JOptionPane.YES_OPTION && onChannelLeave != null) {
+                onChannelLeave.accept(channel);
+            }
+        }
+    }
+
+    private static class ChannelPane extends JTextPane {
+        private final StringBuilder messageLog;
+
+        ChannelPane() {
+            setContentType("text/html");
+            setEditable(false);
+            messageLog = new StringBuilder();
+
+            addHyperlinkListener(e -> {
+                if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
                     try {
-                        Desktop.getDesktop().browse(new URI(url));
+                        Desktop.getDesktop().browse(e.getURL().toURI());
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
@@ -99,22 +162,61 @@ public class IrcPanel extends PluginPanel
             });
         }
 
-        container.add(label);
-        container.repaint();
+        void appendMessage(IrcMessage message) {
+            String formattedMessage = formatMessage(message);
+            messageLog.append(formattedMessage);
+
+            SwingUtilities.invokeLater(() -> {
+                setText("<html><body style='"
+                        + "color: " + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";"
+                        + "'>" + messageLog + "</body></html>");
+                setCaretPosition(getDocument().getLength());
+            });
+        }
+
+        private String formatMessage(IrcMessage message) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+                    .withZone(ZoneId.systemDefault());
+            String timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
+
+            String color;
+            switch (message.getType()) {
+                case SYSTEM:
+                    color = ColorUtil.toHexColor(ColorScheme.MEDIUM_GRAY_COLOR);
+                    break;
+                case JOIN:
+                    color = ColorUtil.toHexColor(ColorScheme.PROGRESS_INPROGRESS_COLOR);
+                    break;
+                case PART:
+                case QUIT:
+                    color = ColorUtil.toHexColor(ColorScheme.PROGRESS_ERROR_COLOR);
+                    break;
+                default:
+                    color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
+            }
+
+            return String.format("<div style='color: %s'>%s%s: %s</div>",
+                    color,
+                    timeStamp,
+                    escapeHtml(message.getSender()),
+                    convertToHtml(message.getContent())
+            );
+        }
+
+        private String convertToHtml(String text) {
+            return escapeHtml(text)
+                    .replaceAll("\\b(https?://\\S+)\\b", "<a href='$1'>$1</a>")
+                    .replaceAll("\u0002([^\u0002]+)\u0002", "<b>$1</b>")
+                    .replaceAll("\u001F([^\u001F]+)\u001F", "<u>$1</u>")
+                    .replaceAll("\u001D([^\u001D]+)\u001D", "<i>$1</i>");
+        }
+
+        private String escapeHtml(String text) {
+            return text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&#39;");
+        }
     }
-
-    private static void clearMessages()
-    {
-        panel.removeAll();
-
-        panel.add(container);
-    }
-
-    public static void message(String message)
-    {
-        addMessage(message);
-    }
-
-    public static void clearLogs() { clearMessages(); }
-
 }

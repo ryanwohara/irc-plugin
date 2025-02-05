@@ -66,12 +66,4 @@ public interface IrcConfig extends Config
             position = 3
     )
     default String prefix() { return ";"; }
-
-    @ConfigItem(
-            keyName = "sidepanel",
-            name = "Side Panel",
-            description = "Enable the side panel.",
-            position = 4
-    )
-    default boolean sidepanel() { return false; }
 }
