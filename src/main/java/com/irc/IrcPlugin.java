@@ -50,6 +50,7 @@ public class IrcPlugin extends Plugin {
     private Client ircClient;
 
     private IrcPanel panel;
+    private String currentNick;
 
     @Override
     protected void startUp() {
@@ -80,10 +81,12 @@ public class IrcPlugin extends Plugin {
             return;
         }
 
+        currentNick = config.username();
+
         ircClient = Client.builder()
-                .nick(config.username())
+                .nick(currentNick)
                 .user("runelite")
-                .realName(config.username())
+                .realName(currentNick)
                 .server()
                 .host("irc.swiftirc.net")
                 .port(6697)
@@ -91,8 +94,10 @@ public class IrcPlugin extends Plugin {
                 .then()
                 .build();
 
-        if(!config.username().isEmpty() && !config.password().isEmpty()) {
-            ircClient.getAuthManager().addProtocol(new SaslPlain(ircClient, config.username(), config.password()));
+        if(currentNick != null && config.password() != null) {
+            if (!currentNick.isEmpty() && !config.password().isEmpty()) {
+                ircClient.getAuthManager().addProtocol(new SaslPlain(ircClient, currentNick, config.password()));
+            }
         }
 
         ircClient.getEventManager().registerEventListener(new IrcEventHandler());
@@ -147,11 +152,105 @@ public class IrcPlugin extends Plugin {
                     joinChannel(arg.startsWith("#") ? arg : "#" + arg);
                 }
                 break;
+
             case "/leave":
+            case "/part":
                 if (!arg.isEmpty()) {
                     leaveChannel(arg.startsWith("#") ? arg : "#" + arg);
                 }
                 break;
+
+            case "/msg":
+            case "/query":
+                String[] msgParts = arg.split(" ", 2);
+                if (msgParts.length == 2) {
+                    String target = msgParts[0];
+                    String message = msgParts[1];
+
+                    // Create PM channel if it doesn't exist
+                    String pmChannel = "PM: " + target;
+                    if (panel != null) {
+                        SwingUtilities.invokeLater(() -> panel.addChannel(pmChannel));
+                    }
+
+                    sendMessage(pmChannel, message);
+                }
+                break;
+
+            case "/me":
+                if (!arg.isEmpty()) {
+                    String ctcpAction = "\u0001ACTION " + arg + "\u0001";
+                    sendMessage(panel.getCurrentChannel(), ctcpAction);
+                }
+                break;
+
+            case "/notice":
+                String[] noticeParts = arg.split(" ", 2);
+                if (noticeParts.length == 2) {
+                    String target = noticeParts[0];
+                    String message = noticeParts[1];
+                    ircClient.sendNotice(target, message);
+
+                    processMessage(new IrcMessage(
+                            "System",
+                            currentNick,
+                            "Notice to " + target + ": " + message,
+                            IrcMessage.MessageType.SYSTEM,
+                            Instant.now()
+                    ));
+                }
+                break;
+
+            case "/whois":
+                if (!arg.isEmpty()) {
+                    ircClient.sendRawLine("WHOIS " + arg);
+                }
+                break;
+
+            case "/away":
+                if (arg.isEmpty()) {
+                    ircClient.sendRawLine("AWAY"); // Remove away status
+                } else {
+                    ircClient.sendRawLine("AWAY :" + arg);
+                }
+                break;
+
+            case "/help":
+                showCommandHelp();
+                break;
+
+            default:
+                processMessage(new IrcMessage(
+                        "System",
+                        "System",
+                        "Unknown command: " + cmd,
+                        IrcMessage.MessageType.SYSTEM,
+                        Instant.now()
+                ));
+                break;
+        }
+    }
+
+    private void showCommandHelp() {
+        String[] helpLines = {
+                "Available commands:",
+                "/join <channel> - Join a channel",
+                "/leave <channel> - Leave a channel",
+                "/msg <nick> <message> - Send private message",
+                "/me <action> - Send action message",
+                "/notice <nick> <message> - Send notice",
+                "/whois <nick> - Query user information",
+                "/away [message] - Set or remove away status"
+        };
+
+        for (String line : helpLines) {
+            processMessage(new IrcMessage(
+                    "System",
+                    "System",
+                    line,
+                    IrcMessage.MessageType.SYSTEM,
+                    Instant.now()
+            ));
         }
     }
 
@@ -188,7 +287,7 @@ public class IrcPlugin extends Plugin {
 
         processMessage(new IrcMessage(
                 channel,
-                config.username(),
+                currentNick,
                 message,
                 IrcMessage.MessageType.PRIVATE,
                 Instant.now()
@@ -286,10 +385,14 @@ public class IrcPlugin extends Plugin {
 
         @Handler
         public void onNickChange(UserNickChangeEvent event) {
+            if (event.getOldUser().getNick().equals(currentNick)) {
+                currentNick = event.getNewUser().getNick();
+            }
+
             processMessage(new IrcMessage(
                     "System",
                     "System",
-                    event.getOldUser() + " is now known as " + event.getNewUser(),
+                    event.getOldUser().getNick() + " is now known as " + event.getNewUser().getNick(),
                     IrcMessage.MessageType.NICK_CHANGE,
                     Instant.now()
             ));
@@ -350,6 +453,39 @@ public class IrcPlugin extends Plugin {
                         IrcMessage.MessageType.JOIN,
                         Instant.now()
                 ));
+            }
+        }
+
+        @Handler
+        public void onWhoisReply(ClientReceiveNumericEvent event) {
+            if (event.getNumeric() >= 311 && event.getNumeric() <= 319) {
+                List<String> parameters = event.getParameters();
+                String whoisInfo = String.join(" ", parameters.subList(1, parameters.size()));
+
+                processMessage(new IrcMessage(
+                        "System",
+                        "WHOIS",
+                        whoisInfo,
+                        IrcMessage.MessageType.SYSTEM,
+                        Instant.now()
+                ));
+            }
+        }
+
+        @Handler
+        public void onNickInUse(ClientReceiveNumericEvent event) {
+            if (event.getNumeric() == 433) {
+                String fallbackNick = currentNick + (int) (Math.random() * 100);
+                processMessage(new IrcMessage(
+                        "System",
+                        "System",
+                        "Nickname is already in use. Trying: " + fallbackNick,
+                        IrcMessage.MessageType.SYSTEM,
+                        Instant.now()
+                ));
+
+                ircClient.setNick(fallbackNick);
+                currentNick = fallbackNick;
             }
         }
     }

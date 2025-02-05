@@ -182,7 +182,7 @@ public class IrcPanel extends PluginPanel {
             String color;
             switch (message.getType()) {
                 case SYSTEM:
-                    color = ColorUtil.toHexColor(ColorScheme.MEDIUM_GRAY_COLOR);
+                    color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
                     break;
                 case JOIN:
                     color = ColorUtil.toHexColor(ColorScheme.PROGRESS_INPROGRESS_COLOR);
