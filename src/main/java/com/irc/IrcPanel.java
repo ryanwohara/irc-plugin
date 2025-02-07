@@ -1,5 +1,6 @@
 package com.irc;
 
+import lombok.Getter;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
@@ -22,6 +23,7 @@ public class IrcPanel extends PluginPanel {
     private JTabbedPane tabbedPane;
     private JTextField inputField;
     private Map<String, ChannelPane> channelPanes;
+    @Getter
     private NavigationButton navigationButton;
 
     private BiConsumer<String, String> onMessageSend;
@@ -77,10 +79,6 @@ public class IrcPanel extends PluginPanel {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
-    }
-
-    public NavigationButton getNavigationButton() {
-        return navigationButton;
     }
 
     public String getCurrentChannel() {
@@ -182,7 +180,7 @@ public class IrcPanel extends PluginPanel {
             String color;
             switch (message.getType()) {
                 case SYSTEM:
-                    color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
+                    color = ColorUtil.toHexColor(ColorScheme.BRAND_ORANGE);
                     break;
                 case JOIN:
                     color = ColorUtil.toHexColor(ColorScheme.PROGRESS_INPROGRESS_COLOR);
@@ -191,6 +189,9 @@ public class IrcPanel extends PluginPanel {
                 case QUIT:
                     color = ColorUtil.toHexColor(ColorScheme.PROGRESS_ERROR_COLOR);
                     break;
+                case NICK_CHANGE:
+                case KICK:
+                    color = ColorUtil.toHexColor(ColorScheme.BRAND_ORANGE);
                 default:
                     color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
             }

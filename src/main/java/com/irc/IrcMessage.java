@@ -12,6 +12,6 @@ public class IrcMessage {
     Instant timestamp;
 
     enum MessageType {
-        CHAT, SYSTEM, JOIN, PART, QUIT, NICK_CHANGE, PRIVATE
+        CHAT, SYSTEM, JOIN, PART, QUIT, NICK_CHANGE, PRIVATE, NOTICE, KICK
     }
 }
