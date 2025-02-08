@@ -132,7 +132,7 @@ public class IrcPlugin extends Plugin {
                     channel = channel.split(",")[0];
                 }
             }
-            joinChannel(channel.startsWith("#") ? channel : "#" + channel);
+            joinChannel(channel.startsWith("#") ? channel : "#" + channel, config.channelPassword());
         }
     }
 
@@ -152,7 +152,9 @@ public class IrcPlugin extends Plugin {
         switch (cmd) {
             case "/join":
                 if (!arg.isEmpty()) {
-                    joinChannel(arg.startsWith("#") ? arg : "#" + arg);
+                    String chan = arg.split(" ")[0];
+                    String password = arg.split(" ").length > 1 ? arg.split(" ")[1] : "";
+                    joinChannel(chan.startsWith("#") ? chan : "#" + chan, password);
                 }
                 break;
 
@@ -286,8 +288,9 @@ public class IrcPlugin extends Plugin {
         }
     }
 
-    private void joinChannel(String channel) {
-        ircClient.addChannel(channel);
+    private void joinChannel(String channel, String password) {
+        ircClient.sendRawLine("JOIN " + channel + " " + password);
+
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.addChannel(channel));
         }
@@ -295,13 +298,14 @@ public class IrcPlugin extends Plugin {
 
     private void leaveChannel(String channel) {
         ircClient.removeChannel(channel);
+
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.removeChannel(channel));
         }
     }
 
-    private void handleChannelJoin(String channel) {
-        joinChannel(channel);
+    private void handleChannelJoin(String channel, String password) {
+        joinChannel(channel, password);
     }
 
     private void handleChannelLeave(String channel) {
@@ -344,15 +348,22 @@ public class IrcPlugin extends Plugin {
         ));
     }
 
+    private String stripStyles(String message) {
+        return message.replaceAll("\u0002|\u0003([0-9]{1,2})?|\u0015", "");
+    }
+
     private void processMessage(IrcMessage message) {
         if (client.getGameState() == GameState.LOGGED_IN) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(ChatMessageType.FRIENDSCHAT)
                     .sender("IRC")
                     .name(message.getChannel() + " | " + message.getSender())
-                    .runeLiteFormattedMessage(new ChatMessageBuilder()
+                    .runeLiteFormattedMessage(
+                            new ChatMessageBuilder()
                             .append(ChatColorType.NORMAL)
-                            .append(EmojiParser.parseToAliases(message.getContent()))
+                            .append(EmojiParser.parseToAliases(
+                                    stripStyles(message.getContent())
+                            ))
                             .build())
                     .timestamp((int) (message.getTimestamp().getEpochSecond()))
                     .build());
@@ -413,9 +424,12 @@ public class IrcPlugin extends Plugin {
             String timestamp = event.getRawMessage().split(" ",  2)[0];
             String rawMessage = event.getRawMessage().split(" ", 2)[1];
 
-            String target = rawMessage.split(" ")[2];
             String nick = event.getActor().getName().split("!")[0];
-            String msg = rawMessage.split(":", 3)[2];
+            String target = rawMessage.split(" ")[2];
+            if (target.equalsIgnoreCase(currentNick)) {
+                target = nick;
+            }
+            String msg = rawMessage.split(" ", 4)[3].substring(1);
 
             if (msg.startsWith("\u0001ACTION ") && msg.endsWith("\u0001")) {
                 msg = msg.substring("\u0001ACTION ".length(), msg.length()-1);
@@ -432,28 +446,12 @@ public class IrcPlugin extends Plugin {
         }
 
         @Handler
-        public void onPrivateMessage(PrivateMessageEvent event) {
-            String pmChannel = "PM: " + event.getActor().getNick();
-            if (panel != null) {
-                panel.addChannel(pmChannel);
-            }
-            processMessage(new IrcMessage(
-                    pmChannel,
-                    event.getActor().getNick(),
-                    event.getMessage(),
-                    IrcMessage.MessageType.PRIVATE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
         public void onPrivateNotice(PrivateNoticeEvent event) {
-            String pmChannel = "Notice: " + event.getActor().getNick();
             if (panel != null) {
-                panel.addChannel(pmChannel);
+                panel.addChannel(event.getActor().getNick());
             }
             processMessage(new IrcMessage(
-                    pmChannel,
+                    event.getActor().getNick(),
                     event.getActor().getNick(),
                     event.getMessage(),
                     IrcMessage.MessageType.NOTICE,
@@ -541,22 +539,50 @@ public class IrcPlugin extends Plugin {
         public void onNumericReply(ClientReceiveNumericEvent event) {
             int code = event.getNumeric();
             List<String> parameters = event.getParameters();
+            String channel;
 
-            if (code == 353) { // RPL_NAMREPLY - User list
-                String channel = parameters.get(2);
-                String usersRaw = parameters.get(3);
-                List<String> users = Arrays.stream(usersRaw.split(" "))
-                        .map(s -> s.split("!")[0])
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toList());
+            switch (code) {
 
-                processMessage(new IrcMessage(
-                        channel,
-                        "Users",
-                        users.toString(),
-                        IrcMessage.MessageType.JOIN,
-                        Instant.now()
-                ));
+                case 353: // RPL_NAMREPLY - User list
+                    channel = parameters.get(2);
+                    String usersRaw = parameters.get(3);
+                    List<String> users = Arrays.stream(usersRaw.split(" "))
+                            .map(s -> s.split("!")[0])
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toList());
+
+                    processMessage(new IrcMessage(
+                            channel,
+                            "Users",
+                            users.toString(),
+                            IrcMessage.MessageType.JOIN,
+                            Instant.now()
+                    ));
+                    break;
+                case 475: // Cannot join channel (+k)
+                    channel = parameters.get(1);
+
+                    processMessage(new IrcMessage(
+                            channel,
+                            "ERROR",
+                            "Channel requires a passphrase.",
+                            IrcMessage.MessageType.JOIN,
+                            Instant.now()
+                    ));
+                    break;
+                case 448: // Cannot join channel: Channel name contains illegal characters (must be valid UTF8)
+                    channel = parameters.get(1);
+
+
+                    processMessage(new IrcMessage(
+                            channel,
+                            "ERROR",
+                            "Channel name contains invalid characters.",
+                            IrcMessage.MessageType.JOIN,
+                            Instant.now()
+                    ));
+                    break;
+
             }
         }
 

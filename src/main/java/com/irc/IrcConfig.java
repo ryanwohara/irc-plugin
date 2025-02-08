@@ -40,10 +40,19 @@ public interface IrcConfig extends Config
     String username();
 
     @ConfigItem(
+            keyName = "password",
+            name = "Password (Optional) (not RS)",
+            description = "NickServ password (Optional) (NEVER your RS password!)",
+            position = 1,
+            secret = true
+    )
+    String password();
+
+    @ConfigItem(
             keyName = "channel",
             name = "Channel",
             description = "Channel to join",
-            position = 1
+            position = 2
     )
     default String channel()
     {
@@ -51,13 +60,16 @@ public interface IrcConfig extends Config
     }
 
     @ConfigItem(
-            keyName = "password",
-            name = "Password (Optional) (not RS)",
-            description = "NickServ password (Optional) (NEVER your RS password!)",
-            position = 2,
+            keyName = "channelPassword",
+            name = "Channel Password",
+            description = "Password to enter channel",
+            position = 3,
             secret = true
     )
-    String password();
+    default String channelPassword()
+    {
+        return "";
+    }
 
     @ConfigItem(
             keyName = "prefix",
