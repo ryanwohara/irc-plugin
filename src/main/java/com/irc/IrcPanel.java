@@ -191,6 +191,10 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
+    public boolean isPane(String name) {
+        return tabbedPane.indexOfTab(name) != -1;
+    }
+
     public void addMessage(IrcMessage message) {
         ChannelPane pane = channelPanes.get(message.getChannel());
         if (pane == null) {
@@ -407,7 +411,6 @@ public class IrcPanel extends PluginPanel {
 
     private static final Pattern MODERN_EMOJI_PATTERN = Pattern.compile(
             "[" +
-
                     "\uD83E\uDD70-\uD83E\uDDFF" + // Unicode 10.0
                     "\uD83E\uDE00-\uD83E\uDEFF" + // Unicode 11.0
                     "\uD83E\uDF00-\uD83E\uDFFF" + // Unicode 12.0+
