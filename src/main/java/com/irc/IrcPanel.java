@@ -27,6 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import net.runelite.client.util.ColorUtil;
+import net.runelite.client.util.LinkBrowser;
 
 import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 
@@ -46,6 +47,29 @@ public class IrcPanel extends PluginPanel {
     private BiConsumer<String, String> onChannelJoin;
     private Consumer<String> onChannelLeave;
     private Font font;
+
+    private Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
+    private Timer flashTimer;
+    private String focusedChannel;
+    private static final String SYSTEM_TAB = "System";
+
+    private void initializeFlashTimer() {
+        flashTimer = new Timer(500, e -> {
+            String currentTab = getCurrentChannel();
+            for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+                String tabTitle = tabbedPane.getTitleAt(i);
+                if (!SYSTEM_TAB.equals(tabTitle) &&
+                    unreadMessages.getOrDefault(tabTitle, false) &&
+                    !tabTitle.equals(currentTab)) {
+                        tabbedPane.setForegroundAt(i, new Color(135, 206, 250)); // Change color for different flash
+                } else if (!SYSTEM_TAB.equals(tabTitle) &&
+                        !unreadMessages.getOrDefault(tabTitle, false)) {
+                    tabbedPane.setForegroundAt(i, Color.white);
+                }
+            }
+        });
+        flashTimer.start();
+    }
 
     public void initializeGui() {
         setLayout(new BorderLayout());
@@ -107,6 +131,18 @@ public class IrcPanel extends PluginPanel {
                 .build();
 
         SwingUtilities.invokeLater(() -> addChannel("System"));
+
+        tabbedPane.addChangeListener(e -> {
+            String newChannel = getCurrentChannel();
+            if (unreadMessages.containsKey(newChannel)) {
+                unreadMessages.put(newChannel, false);
+                tabbedPane.setBackgroundAt(tabbedPane.getSelectedIndex(), null);
+                tabbedPane.setForegroundAt(tabbedPane.getSelectedIndex(), null);
+            }
+            focusedChannel = newChannel;
+        });
+
+        initializeFlashTimer();
     }
 
     private JComboBox<String> getStringJComboBox() {
@@ -172,10 +208,15 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
+    public boolean isPane(String name) {
+        return tabbedPane.indexOfTab(name) != -1;
+    }
+
     public void addChannel(String channel) {
         if (!channelPanes.containsKey(channel)) {
             ChannelPane pane = new ChannelPane(font);
             channelPanes.put(channel, pane);
+            unreadMessages.put(channel, false);
             tabbedPane.addTab(channel, new JScrollPane(pane));
             tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
         }
@@ -187,12 +228,9 @@ public class IrcPanel extends PluginPanel {
             if (index != -1) {
                 tabbedPane.removeTabAt(index);
                 channelPanes.remove(channel);
+                unreadMessages.remove(channel);
             }
         }
-    }
-
-    public boolean isPane(String name) {
-        return tabbedPane.indexOfTab(name) != -1;
     }
 
     public void addMessage(IrcMessage message) {
@@ -200,6 +238,9 @@ public class IrcPanel extends PluginPanel {
         if (pane == null) {
             addChannel(message.getChannel());
             pane = channelPanes.get(message.getChannel());
+        }
+        if (!message.getChannel().equals(focusedChannel)) {
+            unreadMessages.put(message.getChannel(), true);
         }
         pane.appendMessage(message, config.timestamp());
     }
@@ -223,7 +264,7 @@ public class IrcPanel extends PluginPanel {
         if (!channel.equals("System")) {
             int result = JOptionPane.showConfirmDialog(
                     this,
-                    "Leave " + channel + "?",
+                    "Close " + channel + "?",
                     "Confirm",
                     JOptionPane.YES_NO_OPTION
             );
@@ -245,7 +286,7 @@ public class IrcPanel extends PluginPanel {
             addHyperlinkListener(e -> {
                 if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
                     try {
-                        Desktop.getDesktop().browse(e.getURL().toURI());
+                        LinkBrowser.browse(e.getURL().toURI().toString());
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
@@ -276,6 +317,8 @@ public class IrcPanel extends PluginPanel {
             String color;
             switch (message.getType()) {
                 case SYSTEM:
+                case NICK_CHANGE:
+                case KICK:
                     color = ColorUtil.toHexColor(ColorScheme.BRAND_ORANGE);
                     break;
                 case JOIN:
@@ -285,18 +328,17 @@ public class IrcPanel extends PluginPanel {
                 case QUIT:
                     color = ColorUtil.toHexColor(ColorScheme.PROGRESS_ERROR_COLOR);
                     break;
-                case NICK_CHANGE:
-                case KICK:
-                    color = ColorUtil.toHexColor(ColorScheme.BRAND_ORANGE);
+                case TOPIC:
+                    color = ColorUtil.toHexColor(ColorScheme.TEXT_COLOR);
                     break;
                 default:
                     color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
             }
 
-            return String.format("<div style='color: %s'>%s%s: %s</div>",
+            return String.format("<div style='color: %s'>%s%s:&nbsp;%s</div>",
                     color,
                     timeStamp,
-                    escapeHtml(message.getSender()),
+                    escapeHtml4(message.getSender()),
                     formatMessage(message.getContent())
             );
         }
@@ -393,14 +435,6 @@ public class IrcPanel extends PluginPanel {
             }
 
             return color;
-        }
-
-        private String escapeHtml(String text) {
-            return text.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace("\"", "&quot;")
-                    .replace("'", "&apos;");
         }
 
         public void clear() {

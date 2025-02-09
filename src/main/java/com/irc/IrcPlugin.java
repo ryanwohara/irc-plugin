@@ -4,7 +4,6 @@ import com.google.common.base.Strings;
 import com.google.inject.Provides;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
-import net.engio.mbassy.listener.Filter;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
 import net.runelite.api.VarClientStr;
@@ -19,6 +18,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import org.kitteh.irc.client.library.Client;
+import org.kitteh.irc.client.library.element.Actor;
 import org.kitteh.irc.client.library.event.channel.*;
 import org.kitteh.irc.client.library.event.client.ClientReceiveCommandEvent;
 import org.kitteh.irc.client.library.event.client.ClientReceiveNumericEvent;
@@ -33,6 +33,7 @@ import javax.swing.*;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @PluginDescriptor(
@@ -141,8 +142,7 @@ public class IrcPlugin extends Plugin {
     private void handleMessageSend(String channel, String message) {
         if (message.startsWith("/") ||
             (message.startsWith(config.prefix())
-                    && message.length() > config.prefix().length()
-                    && !message.toLowerCase().substring(config.prefix().length()).matches("[p)]"))) {
+            && message.length() > config.prefix().length())) {
             handleCommand(message);
         } else {
             sendMessage(channel, message);
@@ -227,7 +227,9 @@ public class IrcPlugin extends Plugin {
                 break;
 
             case "names":
-                ircClient.sendRawLine("NAMES " + panel.getCurrentChannel());
+                if (panel.getCurrentChannel().startsWith("#")) {
+                    ircClient.sendRawLine("NAMES " + panel.getCurrentChannel());
+                }
                 break;
 
             case "nick":
@@ -238,31 +240,31 @@ public class IrcPlugin extends Plugin {
 
             case "ns":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("msg NickServ :" + arg);
+                    sendMessage("NickServ", arg);
                 }
                 break;
 
             case "cs":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("msg ChanServ :" + arg);
+                    sendMessage("ChanServ", arg);
                 }
                 break;
 
             case "bs":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("msg BotServ :" + arg);
+                    sendMessage("BotServ", arg);
                 }
                 break;
 
             case "ms":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("msg MemoServ :" + arg);
+                    sendMessage("MemoServ", arg);
                 }
                 break;
 
             case "hs":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("msg HostServ :" + arg);
+                    sendMessage("HostServ", arg);
                 }
                 break;
 
@@ -270,6 +272,14 @@ public class IrcPlugin extends Plugin {
             case "umode2":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("mode " + currentNick + " :" + arg);
+                }
+                break;
+
+            case "topic":
+                if (!arg.isEmpty()) {
+                    ircClient.sendRawLine("TOPIC " + panel.getCurrentChannel() + " :" + arg);
+                } else {
+                    ircClient.sendRawLine("TOPIC " + panel.getCurrentChannel());
                 }
                 break;
 
@@ -319,10 +329,6 @@ public class IrcPlugin extends Plugin {
 
     private void joinChannel(String channel, String password) {
         ircClient.sendRawLine("JOIN " + channel + " " + password);
-
-        if (panel != null) {
-            SwingUtilities.invokeLater(() -> panel.addChannel(channel));
-        }
     }
 
     private void closePane(String name) {
@@ -364,7 +370,9 @@ public class IrcPlugin extends Plugin {
     }
 
     private void leaveChannel(String channel) {
-        ircClient.removeChannel(channel);
+        if (channel.startsWith("#")) {
+            ircClient.removeChannel(channel);
+        }
 
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.removeChannel(channel));
@@ -419,8 +427,8 @@ public class IrcPlugin extends Plugin {
         if (client.getGameState() == GameState.LOGGED_IN) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(ChatMessageType.FRIENDSCHAT)
-                    .sender("IRC")
-                    .name(message.getChannel() + " | " + message.getSender())
+                    .sender(message.getChannel())
+                    .name(message.getSender())
                     .runeLiteFormattedMessage(
                             new ChatMessageBuilder()
                             .append(ChatColorType.NORMAL)
@@ -444,17 +452,14 @@ public class IrcPlugin extends Plugin {
         }
 
         String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
-        String prefix = config.prefix();
 
-        if (message.startsWith(prefix)) {
+        if (message.startsWith(config.prefix())
+                && !message.matches("^.[opOP)(]")) {
             final int[] intStack = client.getIntStack();
             int intStackCount = client.getIntStackSize();
             intStack[intStackCount - 3] = 1;
 
-            message = message.substring(prefix.length()).trim();
-            if (!message.isEmpty() && ircClient != null) {
-                sendMessage(panel.getCurrentChannel(), message);
-            }
+            handleMessageSend(panel.getCurrentChannel(), message.substring(1));
         }
     }
 
@@ -504,6 +509,33 @@ public class IrcPlugin extends Plugin {
                     nick,
                     msg,
                     IrcMessage.MessageType.CHAT,
+                    Instant.now()
+            ));
+        }
+
+        @Handler
+        public void onTopic(ChannelTopicEvent event) {
+            Optional<Actor> setter = event.getNewTopic().getSetter();
+
+            processMessage(new IrcMessage(
+                    event.getChannel().getName(),
+                    "* Topic set by " + (setter.map(Actor::getName).orElse("unknown!").split("!")[0]),
+                    event.getNewTopic().getValue().orElse(""),
+                    IrcMessage.MessageType.TOPIC,
+                    Instant.now()
+            ));
+        }
+
+        @Handler
+        public void onServerNotice(ServerNoticeEvent event) {
+            if (panel != null) {
+                panel.addChannel(event.getActor().getName());
+            }
+            processMessage(new IrcMessage(
+                    event.getActor().getName(),
+                    event.getActor().getName(),
+                    event.getMessage(),
+                    IrcMessage.MessageType.NOTICE,
                     Instant.now()
             ));
         }
@@ -581,7 +613,7 @@ public class IrcPlugin extends Plugin {
             processMessage(new IrcMessage(
                     "System",
                     event.getActor().getNick(),
-                    "quit",
+                    "Quit" + (!event.getMessage().isEmpty() ? ": " + event.getMessage() : ""),
                     IrcMessage.MessageType.QUIT,
                     Instant.now()
             ));
