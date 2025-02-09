@@ -1,20 +1,24 @@
 package com.irc;
 
+import com.google.inject.Provides;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.Getter;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
 
+import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.event.HyperlinkEvent;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.io.InputStream;
+import java.awt.event.KeyEvent;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -27,6 +31,10 @@ import net.runelite.client.util.ColorUtil;
 import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 
 public class IrcPanel extends PluginPanel {
+    @Inject
+    private IrcConfig config;
+    @Inject
+    private ConfigManager configManager;
 
     private JTabbedPane tabbedPane;
     private JTextField inputField;
@@ -41,12 +49,13 @@ public class IrcPanel extends PluginPanel {
 
     public void initializeGui() {
         setLayout(new BorderLayout());
-        font = loadCustomFont(12.0f);
+
+        font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
 
         tabbedPane = new JTabbedPane();
         tabbedPane.setPreferredSize(new Dimension(300, 425));
         inputField = new JTextField();
-        inputField.setFont(new Font("Ubuntu Sans Mono", Font.PLAIN, 12));
+        inputField.setFont(font);
         channelPanes = new LinkedHashMap<>();
 
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
@@ -56,11 +65,14 @@ public class IrcPanel extends PluginPanel {
         addButton.setPreferredSize(new Dimension(45, 25));
         removeButton.setPreferredSize(new Dimension(45, 25));
 
+        final JComboBox<String> fontComboBox = getStringJComboBox();
+
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
 
         controlPanel.add(addButton);
         controlPanel.add(removeButton);
+        controlPanel.add(fontComboBox);
 
         Action originalPasteAction = inputField.getActionMap().get("paste");
         Action customPasteAction = new AbstractAction() {
@@ -73,8 +85,19 @@ public class IrcPanel extends PluginPanel {
         };
         inputField.getActionMap().put("paste", customPasteAction);
 
+        Action ctrlKAction = new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("ctrlKAction");
+                inputField.setText("\u0003");
+            }
+        };
+        KeyStroke ctrlK = KeyStroke.getKeyStroke(KeyEvent.VK_K, KeyEvent.CTRL_DOWN_MASK);
+        inputField.getActionMap().put(ctrlK, ctrlKAction);
+
         inputField.addActionListener(e -> {
-            String message = inputField.getText().trim();
+            String message = inputField.getText();
+            System.out.println(message);
             if (!message.isEmpty() && onMessageSend != null) {
                 onMessageSend.accept(getCurrentChannel(), message);
                 inputField.setText("");
@@ -95,24 +118,45 @@ public class IrcPanel extends PluginPanel {
         SwingUtilities.invokeLater(() -> addChannel("System"));
     }
 
-    private Font loadCustomFont(float size) {
-        String fonts[] = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
-        for (int i = 0; i < fonts.length; i++) {
-            System.out.println(fonts[i]);
-        }
-        return UIManager.getFont("Ubuntu Sans Mono");
-//        try (InputStream is = getClass().getResourceAsStream("NotoSans-Regular.ttf")) {
-//            assert is != null;
-//            Font baseFont = Font.createFont(Font.TRUETYPE_FONT, is);
-//
-//            return baseFont.deriveFont(Font.PLAIN, size);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//            System.out.println("Failed to load custom font.");
-//            // Fallback to a system font if loading fails
-//            return UIManager.getFont("Label.font");
-//        }
+    private JComboBox<String> getStringJComboBox() {
+        String[] fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+        final JComboBox<String> fontComboBox = new JComboBox<>(fonts);
 
+        int selectedIndex = Arrays.asList(fonts).indexOf(config.fontFamily());
+        if (selectedIndex < 0) {
+            ++selectedIndex;
+
+            font = new Font(fonts[0], Font.PLAIN, config.fontSize());
+        }
+
+        fontComboBox.setSelectedIndex(selectedIndex);
+        fontComboBox.setPreferredSize(new Dimension(110, 25));
+        fontComboBox.addActionListener(e -> {
+            if (fontComboBox.getSelectedItem() != null) {
+                String selected = fontComboBox.getSelectedItem().toString();
+
+                configManager.setConfiguration("irc", "fontFamily", selected);
+
+                updateFont();
+            }
+        });
+
+        return fontComboBox;
+    }
+
+    private void updateFont() {
+        font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
+
+        inputField.setFont(font);
+
+        for (ChannelPane channelPane : channelPanes.values()) {
+            channelPane.setFont(font);
+        }
+    }
+
+    @Provides
+    IrcConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(IrcConfig.class);
     }
 
     public void init(BiConsumer<String, String> messageSendCallback,
@@ -153,7 +197,7 @@ public class IrcPanel extends PluginPanel {
             addChannel(message.getChannel());
             pane = channelPanes.get(message.getChannel());
         }
-        pane.appendMessage(message);
+        pane.appendMessage(message, config.timestamp());
     }
 
     private void promptAddChannel() {
@@ -190,7 +234,7 @@ public class IrcPanel extends PluginPanel {
 
         ChannelPane(Font font) {
             setContentType("text/html");
-            setFont(new Font("Ubuntu Sans Mono", Font.PLAIN, 12));
+            setFont(font);
             setEditable(false);
             messageLog = new StringBuilder();
 
@@ -205,8 +249,8 @@ public class IrcPanel extends PluginPanel {
             });
         }
 
-        void appendMessage(IrcMessage message) {
-            String formattedMessage = formatPanelMessage(message);
+        void appendMessage(IrcMessage message, boolean timestamp) {
+            String formattedMessage = formatPanelMessage(message, timestamp);
             messageLog.append(formattedMessage);
 
             SwingUtilities.invokeLater(() -> {
@@ -217,10 +261,13 @@ public class IrcPanel extends PluginPanel {
             });
         }
 
-        private String formatPanelMessage(IrcMessage message) {
+        private String formatPanelMessage(IrcMessage message, boolean timestamp) {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
                     .withZone(ZoneId.systemDefault());
-            String timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
+            String timeStamp = "";
+            if (timestamp) {
+                timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
+            }
 
             String color;
             switch (message.getType()) {
@@ -252,28 +299,96 @@ public class IrcPanel extends PluginPanel {
 
         private String formatMessage(String message) {
             return convertModernEmojis(
-                    escapeHtml4(message)
+                    formatColorCodes(
+                            escapeHtml4(message)
+                    )
                     .replaceAll("\\b(https?://\\S+)\\b", "<a href='$1'>$1</a>")
-                    .replaceAll("\u0002([^\u0002\u000F]+)[\u0002\u000F]?", "<b>$1</b>")
+            );
+        }
+
+        private String formatColorCodes(String message) {
+            message = message
                     .replaceAll("\u001F([^\u001F\u000F]+)[\u001F\u000F]?", "<u>$1</u>")
                     .replaceAll("\u001D([^\u001D\u000F]+)[\u001D\u000F]?", "<i>$1</i>")
-                    .replaceAll("\u000310(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"darkcyan\">$1</font>")
-                    .replaceAll("\u000311(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"cyan\">$1</font>")
-                    .replaceAll("\u000312(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"blue\">$1</font>")
-                    .replaceAll("\u000313(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"pink\">$1</font>")
-                    .replaceAll("\u000314(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"grey\">$1</font>")
-                    .replaceAll("\u000315(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"lightgrey`\">$1</font>")
-                    .replaceAll("\u00030?1(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"black\">$1</font>")
-                    .replaceAll("\u00030?2(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"darkblue\">$1</font>")
-                    .replaceAll("\u00030?3(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"green\">$1</font>")
-                    .replaceAll("\u00030?4(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"red\">$1</font>")
-                    .replaceAll("\u00030?5(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"brown\">$1</font>")
-                    .replaceAll("\u00030?6(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"purple\">$1</font>")
-                    .replaceAll("\u00030?7(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"orange\">$1</font>")
-                    .replaceAll("\u00030?8(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"yellow\">$1</font>")
-                    .replaceAll("\u00030?9(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"chartreuse\">$1</font>")
-                    .replaceAll("\u000300?(?:,\\d\\d?)?([^\u0003\u000F]+)", "<font color=\"white\">$1</font>")
-            );
+                    .replaceAll("\u0002([^\u0002\u000F]+)[\u0002\u000F]?", "<b>$1</b>");
+
+            Pattern p = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)");
+            Matcher m = p.matcher(message);
+
+            StringBuilder sb = new StringBuilder();
+            while (m.find()) {
+                m.appendReplacement(sb, "<font color=\"" + htmlColorById(m.group(1)) + "\">" + m.group(2) + "</font>");
+            }
+            m.appendTail(sb);
+
+            return sb.toString().replaceAll("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F", "");
+        }
+
+        private String htmlColorById(String id) {
+            String color = "black";
+
+            switch (id) {
+                case "00":
+                case "0":
+                    color = "white";
+                    break;
+                case "01":
+                case "1":
+                    color = "black";
+                    break;
+                case "02":
+                case "2":
+                    color = "00008B";
+                    break;
+                case "03":
+                case "3":
+                    color = "green";
+                    break;
+                case "04":
+                case "4":
+                    color = "red";
+                    break;
+                case "05":
+                case "5":
+                    color = "800000";
+                    break;
+                case "06":
+                case "6":
+                    color = "purple";
+                    break;
+                case "07":
+                case "7":
+                    color = "orange";
+                    break;
+                case "08":
+                case "8":
+                    color = "yellow";
+                    break;
+                case "09":
+                case "9":
+                    color = "DFFF00";
+                    break;
+                case "10":
+                    color = "008b8b";
+                    break;
+                case "11":
+                    color = "00FFFF";
+                    break;
+                case "12":
+                    color = "blue";
+                    break;
+                case "13":
+                    color = "FFC0CB";
+                    break;
+                case "14":
+                    color = "gray";
+                    break;
+                case "15":
+                    color = "d3d3d3";
+                    break;
+            }
+
+            return color;
         }
 
         private String escapeHtml(String text) {
@@ -281,12 +396,13 @@ public class IrcPanel extends PluginPanel {
                     .replace("<", "&lt;")
                     .replace(">", "&gt;")
                     .replace("\"", "&quot;")
-                    .replace("'", "&#39;");
+                    .replace("'", "&apos;");
         }
     }
 
     private static final Pattern MODERN_EMOJI_PATTERN = Pattern.compile(
             "[" +
+
                     "\uD83E\uDD70-\uD83E\uDDFF" + // Unicode 10.0
                     "\uD83E\uDE00-\uD83E\uDEFF" + // Unicode 11.0
                     "\uD83E\uDF00-\uD83E\uDFFF" + // Unicode 12.0+
@@ -303,7 +419,7 @@ public class IrcPanel extends PluginPanel {
     );
 
     public static String convertModernEmojis(String text) {
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
         Matcher matcher = MODERN_EMOJI_PATTERN.matcher(text);
 
         while (matcher.find()) {

@@ -58,7 +58,9 @@ public class IrcPlugin extends Plugin {
     @Override
     protected void startUp() {
         connectToIrc();
-        setupPanel();
+        if (config.sidePanel()) {
+            setupPanel();
+        }
         joinDefaultChannel();
     }
 
@@ -137,7 +139,10 @@ public class IrcPlugin extends Plugin {
     }
 
     private void handleMessageSend(String channel, String message) {
-        if (message.startsWith("/")) {
+        if (message.startsWith("/") ||
+            (message.startsWith(config.prefix())
+                    && message.length() > config.prefix().length()
+                    && !message.toLowerCase().substring(config.prefix().length()).matches("[p)]"))) {
             handleCommand(message);
         } else {
             sendMessage(channel, message);
@@ -146,11 +151,11 @@ public class IrcPlugin extends Plugin {
 
     private void handleCommand(String command) {
         String[] parts = command.split(" ", 2);
-        String cmd = parts[0].toLowerCase();
+        String cmd = parts[0].toLowerCase().substring(1);
         String arg = parts.length > 1 ? parts[1].trim() : "";
 
         switch (cmd) {
-            case "/join":
+            case "join":
                 if (!arg.isEmpty()) {
                     String chan = arg.split(" ")[0];
                     String password = arg.split(" ").length > 1 ? arg.split(" ")[1] : "";
@@ -158,15 +163,15 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "/leave":
-            case "/part":
+            case "leave":
+            case "part":
                 if (!arg.isEmpty()) {
                     leaveChannel(arg.startsWith("#") ? arg : "#" + arg);
                 }
                 break;
 
-            case "/msg":
-            case "/query":
+            case "msg":
+            case "query":
                 String[] msgParts = arg.split(" ", 2);
                 if (msgParts.length == 2) {
                     String target = msgParts[0];
@@ -182,13 +187,13 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "/me":
+            case "me":
                 if (!arg.isEmpty()) {
                     sendAction(panel.getCurrentChannel(), arg);
                 }
                 break;
 
-            case "/notice":
+            case "notice":
                 String[] noticeParts = arg.split(" ", 2);
                 if (noticeParts.length == 2) {
                     String target = noticeParts[0];
@@ -205,13 +210,13 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "/whois":
+            case "whois":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("WHOIS " + arg);
                 }
                 break;
 
-            case "/away":
+            case "away":
                 if (arg.isEmpty()) {
                     ircClient.sendRawLine("AWAY"); // Remove away status
                 } else {
@@ -219,39 +224,56 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "/nick":
+            case "names":
+                ircClient.sendRawLine("NAMES " + panel.getCurrentChannel());
+                break;
+
+            case "nick":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("NICK :" + arg);
                 }
+                break;
 
-            case "/ns":
+            case "ns":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("msg NickServ :" + arg);
                 }
+                break;
 
-            case "/cs":
+            case "cs":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("msg ChanServ :" + arg);
                 }
+                break;
 
-            case "/bs":
+            case "bs":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("msg BotServ :" + arg);
                 }
+                break;
 
-            case "/ms":
+            case "ms":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("msg MemoServ :" + arg);
                 }
+                break;
 
-            case "/hs":
+            case "hs":
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("msg HostServ :" + arg);
                 }
+                break;
 
-            case "/help":
+            case "umode":
+            case "umode2":
+                if (!arg.isEmpty()) {
+                    ircClient.sendRawLine("mode " + currentNick + " :" + arg);
+                }
+
+            case "help":
                 showCommandHelp();
                 break;
+
 
             default:
                 processMessage(new IrcMessage(
@@ -312,17 +334,11 @@ public class IrcPlugin extends Plugin {
         leaveChannel(channel);
     }
 
-    private void sendMessage(String channel, String message) {
-        String target = channel;
-
-        if (channel.startsWith("PM: ")) {
-            target = channel.substring(4);
-        }
-
+    private void sendMessage(String target, String message) {
         ircClient.sendMessage(target, message);
 
         processMessage(new IrcMessage(
-                channel,
+                target,
                 currentNick,
                 message,
                 IrcMessage.MessageType.PRIVATE,
@@ -330,17 +346,11 @@ public class IrcPlugin extends Plugin {
         ));
     }
 
-    private void sendAction(String channel, String message) {
-        String target = channel;
-
-        if (channel.startsWith("PM: ")) {
-            target = channel.substring(4);
-        }
-
+    private void sendAction(String target, String message) {
         ircClient.sendMessage(target, "\u0001ACTION " + message + "\u0001");
 
         processMessage(new IrcMessage(
-                channel,
+                target,
                 "* " + currentNick,
                 message,
                 IrcMessage.MessageType.PRIVATE,
@@ -349,7 +359,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private String stripStyles(String message) {
-        return message.replaceAll("\u0002|\u0003([0-9]{1,2})?|\u0015", "");
+        return message.replaceAll("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F", "");
     }
 
     private void processMessage(IrcMessage message) {
@@ -542,6 +552,18 @@ public class IrcPlugin extends Plugin {
             String channel;
 
             switch (code) {
+                case 221: // User modes
+                    String modes = parameters.get(2);
+                    processMessage(
+                            new IrcMessage(
+                                    "System",
+                                    "System",
+                                    modes,
+                                    IrcMessage.MessageType.SYSTEM,
+                                    Instant.now()
+                            )
+                    );
+
 
                 case 353: // RPL_NAMREPLY - User list
                     channel = parameters.get(2);
@@ -573,7 +595,6 @@ public class IrcPlugin extends Plugin {
                 case 448: // Cannot join channel: Channel name contains illegal characters (must be valid UTF8)
                     channel = parameters.get(1);
 
-
                     processMessage(new IrcMessage(
                             channel,
                             "ERROR",
@@ -582,7 +603,6 @@ public class IrcPlugin extends Plugin {
                             Instant.now()
                     ));
                     break;
-
             }
         }
 
@@ -605,7 +625,7 @@ public class IrcPlugin extends Plugin {
         @Handler
         public void onNickInUse(ClientReceiveNumericEvent event) {
             if (event.getNumeric() == 433) {
-                String fallbackNick = currentNick + (int) (Math.random() * 100);
+                String fallbackNick = currentNick + "_";
                 processMessage(new IrcMessage(
                         "System",
                         "System",

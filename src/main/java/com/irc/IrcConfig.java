@@ -28,6 +28,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
+
 @ConfigGroup("irc")
 public interface IrcConfig extends Config
 {
@@ -62,7 +63,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "channelPassword",
             name = "Channel Password",
-            description = "Password to enter channel",
+            description = "Password to enter channel. (Optional)",
             position = 3,
             secret = true
     )
@@ -74,8 +75,42 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "prefix",
             name = "Prefix",
-            description = ";chat with this character like this",
+            description = ";chat with this character like this.",
             position = 3
     )
     default String prefix() { return ";"; }
+
+    @ConfigItem(
+            keyName = "fontFamily",
+            name = "Font Family",
+            description = "Font family to use everywhere.",
+            position = 4,
+            hidden = true
+    )
+    default String fontFamily() { return "SansSerif"; }
+
+    @ConfigItem(
+            keyName = "fontSize",
+            name = "Font Size",
+            description = "Font size to use everywhere.",
+            position = 5,
+            hidden = true
+    )
+    default Integer fontSize() { return 12; }
+
+    @ConfigItem(
+            keyName = "sidePanel",
+            name = "Side Panel",
+            description = "Enable the side panel",
+            position = 6
+    )
+    default boolean sidePanel() { return true;}
+
+    @ConfigItem(
+            keyName = "timestamp",
+            name = "Timestamp",
+            description = "Enable the timestamp",
+            position = 7
+    )
+    default boolean timestamp() { return true;}
 }
