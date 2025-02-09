@@ -18,15 +18,11 @@ Example: `;Hello #rshelp!`
 
 ### Private Messages
 
-Received private messages will appear prefixed with `(pm)`.
-
 Sending a private message: `;;msg <nick> <message>`
 
 Example: `;;msg foobar Thanks for the information`
 
 ### Notices
-
-Notices will appear prefixed with `(notice)` to indicate it was not a channel message.
 
 Sending a notice: `;;notice <nick> <message>`
 

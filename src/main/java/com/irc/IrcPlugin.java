@@ -163,6 +163,7 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "close":
             case "leave":
             case "part":
                 if (!arg.isEmpty()) {
@@ -177,13 +178,11 @@ public class IrcPlugin extends Plugin {
                     String target = msgParts[0];
                     String message = msgParts[1];
 
-                    // Create PM channel if it doesn't exist
-                    String pmChannel = "PM: " + target;
                     if (panel != null) {
-                        SwingUtilities.invokeLater(() -> panel.addChannel(pmChannel));
+                        SwingUtilities.invokeLater(() -> panel.addChannel(target));
                     }
 
-                    sendMessage(pmChannel, message);
+                    sendMessage(target, message);
                 }
                 break;
 
@@ -269,6 +268,11 @@ public class IrcPlugin extends Plugin {
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("mode " + currentNick + " :" + arg);
                 }
+                break;
+
+            case "clear":
+                panel.clearCurrentPane();
+                break;
 
             case "help":
                 showCommandHelp();

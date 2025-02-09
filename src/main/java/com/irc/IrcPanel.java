@@ -85,19 +85,10 @@ public class IrcPanel extends PluginPanel {
         };
         inputField.getActionMap().put("paste", customPasteAction);
 
-        Action ctrlKAction = new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                System.out.println("ctrlKAction");
-                inputField.setText("\u0003");
-            }
-        };
-        KeyStroke ctrlK = KeyStroke.getKeyStroke(KeyEvent.VK_K, KeyEvent.CTRL_DOWN_MASK);
-        inputField.getActionMap().put(ctrlK, ctrlKAction);
+        setupShortcuts();
 
         inputField.addActionListener(e -> {
             String message = inputField.getText();
-            System.out.println(message);
             if (!message.isEmpty() && onMessageSend != null) {
                 onMessageSend.accept(getCurrentChannel(), message);
                 inputField.setText("");
@@ -172,6 +163,15 @@ public class IrcPanel extends PluginPanel {
         return index != -1 ? tabbedPane.getTitleAt(index) : "System";
     }
 
+    public void clearCurrentPane() {
+        int index = tabbedPane.getSelectedIndex();
+        String channel = index != -1 ? tabbedPane.getTitleAt(index) : "System";
+        ChannelPane pane = channelPanes.get(channel);
+        if (pane != null) {
+            pane.clear();
+        }
+    }
+
     public void addChannel(String channel) {
         if (!channelPanes.containsKey(channel)) {
             ChannelPane pane = new ChannelPane(font);
@@ -230,7 +230,7 @@ public class IrcPanel extends PluginPanel {
     }
 
     private static class ChannelPane extends JTextPane {
-        private final StringBuilder messageLog;
+        private StringBuilder messageLog;
 
         ChannelPane(Font font) {
             setContentType("text/html");
@@ -398,6 +398,11 @@ public class IrcPanel extends PluginPanel {
                     .replace("\"", "&quot;")
                     .replace("'", "&apos;");
         }
+
+        public void clear() {
+            this.setText("");
+            messageLog = new StringBuilder();
+        }
     }
 
     private static final Pattern MODERN_EMOJI_PATTERN = Pattern.compile(
@@ -430,5 +435,89 @@ public class IrcPanel extends PluginPanel {
         matcher.appendTail(result);
 
         return result.toString();
+    }
+
+    private enum IrcShortcut {
+        COLOR(KeyStroke.getKeyStroke(KeyEvent.VK_K, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "\u0003",
+                "insertColorCode",
+                "Insert color code"),
+
+        BOLD(KeyStroke.getKeyStroke(KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "\u0002",
+                "insertBold",
+                "Insert bold formatting"),
+
+        ITALIC(KeyStroke.getKeyStroke(KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "\u001D",
+                "insertItalic",
+                "Insert italic formatting"),
+
+        UNDERLINE(KeyStroke.getKeyStroke(KeyEvent.VK_U, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "\u001F",
+                "insertUnderline",
+                "Insert underline formatting");
+
+        private final KeyStroke keyStroke;
+        private final String insertText;
+        private final String actionKey;
+        private final String description;
+
+        IrcShortcut(KeyStroke keyStroke, String insertText, String actionKey, String description) {
+            this.keyStroke = keyStroke;
+            this.insertText = insertText;
+            this.actionKey = actionKey;
+            this.description = description;
+        }
+    }
+
+    private class TextInsertAction extends AbstractAction {
+        private final String textToInsert;
+
+        TextInsertAction(String textToInsert) {
+            this.textToInsert = textToInsert;
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            String currentText = inputField.getText();
+            int caretPosition = inputField.getCaretPosition();
+
+            String newText;
+            int newCaretPosition;
+
+            if (inputField.getSelectedText() != null) {
+                int selStart = inputField.getSelectionStart();
+                int selEnd = inputField.getSelectionEnd();
+                String selectedText = inputField.getSelectedText();
+
+                newText = currentText.substring(0, selStart)
+                        + textToInsert
+                        + selectedText
+                        + textToInsert
+                        + currentText.substring(selEnd);
+
+                newCaretPosition = selEnd + (textToInsert.length() * 2);
+            } else {
+                newText = currentText.substring(0, caretPosition)
+                        + textToInsert
+                        + currentText.substring(caretPosition);
+
+                newCaretPosition = caretPosition + textToInsert.length();
+            }
+
+            inputField.setText(newText);
+            inputField.setCaretPosition(newCaretPosition);
+        }
+    }
+
+    private void setupShortcuts() {
+        InputMap inputMap = inputField.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = inputField.getActionMap();
+
+        for (IrcShortcut shortcut : IrcShortcut.values()) {
+            inputMap.put(shortcut.keyStroke, shortcut.actionKey);
+            actionMap.put(shortcut.actionKey, new TextInsertAction(shortcut.insertText));
+        }
     }
 }
