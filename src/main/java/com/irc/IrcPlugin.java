@@ -14,6 +14,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -94,7 +95,7 @@ public class IrcPlugin extends Plugin {
                 .user("runelite")
                 .realName(currentNick)
                 .server()
-                .host("irc.swiftirc.net")
+                .host(config.server().getHostname())
                 .port(6697)
                 .secure(true)
                 .then()
@@ -268,6 +269,14 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "mode":
+                if (!arg.isEmpty()) {
+                    mode(arg);
+                } else {
+                    mode("");
+                }
+                break;
+
             case "umode":
             case "umode2":
                 if (!arg.isEmpty()) {
@@ -291,7 +300,6 @@ public class IrcPlugin extends Plugin {
                 showCommandHelp();
                 break;
 
-
             default:
                 processMessage(new IrcMessage(
                         "System",
@@ -301,6 +309,18 @@ public class IrcPlugin extends Plugin {
                         Instant.now()
                 ));
                 break;
+        }
+    }
+
+    private void mode(String mode) {
+        String[] split = mode.split(" ");
+
+        if (mode.startsWith("#")) {
+            ircClient.sendRawLine("MODE " + mode);
+        } else if (split.length > 0) {
+            ircClient.sendRawLine("MODE " + panel.getCurrentChannel() + " " + mode);
+        } else {
+            ircClient.sendRawLine("MODE " + panel.getCurrentChannel());
         }
     }
 
@@ -442,6 +462,25 @@ public class IrcPlugin extends Plugin {
 
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.addMessage(message));
+        }
+    }
+
+    @Subscribe
+    public void onConfigChanged(ConfigChanged configChanged) {
+        if (!configChanged.getGroup().equals("irc")) {
+            return;
+        }
+
+        if (!config.sidePanel() && panel != null) {
+            stopIrcPanel();
+        } else if (config.sidePanel()) {
+            clientToolbar.addNavigation(panel.getNavigationButton());
+        }
+    }
+
+    private void stopIrcPanel() {
+        if (panel.isValid()) {
+            clientToolbar.removeNavigation(panel.getNavigationButton());
         }
     }
 
@@ -624,7 +663,7 @@ public class IrcPlugin extends Plugin {
             processMessage(new IrcMessage(
                     event.getChannel().getName(),
                     event.getActor().getName().split("!")[0],
-                    "kicked " + event.getTarget().getNick(),
+                    "kicked " + event.getTarget().getNick() + " (" + event.getMessage() + ")",
                     IrcMessage.MessageType.KICK,
                     Instant.now()
             ));

@@ -24,6 +24,8 @@
  */
 package com.irc;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -33,10 +35,30 @@ import net.runelite.client.config.ConfigItem;
 public interface IrcConfig extends Config
 {
     @ConfigItem(
+            keyName = "server",
+            name = "Server",
+            description = "Server to use to directly connect.",
+            position = 0
+    )
+    default Server server() {
+        return Server.USA;
+    };
+
+    @Getter
+    @RequiredArgsConstructor
+    enum Server {
+        USA("Fiery (West-USA)", "fiery.ca.us.swiftirc.net"),
+        UK("London (UK)", "tardis.en.uk.swiftirc.net");
+
+        private final String name;
+        private final String hostname;
+    }
+
+    @ConfigItem(
             keyName = "username",
             name = "Username",
             description = ";use the chat like this.",
-            position = 0
+            position = 1
     )
     String username();
 
@@ -44,7 +66,7 @@ public interface IrcConfig extends Config
             keyName = "password",
             name = "Password (Optional) (not RS)",
             description = "NickServ password (Optional) (NEVER your RS password!)",
-            position = 1,
+            position = 2,
             secret = true
     )
     String password();
@@ -53,7 +75,7 @@ public interface IrcConfig extends Config
             keyName = "channel",
             name = "Channel",
             description = "Channel to join",
-            position = 2
+            position = 3
     )
     default String channel()
     {
@@ -64,7 +86,7 @@ public interface IrcConfig extends Config
             keyName = "channelPassword",
             name = "Channel Password",
             description = "Password to enter channel. (Optional)",
-            position = 3,
+            position = 4,
             secret = true
     )
     default String channelPassword()
@@ -76,7 +98,7 @@ public interface IrcConfig extends Config
             keyName = "prefix",
             name = "Prefix",
             description = ";chat with this character like this.",
-            position = 3
+            position = 5
     )
     default String prefix() { return ";"; }
 
@@ -84,7 +106,7 @@ public interface IrcConfig extends Config
             keyName = "fontFamily",
             name = "Font Family",
             description = "Font family to use everywhere.",
-            position = 4,
+            position = 6,
             hidden = true
     )
     default String fontFamily() { return "SansSerif"; }
@@ -93,7 +115,7 @@ public interface IrcConfig extends Config
             keyName = "fontSize",
             name = "Font Size",
             description = "Font size to use everywhere.",
-            position = 5,
+            position = 7,
             hidden = true
     )
     default Integer fontSize() { return 12; }
@@ -102,7 +124,7 @@ public interface IrcConfig extends Config
             keyName = "sidePanel",
             name = "Side Panel",
             description = "Enable the side panel",
-            position = 6
+            position = 8
     )
     default boolean sidePanel() { return true;}
 
@@ -110,7 +132,7 @@ public interface IrcConfig extends Config
             keyName = "timestamp",
             name = "Timestamp",
             description = "Enable the timestamp",
-            position = 7
+            position = 9
     )
     default boolean timestamp() { return true;}
 }
