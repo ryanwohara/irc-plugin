@@ -73,7 +73,9 @@ public class IrcPlugin extends Plugin {
             ircClient = null;
         }
         if (panel != null) {
-            clientToolbar.removeNavigation(panel.getNavigationButton());
+            if (config.sidePanel()) {
+                clientToolbar.removeNavigation(panel.getNavigationButton());
+            }
             panel = null;
         }
     }
@@ -118,8 +120,12 @@ public class IrcPlugin extends Plugin {
                 this::handleChannelJoin,
                 this::handleChannelLeave
         );
+
         panel.initializeGui();
-        clientToolbar.addNavigation(panel.getNavigationButton());
+
+        if (config.sidePanel()) {
+            clientToolbar.addNavigation(panel.getNavigationButton());
+        }
     }
 
     private void joinDefaultChannel() {
@@ -444,7 +450,9 @@ public class IrcPlugin extends Plugin {
     }
 
     private void processMessage(IrcMessage message) {
-        if (client.getGameState() == GameState.LOGGED_IN) {
+        if (client.getGameState() == GameState.LOGGED_IN
+                && ((config.activeChannelOnly() && panel.getCurrentChannel().equals(message.getChannel()))
+                || !config.activeChannelOnly())) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(ChatMessageType.FRIENDSCHAT)
                     .sender(message.getChannel())
@@ -471,17 +479,17 @@ public class IrcPlugin extends Plugin {
             return;
         }
 
-        if (!config.sidePanel() && panel != null) {
+        try {
             stopIrcPanel();
-        } else if (config.sidePanel()) {
-            clientToolbar.addNavigation(panel.getNavigationButton());
+        } catch (Exception e) {}
+
+        if (config.sidePanel()) {
+            clientToolbar.addNavigation(panel.generateNavigationButton());
         }
     }
 
     private void stopIrcPanel() {
-        if (panel.isValid()) {
-            clientToolbar.removeNavigation(panel.getNavigationButton());
-        }
+        clientToolbar.removeNavigation(panel.getNavigationButton());
     }
 
     @Subscribe

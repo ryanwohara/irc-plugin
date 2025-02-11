@@ -123,12 +123,7 @@ public class IrcPanel extends PluginPanel {
         add(tabbedPane, BorderLayout.CENTER);
         add(inputField, BorderLayout.SOUTH);
 
-        navigationButton = NavigationButton.builder()
-                .tooltip("IRC")
-                .icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
-                .priority(10)
-                .panel(this)
-                .build();
+        navigationButton = generateNavigationButton();
 
         SwingUtilities.invokeLater(() -> addChannel("System"));
 
@@ -143,6 +138,17 @@ public class IrcPanel extends PluginPanel {
         });
 
         initializeFlashTimer();
+    }
+
+    public NavigationButton generateNavigationButton() {
+        navigationButton = NavigationButton.builder()
+                .tooltip("IRC")
+                .icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
+                .priority(config.getPanelPriority())
+                .panel(this)
+                .build();
+
+        return navigationButton;
     }
 
     private JComboBox<String> getStringJComboBox() {

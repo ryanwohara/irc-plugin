@@ -26,19 +26,26 @@ package com.irc;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import net.runelite.client.config.Config;
-import net.runelite.client.config.ConfigGroup;
-import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.*;
 
 
 @ConfigGroup("irc")
 public interface IrcConfig extends Config
 {
+    @ConfigSection(
+            name = "Connection",
+            description = "Connection settings",
+            position = 0,
+            closedByDefault = true
+    )
+    String connectionSettings = "connectionSettings";
+
     @ConfigItem(
             keyName = "server",
             name = "Server",
             description = "Server to use to directly connect.",
-            position = 0
+            position = 0,
+            section = connectionSettings
     )
     default Server server() {
         return Server.USA;
@@ -58,16 +65,18 @@ public interface IrcConfig extends Config
             keyName = "username",
             name = "Username",
             description = ";use the chat like this.",
-            position = 1
+            position = 1,
+            section = connectionSettings
     )
     String username();
 
     @ConfigItem(
             keyName = "password",
-            name = "Password (Optional) (not RS)",
+            name = "Password (Optional) (not Jagex)",
             description = "NickServ password (Optional) (NEVER your RS password!)",
             position = 2,
-            secret = true
+            secret = true,
+            section = connectionSettings
     )
     String password();
 
@@ -75,7 +84,8 @@ public interface IrcConfig extends Config
             keyName = "channel",
             name = "Channel",
             description = "Channel to join",
-            position = 3
+            position = 3,
+            section = connectionSettings
     )
     default String channel()
     {
@@ -87,44 +97,53 @@ public interface IrcConfig extends Config
             name = "Channel Password",
             description = "Password to enter channel. (Optional)",
             position = 4,
-            secret = true
+            secret = true,
+            section = connectionSettings
     )
     default String channelPassword()
     {
         return "";
     }
 
+    @ConfigSection(
+            name = "General",
+            description = "General settings",
+            position = 1
+    )
+    String generalSettings = "generalSettings";
+
     @ConfigItem(
             keyName = "prefix",
             name = "Prefix",
             description = ";chat with this character like this.",
-            position = 5
+            position = 0,
+            section = generalSettings
     )
     default String prefix() { return ";"; }
 
     @ConfigItem(
-            keyName = "fontFamily",
-            name = "Font Family",
-            description = "Font family to use everywhere.",
-            position = 6,
-            hidden = true
+            keyName = "activeChannelOnly",
+            name = "Active Channel Only",
+            description = "Only show the active IRC channel in the OSRS chat box.",
+            position = 1,
+            section = generalSettings
     )
-    default String fontFamily() { return "SansSerif"; }
+    default boolean activeChannelOnly() { return false; }
 
-    @ConfigItem(
-            keyName = "fontSize",
-            name = "Font Size",
-            description = "Font size to use everywhere.",
-            position = 7,
-            hidden = true
+    @ConfigSection(
+            name = "Side Panel",
+            description = "Side panel settings",
+            position = 2,
+            closedByDefault = true
     )
-    default Integer fontSize() { return 12; }
+    String sidePanelSettings = "sidePanelSettings";
 
     @ConfigItem(
             keyName = "sidePanel",
-            name = "Side Panel",
+            name = "Enabled",
             description = "Enable the side panel",
-            position = 8
+            position = 0,
+            section = sidePanelSettings
     )
     default boolean sidePanel() { return true;}
 
@@ -132,7 +151,40 @@ public interface IrcConfig extends Config
             keyName = "timestamp",
             name = "Timestamp",
             description = "Enable the timestamp",
-            position = 9
+            position = 1,
+            section = sidePanelSettings
     )
     default boolean timestamp() { return true;}
+
+    @Range(
+            min = 0
+    )
+    @ConfigItem(
+            keyName = "panelPriority",
+            name = "Panel Priority",
+            description = "Control where the panel appears in the sidebar of RuneLite",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default int getPanelPriority() { return 10; }
+
+    @ConfigItem(
+            keyName = "fontFamily",
+            name = "Font Family",
+            description = "Font family to use everywhere.",
+            position = 3,
+            hidden = true,
+            section = sidePanelSettings
+    )
+    default String fontFamily() { return "SansSerif"; }
+
+    @ConfigItem(
+            keyName = "fontSize",
+            name = "Font Size",
+            description = "Font size to use everywhere.",
+            position = 4,
+            hidden = true,
+            section = sidePanelSettings
+    )
+    default Integer fontSize() { return 12; }
 }
