@@ -455,6 +455,7 @@ public class IrcPanel extends PluginPanel {
                 case SYSTEM:
                 case NICK_CHANGE:
                 case KICK:
+                case MODE:
                     color = ColorUtil.toHexColor(ColorScheme.BRAND_ORANGE);
                     break;
                 case JOIN:

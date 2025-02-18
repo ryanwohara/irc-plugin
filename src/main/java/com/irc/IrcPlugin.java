@@ -20,7 +20,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import org.kitteh.irc.client.library.Client;
 import org.kitteh.irc.client.library.element.Actor;
-import org.kitteh.irc.client.library.element.Channel;
 import org.kitteh.irc.client.library.event.channel.*;
 import org.kitteh.irc.client.library.event.client.ClientReceiveCommandEvent;
 import org.kitteh.irc.client.library.event.client.ClientReceiveNumericEvent;
@@ -295,8 +294,11 @@ public class IrcPlugin extends Plugin {
 
             case "umode":
             case "umode2":
+                System.out.println(arg.isEmpty() ? "(empty)" : arg);
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("mode " + currentNick + " :" + arg);
+                    ircClient.sendRawLine("MODE " + currentNick + " :" + arg);
+                } else {
+                    ircClient.sendRawLine("MODE " + currentNick);
                 }
                 break;
 
@@ -666,6 +668,28 @@ public class IrcPlugin extends Plugin {
         }
 
         @Handler
+        public void onChannelMode(ChannelModeEvent event) {
+            processMessage(new IrcMessage(
+                    event.getChannel().getName(),
+                    "* " + event.getActor().getName().split("!")[0] + " sets modes",
+                    event.getStatusList().getAsString(),
+                    IrcMessage.MessageType.MODE,
+                    Instant.now()
+            ));
+        }
+
+        @Handler
+        public void onUserMode(UserModeEvent event) {
+            processMessage(new IrcMessage(
+                    "System",
+                    currentNick,
+                    event.getStatusList().getAsString(),
+                    IrcMessage.MessageType.MODE,
+                    Instant.now()
+            ));
+        }
+
+        @Handler
         public void onQuit(UserQuitEvent event) {
             processMessage(new IrcMessage(
                     "System",
@@ -708,11 +732,11 @@ public class IrcPlugin extends Plugin {
 
             switch (code) {
                 case 221: // User modes
-                    String modes = parameters.get(2);
+                    String modes = parameters.get(1);
                     processMessage(
                             new IrcMessage(
                                     "System",
-                                    "System",
+                                    "User Modes",
                                     modes,
                                     IrcMessage.MessageType.SYSTEM,
                                     Instant.now()
