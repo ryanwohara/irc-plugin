@@ -108,7 +108,8 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "General",
             description = "General settings",
-            position = 1
+            position = 1,
+            closedByDefault = true
     )
     String generalSettings = "generalSettings";
 
@@ -129,6 +130,15 @@ public interface IrcConfig extends Config
             section = generalSettings
     )
     default boolean activeChannelOnly() { return false; }
+
+    @ConfigItem(
+            keyName = "hoverPreviewImages",
+            name = "Hover-Preview Image Links",
+            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+            position = 2,
+            section = generalSettings
+    )
+    default boolean hoverPreviewImages() { return false; }
 
     @ConfigSection(
             name = "Side Panel",

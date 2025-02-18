@@ -240,8 +240,16 @@ public class IrcPlugin extends Plugin {
                 break;
 
             case "nick":
-                if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("NICK :" + arg);
+                if (!arg.isEmpty() && arg.split(" ").length == 1) {
+                    ircClient.sendRawLine("NICK " + arg);
+                    processMessage(new IrcMessage(
+                            "System",
+                            "System",
+                            currentNick + " is now known as " + arg,
+                            IrcMessage.MessageType.NICK_CHANGE,
+                            Instant.now()
+                    ));
+                    currentNick = arg;
                 }
                 break;
 
