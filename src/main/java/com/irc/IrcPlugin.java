@@ -20,6 +20,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import org.kitteh.irc.client.library.Client;
 import org.kitteh.irc.client.library.element.Actor;
+import org.kitteh.irc.client.library.element.Channel;
 import org.kitteh.irc.client.library.event.channel.*;
 import org.kitteh.irc.client.library.event.client.ClientReceiveCommandEvent;
 import org.kitteh.irc.client.library.event.client.ClientReceiveNumericEvent;
@@ -32,6 +33,7 @@ import org.kitteh.irc.client.library.feature.filter.CommandFilter;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -672,6 +674,19 @@ public class IrcPlugin extends Plugin {
                     IrcMessage.MessageType.QUIT,
                     Instant.now()
             ));
+
+
+            if (panel != null) {
+                for (String chan : event.getUser().getChannels()) {
+                    SwingUtilities.invokeLater(() -> panel.addMessage(new IrcMessage(
+                            chan,
+                            event.getActor().getNick(),
+                            "Quit" + (!event.getMessage().isEmpty() ? ": " + event.getMessage() : ""),
+                            IrcMessage.MessageType.QUIT,
+                            Instant.now()
+                    )));
+                }
+            }
         }
 
         @Handler
@@ -748,7 +763,11 @@ public class IrcPlugin extends Plugin {
 
         @Handler
         public void onWhoisReply(ClientReceiveNumericEvent event) {
-            if (event.getNumeric() >= 311 && event.getNumeric() <= 319) {
+            ArrayList<Integer> ignore = new ArrayList<>();
+            ignore.add(315);
+            ignore.add(318);
+
+            if (event.getNumeric() >= 311 && event.getNumeric() <= 319 && ignore.contains(event.getNumeric())) {
                 List<String> parameters = event.getParameters();
                 String whoisInfo = String.join(" ", parameters.subList(1, parameters.size()));
 

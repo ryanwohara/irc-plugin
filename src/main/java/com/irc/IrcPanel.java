@@ -232,7 +232,9 @@ public class IrcPanel extends PluginPanel {
             channelPanes.put(channel, pane);
             unreadMessages.put(channel, false);
             tabbedPane.addTab(channel, new JScrollPane(pane));
-            tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
+            if (config.autoFocusOnNewTab() || channel.equals(config.channel())) {
+                tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
+            }
         }
     }
 

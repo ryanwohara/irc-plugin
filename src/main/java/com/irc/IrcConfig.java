@@ -140,6 +140,15 @@ public interface IrcConfig extends Config
     )
     default boolean hoverPreviewImages() { return false; }
 
+    @ConfigItem(
+            keyName = "autoFocusOnNewTab",
+            name = "Auto-Focus on New Tab",
+            description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
+            position = 3,
+            section = generalSettings
+    )
+    default boolean autoFocusOnNewTab() { return false; }
+
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
