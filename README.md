@@ -2,6 +2,10 @@
 
 An integration with SwiftIRC through the OSRS chat box.
 
+## Warning
+
+This will share your IP with the SwiftIRC administration.
+
 ## Functionality
 
 It is ideal to set the prefix to a character you can easily prefix IRC messages.
@@ -54,18 +58,57 @@ Clear the side panel: `;;clear`
 
 ## Configuration
 
-### username
+### Connection
+
+#### server
+
+USA or UK.
+
+More details are available at SwiftIRC.net:
+https://swiftirc.net/info/
+
+#### username
 
 The username used to connect to SwiftIRC.
 
-### channel (optional)
-
-The channel you intend to join. Leaving this blank will default to #rshelp.
-
-### password (optional)
+#### password (optional)
 
 The password to identify with NickServ.
 
-### prefix
+#### channel (optional)
+
+The channel you intend to join. Leaving this blank will default to #rshelp.
+
+#### channel password (optional)
+
+### General
+
+#### prefix
 
 Defaults to `;`. Prefixed to messages destined for IRC.
+
+#### active channel only
+
+Only show the active channel messages in the OSRS chat box. The "active channel" is the active tab in the side panel.
+
+#### hover-preview image links
+
+Enable to preview image links by hovering your mouse over them. WARNING: this will make it easier to share your IP with an image host.
+
+#### autofocus on new tab
+
+When a new tab opens, autofocus on it. This means sending/receiving a notice/message to a target, without an open tab, will change the active channel to this target.  
+
+### Side Panel
+
+#### enabled
+
+Whether the side panel will appear.
+
+#### timestamp
+
+Prefix messages with a timestamp in the format of `[hour:minute:second]`.
+
+#### priority
+
+Specifically where the side panel appears on the right, from top to bottom. 

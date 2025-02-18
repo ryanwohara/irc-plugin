@@ -141,13 +141,13 @@ public interface IrcConfig extends Config
     default boolean hoverPreviewImages() { return false; }
 
     @ConfigItem(
-            keyName = "autoFocusOnNewTab",
-            name = "Auto-Focus on New Tab",
+            keyName = "autofocusOnNewTab",
+            name = "Autofocus on New Tab",
             description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
             position = 3,
             section = generalSettings
     )
-    default boolean autoFocusOnNewTab() { return false; }
+    default boolean autofocusOnNewTab() { return false; }
 
     @ConfigSection(
             name = "Side Panel",
@@ -180,7 +180,7 @@ public interface IrcConfig extends Config
     )
     @ConfigItem(
             keyName = "panelPriority",
-            name = "Panel Priority",
+            name = "Priority",
             description = "Control where the panel appears in the sidebar of RuneLite",
             position = 2,
             section = sidePanelSettings

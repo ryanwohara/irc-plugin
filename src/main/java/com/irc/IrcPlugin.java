@@ -294,7 +294,6 @@ public class IrcPlugin extends Plugin {
 
             case "umode":
             case "umode2":
-                System.out.println(arg.isEmpty() ? "(empty)" : arg);
                 if (!arg.isEmpty()) {
                     ircClient.sendRawLine("MODE " + currentNick + " :" + arg);
                 } else {
