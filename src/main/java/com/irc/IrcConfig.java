@@ -149,6 +149,15 @@ public interface IrcConfig extends Config
     )
     default boolean autofocusOnNewTab() { return false; }
 
+    @ConfigItem(
+            keyName = "filterSystemNotices",
+            name = "System Notice Tab",
+            description = "Receiving a system notice will open a new dedicated tab for it.",
+            position = 4,
+            section = generalSettings
+    )
+    default boolean filterSystemNotices() { return false; }
+
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
