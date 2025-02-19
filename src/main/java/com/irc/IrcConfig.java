@@ -24,26 +24,68 @@
  */
 package com.irc;
 
-import net.runelite.client.config.Config;
-import net.runelite.client.config.ConfigGroup;
-import net.runelite.client.config.ConfigItem;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import net.runelite.client.config.*;
+
 
 @ConfigGroup("irc")
 public interface IrcConfig extends Config
 {
+    @ConfigSection(
+            name = "Connection",
+            description = "Connection settings",
+            position = 0,
+            closedByDefault = true
+    )
+    String connectionSettings = "connectionSettings";
+
+    @ConfigItem(
+            keyName = "server",
+            name = "Server",
+            description = "Server to use to directly connect.",
+            position = 0,
+            section = connectionSettings
+    )
+    default Server server() {
+        return Server.USA;
+    };
+
+    @Getter
+    @RequiredArgsConstructor
+    enum Server {
+        USA("Fiery (West-USA)", "fiery.ca.us.swiftirc.net"),
+        UK("London (UK)", "tardis.en.uk.swiftirc.net");
+
+        private final String name;
+        private final String hostname;
+    }
+
     @ConfigItem(
             keyName = "username",
             name = "Username",
             description = ";use the chat like this.",
-            position = 0
+            position = 1,
+            section = connectionSettings
     )
     String username();
+
+    @ConfigItem(
+            keyName = "password",
+            name = "Password (Optional) (not Jagex)",
+            description = "NickServ password (Optional) (NEVER your RS password!)",
+            position = 2,
+            secret = true,
+            section = connectionSettings
+    )
+    String password();
 
     @ConfigItem(
             keyName = "channel",
             name = "Channel",
             description = "Channel to join",
-            position = 1
+            position = 3,
+            section = connectionSettings
     )
     default String channel()
     {
@@ -51,27 +93,135 @@ public interface IrcConfig extends Config
     }
 
     @ConfigItem(
-            keyName = "password",
-            name = "Password (Optional) (not RS)",
-            description = "NickServ password (Optional) (NEVER your RS password!)",
-            position = 2,
-            secret = true
+            keyName = "channelPassword",
+            name = "Channel Password",
+            description = "Password to enter channel. (Optional)",
+            position = 4,
+            secret = true,
+            section = connectionSettings
     )
-    String password();
+    default String channelPassword()
+    {
+        return "";
+    }
+
+    @ConfigSection(
+            name = "General",
+            description = "General settings",
+            position = 1,
+            closedByDefault = true
+    )
+    String generalSettings = "generalSettings";
 
     @ConfigItem(
             keyName = "prefix",
             name = "Prefix",
-            description = ";chat with this character like this",
-            position = 3
+            description = ";chat with this character like this.",
+            position = 0,
+            section = generalSettings
     )
     default String prefix() { return ";"; }
 
     @ConfigItem(
-            keyName = "sidepanel",
-            name = "Side Panel",
-            description = "Enable the side panel.",
-            position = 4
+            keyName = "activeChannelOnly",
+            name = "Active Channel Only",
+            description = "Only show the active IRC channel in the OSRS chat box.",
+            position = 1,
+            section = generalSettings
     )
-    default boolean sidepanel() { return false; }
+    default boolean activeChannelOnly() { return false; }
+
+    @ConfigItem(
+            keyName = "hoverPreviewImages",
+            name = "Hover-Preview Image Links",
+            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+            position = 2,
+            section = generalSettings
+    )
+    default boolean hoverPreviewImages() { return false; }
+
+    @ConfigItem(
+            keyName = "autofocusOnNewTab",
+            name = "Autofocus on New Tab",
+            description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
+            position = 3,
+            section = generalSettings
+    )
+    default boolean autofocusOnNewTab() { return false; }
+
+    @ConfigItem(
+            keyName = "filterServerNotices",
+            name = "Server Notice Tab",
+            description = "Receiving a server notice will open a new dedicated tab for it.",
+            position = 4,
+            section = generalSettings
+    )
+    default boolean filterServerNotices() { return false; }
+
+    @ConfigSection(
+            name = "Side Panel",
+            description = "Side panel settings",
+            position = 2,
+            closedByDefault = true
+    )
+    String sidePanelSettings = "sidePanelSettings";
+
+    @ConfigItem(
+            keyName = "sidePanel",
+            name = "Enabled",
+            description = "Enable the side panel",
+            position = 0,
+            section = sidePanelSettings
+    )
+    default boolean sidePanel() { return true;}
+
+    @ConfigItem(
+            keyName = "timestamp",
+            name = "Timestamp",
+            description = "Enable the timestamp",
+            position = 1,
+            section = sidePanelSettings
+    )
+    default boolean timestamp() { return true;}
+
+    @ConfigItem(
+            keyName = "colorizedNicks",
+            name = "Colorized Nicks",
+            description = "Add color to nicks.",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default boolean colorizedNicks() { return true; }
+
+    @Range(
+            min = 0
+    )
+    @ConfigItem(
+            keyName = "panelPriority",
+            name = "Priority",
+            description = "Control where the panel appears in the sidebar of RuneLite",
+            position = 3,
+            section = sidePanelSettings
+    )
+    default int getPanelPriority() { return 10; }
+
+    @ConfigItem(
+            keyName = "fontFamily",
+            name = "Font Family",
+            description = "Font family to use everywhere.",
+            position = 4,
+            hidden = true,
+            section = sidePanelSettings
+    )
+    default String fontFamily() { return "SansSerif"; }
+
+    @ConfigItem(
+            keyName = "fontSize",
+            name = "Font Size",
+            description = "Font size to use everywhere.",
+            position = 5,
+            hidden = true,
+            section = sidePanelSettings
+    )
+    default Integer fontSize() { return 12; }
 }
