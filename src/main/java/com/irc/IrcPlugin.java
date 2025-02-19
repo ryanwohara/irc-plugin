@@ -139,9 +139,6 @@ public class IrcPlugin extends Plugin {
                 if (!channel.startsWith("#")) {
                     channel = "#" + channel;
                 }
-                if (channel.contains(",")) {
-                    channel = channel.split(",")[0];
-                }
             }
             joinChannel(channel.startsWith("#") ? channel : "#" + channel, config.channelPassword());
         }
