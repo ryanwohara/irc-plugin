@@ -93,11 +93,13 @@ Only show the active channel messages in the OSRS chat box. The "active channel"
 
 #### hover-preview image links
 
-Enable to preview image links by hovering your mouse over them. WARNING: this will make it easier to share your IP with an image host.
+Enable to preview image links by hovering your mouse over them. WARNING: this will make it easier to share your IP with
+an image host.
 
 #### autofocus on new tab
 
-When a new tab opens, autofocus on it. This means sending/receiving a notice/message to a target, without an open tab, will change the active channel to this target.
+When a new tab opens, autofocus on it. This means sending/receiving a notice/message to a target, without an open tab,
+will change the active channel to this target.
 
 #### server notice tab
 
@@ -119,4 +121,8 @@ Add a color to nicks appearing in the side panel.
 
 #### priority
 
-Specifically where the side panel appears on the right, from top to bottom. 
+Specifically where the side panel appears on the right, from top to bottom.
+
+## Screenshot
+
+![screenshot.png](screenshot.png)
