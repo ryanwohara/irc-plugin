@@ -11,6 +11,7 @@ import net.runelite.client.ui.PluginPanel;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.text.Element;
 import javax.swing.text.Position;
@@ -25,9 +26,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -258,7 +258,7 @@ public class IrcPanel extends PluginPanel {
         if (!message.getChannel().equals(focusedChannel)) {
             unreadMessages.put(message.getChannel(), true);
         }
-        pane.appendMessage(message, config.timestamp());
+        pane.appendMessage(message, config);
     }
 
     private void promptAddChannel() {
@@ -430,8 +430,8 @@ public class IrcPanel extends PluginPanel {
             }
         }
 
-        void appendMessage(IrcMessage message, boolean timestamp) {
-            String formattedMessage = formatPanelMessage(message, timestamp);
+        void appendMessage(IrcMessage message, IrcConfig config) {
+            String formattedMessage = formatPanelMessage(message, config);
             messageLog.append(formattedMessage);
 
             SwingUtilities.invokeLater(() -> {
@@ -442,11 +442,11 @@ public class IrcPanel extends PluginPanel {
             });
         }
 
-        private String formatPanelMessage(IrcMessage message, boolean timestamp) {
+        private String formatPanelMessage(IrcMessage message, IrcConfig config) {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
                     .withZone(ZoneId.systemDefault());
             String timeStamp = "";
-            if (timestamp) {
+            if (config.timestamp()) {
                 timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
             }
 
@@ -472,12 +472,32 @@ public class IrcPanel extends PluginPanel {
                     color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
             }
 
+            String sender = escapeHtml4(message.getSender());
+
+            if (config.colorizedNicks()) {
+                String[] viableColorIds = new String[]{"02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
+                String colorId = viableColorIds[asciiSum(sender) % viableColorIds.length];
+                String senderColor = htmlColorById(colorId);
+
+                sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);
+            }
+
             return String.format("<div style='color: %s'>%s%s:&nbsp;%s</div>",
                     color,
                     timeStamp,
-                    escapeHtml4(message.getSender()),
+                    sender,
                     formatMessage(message.getContent())
             );
+        }
+
+        private int asciiSum(String input) {
+            int sum = 0;
+
+            for (int i = 0; i < input.length(); i++) {
+                sum += input.charAt(i);
+            }
+
+            return sum;
         }
 
         private String formatMessage(String message) {

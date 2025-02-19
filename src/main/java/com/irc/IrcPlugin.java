@@ -583,12 +583,12 @@ public class IrcPlugin extends Plugin {
 
         @Handler
         public void onServerNotice(ServerNoticeEvent event) {
-            if (panel != null && config.filterSystemNotices()) {
+            if (panel != null && config.filterServerNotices()) {
                 panel.addChannel(event.getActor().getName());
             }
 
             processMessage(new IrcMessage(
-                    config.filterSystemNotices() ? event.getActor().getName() : "System",
+                    config.filterServerNotices() ? event.getActor().getName() : "System",
                     event.getActor().getName(),
                     event.getMessage(),
                     IrcMessage.MessageType.NOTICE,

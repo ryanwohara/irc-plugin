@@ -97,7 +97,11 @@ Enable to preview image links by hovering your mouse over them. WARNING: this wi
 
 #### autofocus on new tab
 
-When a new tab opens, autofocus on it. This means sending/receiving a notice/message to a target, without an open tab, will change the active channel to this target.  
+When a new tab opens, autofocus on it. This means sending/receiving a notice/message to a target, without an open tab, will change the active channel to this target.
+
+#### server notice tab
+
+Server notices will default to the System tab; you can optionally allow them to create their own tab.
 
 ### Side Panel
 
@@ -108,6 +112,10 @@ Whether the side panel will appear.
 #### timestamp
 
 Prefix messages with a timestamp in the format of `[hour:minute:second]`.
+
+#### colorized nicks
+
+Add a color to nicks appearing in the side panel.
 
 #### priority
 

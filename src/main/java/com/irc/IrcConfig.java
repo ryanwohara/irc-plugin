@@ -150,13 +150,13 @@ public interface IrcConfig extends Config
     default boolean autofocusOnNewTab() { return false; }
 
     @ConfigItem(
-            keyName = "filterSystemNotices",
-            name = "System Notice Tab",
-            description = "Receiving a system notice will open a new dedicated tab for it.",
+            keyName = "filterServerNotices",
+            name = "Server Notice Tab",
+            description = "Receiving a server notice will open a new dedicated tab for it.",
             position = 4,
             section = generalSettings
     )
-    default boolean filterSystemNotices() { return false; }
+    default boolean filterServerNotices() { return false; }
 
     @ConfigSection(
             name = "Side Panel",
@@ -184,6 +184,15 @@ public interface IrcConfig extends Config
     )
     default boolean timestamp() { return true;}
 
+    @ConfigItem(
+            keyName = "colorizedNicks",
+            name = "Colorized Nicks",
+            description = "Add color to nicks.",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default boolean colorizedNicks() { return true; }
+
     @Range(
             min = 0
     )
@@ -191,7 +200,7 @@ public interface IrcConfig extends Config
             keyName = "panelPriority",
             name = "Priority",
             description = "Control where the panel appears in the sidebar of RuneLite",
-            position = 2,
+            position = 3,
             section = sidePanelSettings
     )
     default int getPanelPriority() { return 10; }
@@ -200,7 +209,7 @@ public interface IrcConfig extends Config
             keyName = "fontFamily",
             name = "Font Family",
             description = "Font family to use everywhere.",
-            position = 3,
+            position = 4,
             hidden = true,
             section = sidePanelSettings
     )
@@ -210,7 +219,7 @@ public interface IrcConfig extends Config
             keyName = "fontSize",
             name = "Font Size",
             description = "Font size to use everywhere.",
-            position = 4,
+            position = 5,
             hidden = true,
             section = sidePanelSettings
     )
