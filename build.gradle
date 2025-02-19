@@ -2,6 +2,11 @@ plugins {
 	id 'java'
 }
 
+java {
+	sourceCompatibility = JavaVersion.VERSION_11
+	targetCompatibility = JavaVersion.VERSION_11
+}
+
 repositories {
 	mavenLocal()
 	maven {
@@ -14,7 +19,7 @@ def runeLiteVersion = 'latest.release'
 
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
-	implementation 'org.kitteh.irc:client-lib:9.0.0'
+	implementation 'org.kitteh.irc:client-lib:8.0.0'
 	implementation('com.vdurmont:emoji-java:5.1.1') {
 		exclude group: 'org.json'
 	}
@@ -25,6 +30,10 @@ dependencies {
 	testImplementation 'junit:junit:4.12'
 	testImplementation group: 'net.runelite', name:'client', version: runeLiteVersion
 	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 group = 'com.example'
