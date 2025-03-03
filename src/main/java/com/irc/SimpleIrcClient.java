@@ -290,13 +290,27 @@ public class SimpleIrcClient {
 
             case "QUIT":
                 String quitMessage = params.isEmpty() ? "" : params.get(0);
-                fireEvent(new IrcEvent(IrcEvent.Type.QUIT, sourceNick, null, quitMessage, null));
+    
+                List<String> userChannels = new ArrayList<>();
+                for (Map.Entry<String, Set<String>> entry : channelUsers.entrySet()) {
+                    if (entry.getValue().contains(sourceNick)) {
+                        userChannels.add(entry.getKey());
+                    }
+                }
+                
+                fireEvent(new IrcEvent(
+                    IrcEvent.Type.QUIT, 
+                    sourceNick, 
+                    null, 
+                    quitMessage, 
+                    String.join(",", userChannels)
+                ));
 
                 // Remove from all channels
                 for (Set<String> users : channelUsers.values()) {
                     users.remove(sourceNick);
                 }
-                break;
+            break;
 
             case "NICK":
                 if (!params.isEmpty()) {

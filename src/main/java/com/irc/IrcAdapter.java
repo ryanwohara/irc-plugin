@@ -239,7 +239,20 @@ public class IrcAdapter {
                             IrcMessage.MessageType.QUIT,
                             Instant.now()
                     ));
-                    break;
+                    
+                    if (event.getAdditionalData() != null && !event.getAdditionalData().isEmpty()) {
+                        String[] channels = event.getAdditionalData().split(",");
+                        for (String channel : channels) {
+                            processMessage(new IrcMessage(
+                                channel,
+                                event.getSource(),
+                                "Quit" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
+                                IrcMessage.MessageType.QUIT,
+                                Instant.now()
+                            ));
+                        }
+                    }
+                break;
 
                 case NICK_CHANGE:
                     String oldNick = event.getSource();
