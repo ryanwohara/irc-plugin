@@ -55,6 +55,7 @@ public class SimpleIrcClient {
     private int port;
     private boolean secure;
     private boolean connected = false;
+    private volatile boolean shuttingDown = false;
 
     public SimpleIrcClient server(String host, int port, boolean secure) {
         this.host = host;
@@ -76,6 +77,7 @@ public class SimpleIrcClient {
     }
 
     public void connect() {
+        shuttingDown = false;
         executor.submit(() -> {
             try {
                 if (secure) {
@@ -97,16 +99,26 @@ public class SimpleIrcClient {
                 connected = true;
                 fireEvent(new IrcEvent(IrcEvent.Type.CONNECT, null, null, null, null));
 
-                // Start reading messages
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    processLine(line);
+                try {
+                    while (!shuttingDown && (line = reader.readLine()) != null) {
+                        processLine(line);
+                    }
+                } catch (IOException e) {
+                    if (!shuttingDown) {
+                        log.error("Error reading from IRC server", e);
+                        fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, null, e.getMessage()));
+                    }
                 }
             } catch (Exception e) {
-                log.error("Error in IRC connection", e);
-                fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, null, e.getMessage()));
+                if (!shuttingDown) {
+                    log.error("Error in IRC connection", e);
+                    fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, null, e.getMessage()));
+                }
             } finally {
-                disconnect();
+                if (!shuttingDown) {
+                    disconnect();
+                }
             }
         });
     }
@@ -128,18 +140,26 @@ public class SimpleIrcClient {
     public void disconnect() {
         if (connected) {
             try {
+                shuttingDown = true;
+
                 if (writer != null) {
-                    sendRawLine("QUIT :Disconnecting");
-                    writer.close();
+                    try {
+                        sendRawLine("QUIT :Disconnecting");
+                        writer.close();
+                    } catch (IOException ignored) {}
                 }
+
                 if (reader != null) {
-                    reader.close();
+                    try {
+                        reader.close();
+                    } catch (IOException ignored) {}
                 }
+
                 if (socket != null) {
-                    socket.close();
+                    try {
+                        socket.close();
+                    } catch (IOException ignored) {}
                 }
-            } catch (IOException e) {
-                log.error("Error during disconnect", e);
             } finally {
                 connected = false;
                 fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
@@ -279,7 +299,10 @@ public class SimpleIrcClient {
                 if (!params.isEmpty()) {
                     String channel = params.get(0);
                     String reason = params.size() > 1 ? params.get(1) : "";
-                    fireEvent(new IrcEvent(IrcEvent.Type.PART, sourceNick, channel, reason, null));
+
+                    if (!sourceNick.equals(nick)) {
+                        fireEvent(new IrcEvent(IrcEvent.Type.PART, sourceNick, channel, reason, null));
+                    }
 
                     // Remove from channel users
                     if (channelUsers.containsKey(channel)) {
