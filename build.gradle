@@ -19,7 +19,6 @@ def runeLiteVersion = 'latest.release'
 
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
-	implementation 'org.kitteh.irc:client-lib:8.0.0'
 	implementation('com.vdurmont:emoji-java:5.1.1') {
 		exclude group: 'org.json'
 	}
