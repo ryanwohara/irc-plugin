@@ -1,7 +1,7 @@
 package com.irc;
 
 import com.google.inject.Provides;
-import com.vdurmont.emoji.EmojiParser;
+import com.irc.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;

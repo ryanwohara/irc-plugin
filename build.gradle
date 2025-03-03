@@ -19,9 +19,6 @@ def runeLiteVersion = 'latest.release'
 
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
-	implementation('com.vdurmont:emoji-java:5.1.1') {
-		exclude group: 'org.json'
-	}
 
 	compileOnly 'org.projectlombok:lombok:1.18.30'
 	annotationProcessor 'org.projectlombok:lombok:1.18.30'
