@@ -1,6 +1,5 @@
 package com.irc;
 
-import com.google.common.base.Strings;
 import com.google.inject.Provides;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
@@ -18,25 +17,11 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
-import org.kitteh.irc.client.library.Client;
-import org.kitteh.irc.client.library.element.Actor;
-import org.kitteh.irc.client.library.event.channel.*;
-import org.kitteh.irc.client.library.event.client.ClientReceiveCommandEvent;
-import org.kitteh.irc.client.library.event.client.ClientReceiveNumericEvent;
-import org.kitteh.irc.client.library.event.connection.*;
-import org.kitteh.irc.client.library.event.user.*;
-import net.engio.mbassy.listener.Handler;
-import org.kitteh.irc.client.library.feature.auth.SaslPlain;
-import org.kitteh.irc.client.library.feature.filter.CommandFilter;
 
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @PluginDescriptor(
         name = "IRC",
@@ -53,8 +38,7 @@ public class IrcPlugin extends Plugin {
     @Inject
     private ClientToolbar clientToolbar;
 
-    private Client ircClient;
-
+    private IrcAdapter ircAdapter;
     private IrcPanel panel;
     private String currentNick;
 
@@ -64,14 +48,16 @@ public class IrcPlugin extends Plugin {
         if (config.sidePanel()) {
             setupPanel();
         }
+
+        // Join default channel after connection
         joinDefaultChannel();
     }
 
     @Override
     protected void shutDown() {
-        if (ircClient != null) {
-            ircClient.shutdown("Plugin shutting down");
-            ircClient = null;
+        if (ircAdapter != null) {
+            ircAdapter.disconnect("Plugin shutting down");
+            ircAdapter = null;
         }
         if (panel != null) {
             if (config.sidePanel()) {
@@ -93,25 +79,9 @@ public class IrcPlugin extends Plugin {
 
         currentNick = config.username();
 
-        ircClient = Client.builder()
-                .nick(currentNick)
-                .user("runelite")
-                .realName(currentNick)
-                .server()
-                .host(config.server().getHostname())
-                .port(6697)
-                .secure(true)
-                .then()
-                .build();
-
-        if(currentNick != null && config.password() != null) {
-            if (!currentNick.isEmpty() && !config.password().isEmpty()) {
-                ircClient.getAuthManager().addProtocol(new SaslPlain(ircClient, currentNick, config.password()));
-            }
-        }
-
-        ircClient.getEventManager().registerEventListener(new IrcEventHandler());
-        ircClient.connect();
+        ircAdapter = new IrcAdapter();
+        ircAdapter.initialize(config, this::processMessage);
+        ircAdapter.connect();
     }
 
     private void setupPanel() {
@@ -130,9 +100,9 @@ public class IrcPlugin extends Plugin {
     }
 
     private void joinDefaultChannel() {
-        if (!Strings.isNullOrEmpty(config.username())) {
+        if (!config.username().isEmpty()) {
             String channel;
-            if (Strings.isNullOrEmpty(config.channel())) {
+            if (config.channel().isEmpty()) {
                 channel = "#rshelp";
             } else {
                 channel = config.channel().toLowerCase();
@@ -140,14 +110,14 @@ public class IrcPlugin extends Plugin {
                     channel = "#" + channel;
                 }
             }
-            joinChannel(channel.startsWith("#") ? channel : "#" + channel, config.channelPassword());
+            joinChannel(channel, config.channelPassword());
         }
     }
 
     private void handleMessageSend(String channel, String message) {
         if (message.startsWith("/") ||
-            (message.startsWith(config.prefix())
-            && message.length() > config.prefix().length())) {
+                (message.startsWith(config.prefix())
+                        && message.length() > config.prefix().length())) {
             handleCommand(message);
         } else {
             sendMessage(channel, message);
@@ -184,13 +154,13 @@ public class IrcPlugin extends Plugin {
                 String[] msgParts = arg.split(" ", 2);
                 if (msgParts.length == 2) {
                     String target = msgParts[0];
-                    String message = msgParts[1];
+                    String msg = msgParts[1];
 
                     if (panel != null) {
                         SwingUtilities.invokeLater(() -> panel.addChannel(target));
                     }
 
-                    sendMessage(target, message);
+                    sendMessage(target, msg);
                 }
                 break;
 
@@ -204,42 +174,34 @@ public class IrcPlugin extends Plugin {
                 String[] noticeParts = arg.split(" ", 2);
                 if (noticeParts.length == 2) {
                     String target = noticeParts[0];
-                    String message = noticeParts[1];
-                    ircClient.sendNotice(target, message);
-
-                    processMessage(new IrcMessage(
-                            "System",
-                            currentNick,
-                            "Notice to " + target + ": " + message,
-                            IrcMessage.MessageType.SYSTEM,
-                            Instant.now()
-                    ));
+                    String noticeMsg = noticeParts[1];
+                    ircAdapter.sendNotice(target, noticeMsg);
                 }
                 break;
 
             case "whois":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("WHOIS " + arg);
+                    ircAdapter.sendRawLine("WHOIS " + arg);
                 }
                 break;
 
             case "away":
                 if (arg.isEmpty()) {
-                    ircClient.sendRawLine("AWAY"); // Remove away status
+                    ircAdapter.sendRawLine("AWAY"); // Remove away status
                 } else {
-                    ircClient.sendRawLine("AWAY :" + arg);
+                    ircAdapter.sendRawLine("AWAY :" + arg);
                 }
                 break;
 
             case "names":
                 if (panel.getCurrentChannel().startsWith("#")) {
-                    ircClient.sendRawLine("NAMES " + panel.getCurrentChannel());
+                    ircAdapter.sendRawLine("NAMES " + panel.getCurrentChannel());
                 }
                 break;
 
             case "nick":
                 if (!arg.isEmpty() && arg.split(" ").length == 1) {
-                    ircClient.sendRawLine("NICK " + arg);
+                    ircAdapter.setNick(arg);
                     processMessage(new IrcMessage(
                             "System",
                             "System",
@@ -292,17 +254,17 @@ public class IrcPlugin extends Plugin {
             case "umode":
             case "umode2":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("MODE " + currentNick + " :" + arg);
+                    ircAdapter.sendRawLine("MODE " + currentNick + " :" + arg);
                 } else {
-                    ircClient.sendRawLine("MODE " + currentNick);
+                    ircAdapter.sendRawLine("MODE " + currentNick);
                 }
                 break;
 
             case "topic":
                 if (!arg.isEmpty()) {
-                    ircClient.sendRawLine("TOPIC " + panel.getCurrentChannel() + " :" + arg);
+                    ircAdapter.sendRawLine("TOPIC " + panel.getCurrentChannel() + " :" + arg);
                 } else {
-                    ircClient.sendRawLine("TOPIC " + panel.getCurrentChannel());
+                    ircAdapter.sendRawLine("TOPIC " + panel.getCurrentChannel());
                 }
                 break;
 
@@ -330,11 +292,11 @@ public class IrcPlugin extends Plugin {
         String[] split = mode.split(" ");
 
         if (mode.startsWith("#")) {
-            ircClient.sendRawLine("MODE " + mode);
+            ircAdapter.sendRawLine("MODE " + mode);
         } else if (split.length > 0) {
-            ircClient.sendRawLine("MODE " + panel.getCurrentChannel() + " " + mode);
+            ircAdapter.sendRawLine("MODE " + panel.getCurrentChannel() + " " + mode);
         } else {
-            ircClient.sendRawLine("MODE " + panel.getCurrentChannel());
+            ircAdapter.sendRawLine("MODE " + panel.getCurrentChannel());
         }
     }
 
@@ -362,7 +324,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private void joinChannel(String channel, String password) {
-        ircClient.sendRawLine("JOIN " + channel + " " + password);
+        ircAdapter.joinChannel(channel, password);
     }
 
     private void closePane(String name) {
@@ -400,12 +362,11 @@ public class IrcPlugin extends Plugin {
                 }
             }
         }
-
     }
 
     private void leaveChannel(String channel) {
         if (channel.startsWith("#")) {
-            ircClient.removeChannel(channel);
+            ircAdapter.leaveChannel(channel);
         }
 
         if (panel != null) {
@@ -414,7 +375,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private void leaveChannel(String channel, String reason) {
-        ircClient.removeChannel(channel, reason);
+        ircAdapter.leaveChannel(channel, reason);
 
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.removeChannel(channel));
@@ -430,27 +391,11 @@ public class IrcPlugin extends Plugin {
     }
 
     private void sendMessage(String target, String message) {
-        ircClient.sendMessage(target, message);
-
-        processMessage(new IrcMessage(
-                target,
-                currentNick,
-                message,
-                IrcMessage.MessageType.PRIVATE,
-                Instant.now()
-        ));
+        ircAdapter.sendMessage(target, message);
     }
 
     private void sendAction(String target, String message) {
-        ircClient.sendMessage(target, "\u0001ACTION " + message + "\u0001");
-
-        processMessage(new IrcMessage(
-                target,
-                "* " + currentNick,
-                message,
-                IrcMessage.MessageType.PRIVATE,
-                Instant.now()
-        ));
+        ircAdapter.sendAction(target, message);
     }
 
     private String stripStyles(String message) {
@@ -467,11 +412,11 @@ public class IrcPlugin extends Plugin {
                     .name(message.getSender())
                     .runeLiteFormattedMessage(
                             new ChatMessageBuilder()
-                            .append(ChatColorType.NORMAL)
-                            .append(EmojiParser.parseToAliases(
-                                    stripStyles(message.getContent())
-                            ))
-                            .build())
+                                    .append(ChatColorType.NORMAL)
+                                    .append(EmojiParser.parseToAliases(
+                                            stripStyles(message.getContent())
+                                    ))
+                                    .build())
                     .timestamp((int) (message.getTimestamp().getEpochSecond()))
                     .build());
         }
@@ -515,308 +460,6 @@ public class IrcPlugin extends Plugin {
             intStack[intStackCount - 3] = 1;
 
             handleMessageSend(panel.getCurrentChannel(), message.substring(1));
-        }
-    }
-
-    private class IrcEventHandler {
-        @Handler
-        public void onConnect(ClientConnectionEstablishedEvent event) {
-            processMessage(new IrcMessage(
-                    "System",
-                    "System",
-                    "Connected to IRC",
-                    IrcMessage.MessageType.SYSTEM,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onDisconnect(ClientConnectionEndedEvent event) {
-            processMessage(new IrcMessage(
-                    "System",
-                    "System",
-                    "Disconnected from IRC",
-                    IrcMessage.MessageType.SYSTEM,
-                    Instant.now()
-            ));
-        }
-
-        @CommandFilter("PRIVMSG")
-        @Handler
-        public void privmsg(ClientReceiveCommandEvent event) {
-            String timestamp = event.getRawMessage().split(" ",  2)[0];
-            String rawMessage = event.getRawMessage().split(" ", 2)[1];
-
-            String nick = event.getActor().getName().split("!")[0];
-            String target = rawMessage.split(" ")[2];
-            if (target.equalsIgnoreCase(currentNick)) {
-                target = nick;
-            }
-            String msg = rawMessage.split(" ", 4)[3].substring(1);
-
-            if (msg.startsWith("\u0001ACTION ") && msg.endsWith("\u0001")) {
-                msg = msg.substring("\u0001ACTION ".length(), msg.length()-1);
-                nick = "* " + nick;
-            }
-
-            processMessage(new IrcMessage(
-                    target,
-                    nick,
-                    msg,
-                    IrcMessage.MessageType.CHAT,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onTopic(ChannelTopicEvent event) {
-            Optional<Actor> setter = event.getNewTopic().getSetter();
-
-            processMessage(new IrcMessage(
-                    event.getChannel().getName(),
-                    "* Topic set by " + (setter.map(Actor::getName).orElse("unknown!").split("!")[0]),
-                    event.getNewTopic().getValue().orElse(""),
-                    IrcMessage.MessageType.TOPIC,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onServerNotice(ServerNoticeEvent event) {
-            if (panel != null && config.filterServerNotices()) {
-                panel.addChannel(event.getActor().getName());
-            }
-
-            processMessage(new IrcMessage(
-                    config.filterServerNotices() ? event.getActor().getName() : "System",
-                    event.getActor().getName(),
-                    event.getMessage(),
-                    IrcMessage.MessageType.NOTICE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onPrivateNotice(PrivateNoticeEvent event) {
-            if (panel != null) {
-                panel.addChannel(event.getActor().getNick());
-            }
-            processMessage(new IrcMessage(
-                    event.getActor().getNick(),
-                    event.getActor().getNick(),
-                    event.getMessage(),
-                    IrcMessage.MessageType.NOTICE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onChannelNotice(ChannelNoticeEvent event) {
-            String pmChannel = "Notice: " + event.getActor().getNick() + " @ " + event.getChannel().getName();
-            if (panel != null) {
-                panel.addChannel(pmChannel);
-            }
-            processMessage(new IrcMessage(
-                    pmChannel,
-                    event.getActor().getNick(),
-                    event.getMessage(),
-                    IrcMessage.MessageType.NOTICE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onNickChange(UserNickChangeEvent event) {
-            if (event.getOldUser().getNick().equals(currentNick)) {
-                currentNick = event.getNewUser().getNick();
-            }
-
-            processMessage(new IrcMessage(
-                    "System",
-                    "System",
-                    event.getOldUser().getNick() + " is now known as " + event.getNewUser().getNick(),
-                    IrcMessage.MessageType.NICK_CHANGE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onChannelJoin(ChannelJoinEvent event) {
-            processMessage(new IrcMessage(
-                    event.getChannel().getName(),
-                    event.getActor().getNick(),
-                    "joined",
-                    IrcMessage.MessageType.JOIN,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onChannelPart(ChannelPartEvent event) {
-            if(!event.getActor().getNick().equals(ircClient.getNick())) {
-                processMessage(new IrcMessage(
-                        event.getChannel().getName(),
-                        event.getActor().getNick(),
-                        "left",
-                        IrcMessage.MessageType.PART,
-                        Instant.now()
-                ));
-            }
-        }
-
-        @Handler
-        public void onChannelMode(ChannelModeEvent event) {
-            processMessage(new IrcMessage(
-                    event.getChannel().getName(),
-                    "* " + event.getActor().getName().split("!")[0] + " sets modes",
-                    event.getStatusList().getAsString(),
-                    IrcMessage.MessageType.MODE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onUserMode(UserModeEvent event) {
-            processMessage(new IrcMessage(
-                    "System",
-                    currentNick,
-                    event.getStatusList().getAsString(),
-                    IrcMessage.MessageType.MODE,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onQuit(UserQuitEvent event) {
-            processMessage(new IrcMessage(
-                    "System",
-                    event.getActor().getNick(),
-                    "Quit" + (!event.getMessage().isEmpty() ? ": " + event.getMessage() : ""),
-                    IrcMessage.MessageType.QUIT,
-                    Instant.now()
-            ));
-
-
-            if (panel != null) {
-                for (String chan : event.getUser().getChannels()) {
-                    SwingUtilities.invokeLater(() -> panel.addMessage(new IrcMessage(
-                            chan,
-                            event.getActor().getNick(),
-                            "Quit" + (!event.getMessage().isEmpty() ? ": " + event.getMessage() : ""),
-                            IrcMessage.MessageType.QUIT,
-                            Instant.now()
-                    )));
-                }
-            }
-        }
-
-        @Handler
-        public void onChannelKick(ChannelKickEvent event) {
-            processMessage(new IrcMessage(
-                    event.getChannel().getName(),
-                    event.getActor().getName().split("!")[0],
-                    "kicked " + event.getTarget().getNick() + " (" + event.getMessage() + ")",
-                    IrcMessage.MessageType.KICK,
-                    Instant.now()
-            ));
-        }
-
-        @Handler
-        public void onNumericReply(ClientReceiveNumericEvent event) {
-            int code = event.getNumeric();
-            List<String> parameters = event.getParameters();
-            String channel;
-
-            switch (code) {
-                case 221: // User modes
-                    String modes = parameters.get(1);
-                    processMessage(
-                            new IrcMessage(
-                                    "System",
-                                    "User Modes",
-                                    modes,
-                                    IrcMessage.MessageType.SYSTEM,
-                                    Instant.now()
-                            )
-                    );
-
-
-                case 353: // RPL_NAMREPLY - User list
-                    channel = parameters.get(2);
-                    String usersRaw = parameters.get(3);
-                    List<String> users = Arrays.stream(usersRaw.split(" "))
-                            .map(s -> s.split("!")[0])
-                            .filter(s -> !s.isEmpty())
-                            .collect(Collectors.toList());
-
-                    processMessage(new IrcMessage(
-                            channel,
-                            "Users",
-                            users.toString(),
-                            IrcMessage.MessageType.JOIN,
-                            Instant.now()
-                    ));
-                    break;
-                case 475: // Cannot join channel (+k)
-                    channel = parameters.get(1);
-
-                    processMessage(new IrcMessage(
-                            channel,
-                            "ERROR",
-                            "Channel requires a passphrase.",
-                            IrcMessage.MessageType.JOIN,
-                            Instant.now()
-                    ));
-                    break;
-                case 448: // Cannot join channel: Channel name contains illegal characters (must be valid UTF8)
-                    channel = parameters.get(1);
-
-                    processMessage(new IrcMessage(
-                            channel,
-                            "ERROR",
-                            "Channel name contains invalid characters.",
-                            IrcMessage.MessageType.JOIN,
-                            Instant.now()
-                    ));
-                    break;
-            }
-        }
-
-        @Handler
-        public void onWhoisReply(ClientReceiveNumericEvent event) {
-            ArrayList<Integer> ignore = new ArrayList<>();
-            ignore.add(315);
-            ignore.add(318);
-
-            if (event.getNumeric() >= 311 && event.getNumeric() <= 319 && ignore.contains(event.getNumeric())) {
-                List<String> parameters = event.getParameters();
-                String whoisInfo = String.join(" ", parameters.subList(1, parameters.size()));
-
-                processMessage(new IrcMessage(
-                        "System",
-                        "WHOIS",
-                        whoisInfo,
-                        IrcMessage.MessageType.SYSTEM,
-                        Instant.now()
-                ));
-            }
-        }
-
-        @Handler
-        public void onNickInUse(ClientReceiveNumericEvent event) {
-            if (event.getNumeric() == 433) {
-                String fallbackNick = currentNick + "_";
-                processMessage(new IrcMessage(
-                        "System",
-                        "System",
-                        "Nickname is already in use. Trying: " + fallbackNick,
-                        IrcMessage.MessageType.SYSTEM,
-                        Instant.now()
-                ));
-
-                ircClient.setNick(fallbackNick);
-                currentNick = fallbackNick;
-            }
         }
     }
 }
