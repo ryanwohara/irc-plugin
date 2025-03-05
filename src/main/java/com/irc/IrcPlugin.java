@@ -55,15 +55,15 @@ public class IrcPlugin extends Plugin {
 
     @Override
     protected void shutDown() {
-        if (ircAdapter != null) {
-            ircAdapter.disconnect("Plugin shutting down");
-            ircAdapter = null;
-        }
         if (panel != null) {
             if (config.sidePanel()) {
                 clientToolbar.removeNavigation(panel.getNavigationButton());
             }
             panel = null;
+        }
+        if (ircAdapter != null) {
+            ircAdapter.disconnect("Plugin shutting down");
+            ircAdapter = null;
         }
     }
 
@@ -161,6 +161,9 @@ public class IrcPlugin extends Plugin {
                     }
 
                     sendMessage(target, msg);
+                }
+                if (panel != null && msgParts.length > 0) {
+                    panel.addChannel(msgParts[0]);
                 }
                 break;
 
@@ -405,7 +408,9 @@ public class IrcPlugin extends Plugin {
     private void processMessage(IrcMessage message) {
         if (client.getGameState() == GameState.LOGGED_IN
                 && ((config.activeChannelOnly() && panel.getCurrentChannel().equals(message.getChannel()))
-                || !config.activeChannelOnly())) {
+                    || !config.activeChannelOnly())
+                && (message.getType() != IrcMessage.MessageType.QUIT
+                    || message.getChannel().equals("System"))) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(ChatMessageType.FRIENDSCHAT)
                     .sender(message.getChannel())
@@ -434,7 +439,8 @@ public class IrcPlugin extends Plugin {
 
         try {
             stopIrcPanel();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
 
         if (config.sidePanel()) {
             clientToolbar.addNavigation(panel.generateNavigationButton());

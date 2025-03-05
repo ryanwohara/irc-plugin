@@ -512,12 +512,12 @@ public class IrcPanel extends PluginPanel {
                     .replaceAll("\u001D([^\u001D\u000F]+)[\u001D\u000F]?", "<i>$1</i>")
                     .replaceAll("\u0002([^\u0002\u000F]+)[\u0002\u000F]?", "<b>$1</b>");
 
-            Pattern p = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)");
+            Pattern p = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
             Matcher m = p.matcher(message);
 
             StringBuilder sb = new StringBuilder();
             while (m.find()) {
-                m.appendReplacement(sb, "<font color=\"" + htmlColorById(m.group(1)) + "\">" + m.group(2) + "</font>");
+                m.appendReplacement(sb, "<font color=\"" + htmlColorById(m.group(1)) + "\">" + Matcher.quoteReplacement(m.group(2)) + "</font>");
             }
             m.appendTail(sb);
 
