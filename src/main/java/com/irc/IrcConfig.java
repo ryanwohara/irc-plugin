@@ -132,15 +132,6 @@ public interface IrcConfig extends Config
     default boolean activeChannelOnly() { return false; }
 
     @ConfigItem(
-            keyName = "hoverPreviewImages",
-            name = "Hover-Preview Image Links",
-            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
-            position = 2,
-            section = generalSettings
-    )
-    default boolean hoverPreviewImages() { return false; }
-
-    @ConfigItem(
             keyName = "autofocusOnNewTab",
             name = "Autofocus on New Tab",
             description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
@@ -185,10 +176,19 @@ public interface IrcConfig extends Config
     default boolean timestamp() { return true;}
 
     @ConfigItem(
+            keyName = "hoverPreviewImages",
+            name = "Hover-Preview Image Links",
+            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default boolean hoverPreviewImages() { return false; }
+
+    @ConfigItem(
             keyName = "colorizedNicks",
             name = "Colorized Nicks",
             description = "Add color to nicks.",
-            position = 2,
+            position = 3,
             section = sidePanelSettings
     )
     default boolean colorizedNicks() { return true; }
@@ -200,7 +200,7 @@ public interface IrcConfig extends Config
             keyName = "panelPriority",
             name = "Priority",
             description = "Control where the panel appears in the sidebar of RuneLite",
-            position = 3,
+            position = 4,
             section = sidePanelSettings
     )
     default int getPanelPriority() { return 10; }
@@ -209,7 +209,7 @@ public interface IrcConfig extends Config
             keyName = "fontFamily",
             name = "Font Family",
             description = "Font family to use everywhere.",
-            position = 4,
+            position = 5,
             hidden = true,
             section = sidePanelSettings
     )
@@ -219,7 +219,7 @@ public interface IrcConfig extends Config
             keyName = "fontSize",
             name = "Font Size",
             description = "Font size to use everywhere.",
-            position = 5,
+            position = 6,
             hidden = true,
             section = sidePanelSettings
     )

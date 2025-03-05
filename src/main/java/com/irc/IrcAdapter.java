@@ -239,20 +239,20 @@ public class IrcAdapter {
                             IrcMessage.MessageType.QUIT,
                             Instant.now()
                     ));
-                    
+
                     if (event.getAdditionalData() != null && !event.getAdditionalData().isEmpty()) {
                         String[] channels = event.getAdditionalData().split(",");
                         for (String channel : channels) {
                             processMessage(new IrcMessage(
-                                channel,
-                                event.getSource(),
-                                "Quit" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
-                                IrcMessage.MessageType.QUIT,
-                                Instant.now()
+                                    channel,
+                                    event.getSource(),
+                                    "Quit" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
+                                    IrcMessage.MessageType.QUIT,
+                                    Instant.now()
                             ));
                         }
                     }
-                break;
+                    break;
 
                 case NICK_CHANGE:
                     String oldNick = event.getSource();
@@ -308,7 +308,7 @@ public class IrcAdapter {
                 case CHANNEL_MODE:
                     processMessage(new IrcMessage(
                             event.getTarget(),
-                            "* " + event.getSource() + " sets modes",
+                            event.getSource(),
                             event.getMessage(),
                             IrcMessage.MessageType.MODE,
                             Instant.now()
@@ -328,7 +328,7 @@ public class IrcAdapter {
                 case TOPIC:
                     processMessage(new IrcMessage(
                             event.getTarget(),
-                            "* Topic set by " + event.getSource(),
+                            "* Topic",
                             event.getMessage(),
                             IrcMessage.MessageType.TOPIC,
                             Instant.now()
@@ -362,6 +362,16 @@ public class IrcAdapter {
                             "Error",
                             event.getMessage() != null ? event.getMessage() : "Unknown error",
                             IrcMessage.MessageType.SYSTEM,
+                            Instant.now()
+                    ));
+                    break;
+
+                case TOPIC_INFO:
+                    processMessage(new IrcMessage(
+                            event.getTarget(), // channel
+                            event.getSource(), // who set the topic
+                            event.getMessage(), // the message about who set it
+                            IrcMessage.MessageType.TOPIC, // reuse the same message type as regular topic
                             Instant.now()
                     ));
                     break;

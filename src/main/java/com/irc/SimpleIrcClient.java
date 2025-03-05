@@ -146,19 +146,22 @@ public class SimpleIrcClient {
                     try {
                         sendRawLine("QUIT :Disconnecting");
                         writer.close();
-                    } catch (IOException ignored) {}
+                    } catch (IOException ignored) {
+                    }
                 }
 
                 if (reader != null) {
                     try {
                         reader.close();
-                    } catch (IOException ignored) {}
+                    } catch (IOException ignored) {
+                    }
                 }
 
                 if (socket != null) {
                     try {
                         socket.close();
-                    } catch (IOException ignored) {}
+                    } catch (IOException ignored) {
+                    }
                 }
             } finally {
                 connected = false;
@@ -313,27 +316,27 @@ public class SimpleIrcClient {
 
             case "QUIT":
                 String quitMessage = params.isEmpty() ? "" : params.get(0);
-    
+
                 List<String> userChannels = new ArrayList<>();
                 for (Map.Entry<String, Set<String>> entry : channelUsers.entrySet()) {
                     if (entry.getValue().contains(sourceNick)) {
                         userChannels.add(entry.getKey());
                     }
                 }
-                
+
                 fireEvent(new IrcEvent(
-                    IrcEvent.Type.QUIT, 
-                    sourceNick, 
-                    null, 
-                    quitMessage, 
-                    String.join(",", userChannels)
+                        IrcEvent.Type.QUIT,
+                        sourceNick,
+                        null,
+                        quitMessage,
+                        String.join(",", userChannels)
                 ));
 
                 // Remove from all channels
                 for (Set<String> users : channelUsers.values()) {
                     users.remove(sourceNick);
                 }
-            break;
+                break;
 
             case "NICK":
                 if (!params.isEmpty()) {
@@ -384,14 +387,19 @@ public class SimpleIrcClient {
             case "MODE":
                 if (params.size() >= 2) {
                     String target = params.get(0);
-                    String modeString = params.get(1);
+                    StringBuilder modeString = new StringBuilder();
+                    for (String param : params) {
+                        if (params.indexOf(param) > 0) {
+                            modeString.append(" ").append(param);
+                        }
+                    }
 
                     if (target.startsWith("#")) {
                         // Channel mode
-                        fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, sourceNick, target, modeString, null));
+                        fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, "* " + sourceNick + " sets mode(s)", target, modeString.toString(), null));
                     } else {
                         // User mode
-                        fireEvent(new IrcEvent(IrcEvent.Type.USER_MODE, sourceNick, target, modeString, null));
+                        fireEvent(new IrcEvent(IrcEvent.Type.USER_MODE, sourceNick, target, modeString.toString(), null));
                     }
                 }
                 break;
@@ -445,6 +453,39 @@ public class SimpleIrcClient {
             case 1: // RPL_WELCOME - This means we're fully registered with the server
                 connected = true; // Mark as truly connected and ready
                 fireEvent(new IrcEvent(IrcEvent.Type.REGISTERED, null, null, null, null));
+                break;
+
+            case 324: // Channel modes
+                if (params.size() >= 2) {
+                    String target = params.get(1);
+                    StringBuilder message = new StringBuilder();
+                    for (String param : params) {
+                        if (params.indexOf(param) > 1) {
+                            message.append(" ").append(param);
+                        }
+                    }
+
+                    fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, "* Modes", target, message.toString(), null));
+                }
+                break;
+
+            case 332: // RPL_TOPIC - Topic message
+                if (params.size() >= 3) {
+                    String channel = params.get(1);
+                    String topic = params.get(2);
+                    fireEvent(new IrcEvent(IrcEvent.Type.TOPIC, "System", channel, topic, null));
+                }
+                break;
+
+            case 333: // RPL_TOPICWHOTIME - Topic setter info
+                if (params.size() >= 4) {
+                    String channel = params.get(1);
+                    String setter = params.get(2);
+                    // You might want to format this timestamp
+                    long timestamp = Long.parseLong(params.get(3));
+                    fireEvent(new IrcEvent(IrcEvent.Type.TOPIC_INFO, "* Topic set by", channel,
+                            setter, null));
+                }
                 break;
 
             case 353: // RPL_NAMREPLY - Channel user list
@@ -534,14 +575,19 @@ public class SimpleIrcClient {
         public enum Type {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
-            TOPIC, NAMES, NICK_IN_USE, ERROR
+            TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO
         }
 
-        @Getter private final Type type;
-        @Getter private final String source;
-        @Getter private final String target;
-        @Getter private final String message;
-        @Getter private final String additionalData;
+        @Getter
+        private final Type type;
+        @Getter
+        private final String source;
+        @Getter
+        private final String target;
+        @Getter
+        private final String message;
+        @Getter
+        private final String additionalData;
 
         public IrcEvent(Type type, String source, String target, String message, String additionalData) {
             this.type = type;
