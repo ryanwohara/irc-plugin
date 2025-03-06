@@ -39,22 +39,22 @@ The following services run on SwiftIRC: NickServ, ChanServ, BotServ, HostServ, a
 You may communicate via the following commands with the respective service:
 
 ```text
-NickServ: ;;ns
-ChanServ: ;;cs
 BotServ: ;;bs
+ChanServ: ;;cs
 HostServ: ;;hs
 MemoServ: ;;ms
+NickServ: ;;ns
 ```
 
 ### Miscellaneous Commands
 
-Change user modes: `;;umode +R` (as an example)
+Clear the side panel: `;;clear`
 
 Change channel modes: `;;mode #rshelp -s`
 
 View the topic: `;;topic`
 
-Clear the side panel: `;;clear`
+Change user modes: `;;umode +R`
 
 ## Configuration
 
