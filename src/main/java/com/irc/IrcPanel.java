@@ -48,6 +48,7 @@ public class IrcPanel extends PluginPanel {
 
     private JTabbedPane tabbedPane;
     private JTextField inputField;
+    @Getter
     private Map<String, ChannelPane> channelPanes;
     @Getter
     private NavigationButton navigationButton;
@@ -143,7 +144,7 @@ public class IrcPanel extends PluginPanel {
                 tabbedPane.setBackgroundAt(tabbedPane.getSelectedIndex(), null);
                 tabbedPane.setForegroundAt(tabbedPane.getSelectedIndex(), null);
             }
-            focusedChannel = newChannel;
+            this.setFocusedChannel(newChannel);
         });
 
         initializeFlashTimer();
@@ -158,6 +159,12 @@ public class IrcPanel extends PluginPanel {
                 .build();
 
         return navigationButton;
+    }
+
+    public void setFocusedChannel(String channel) {
+        this.focusedChannel = channel;
+
+        tabbedPane.setSelectedIndex(tabbedPane.indexOfTab(channel));
     }
 
     private JComboBox<String> getStringJComboBox() {

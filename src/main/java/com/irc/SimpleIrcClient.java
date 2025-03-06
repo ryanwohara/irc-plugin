@@ -341,7 +341,7 @@ public class SimpleIrcClient {
             case "NICK":
                 if (!params.isEmpty()) {
                     String newNick = params.get(0);
-                    fireEvent(new IrcEvent(IrcEvent.Type.NICK_CHANGE, sourceNick, null, newNick, null));
+                    fireEvent(new IrcEvent(IrcEvent.Type.NICK_CHANGE, sourceNick, null, newNick, String.join(",", channels)));
 
                     // Update nickname in channel users
                     for (Set<String> users : channelUsers.values()) {

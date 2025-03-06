@@ -269,6 +269,17 @@ public class IrcAdapter {
                             IrcMessage.MessageType.NICK_CHANGE,
                             Instant.now()
                     ));
+
+                    String[] channels = event.getAdditionalData().split(",");
+                    for (String channel : channels) {
+                        processMessage(new IrcMessage(
+                                channel,
+                                "System",
+                                oldNick + " is now known as " + newNick,
+                                IrcMessage.MessageType.NICK_CHANGE,
+                                Instant.now()
+                        ));
+                    }
                     break;
 
                 case KICK:

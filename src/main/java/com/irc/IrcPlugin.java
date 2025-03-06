@@ -149,6 +149,17 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "go":
+                if (!arg.isEmpty()) {
+                    for (String channel : panel.getChannelPanes().keySet()) {
+                        if (channel.matches(".*" + arg + ".*")) {
+                            panel.setFocusedChannel(channel);
+                            break;
+                        }
+                    }
+                }
+                break;
+
             case "msg":
             case "query":
                 String[] msgParts = arg.split(" ", 2);
@@ -205,13 +216,6 @@ public class IrcPlugin extends Plugin {
             case "nick":
                 if (!arg.isEmpty() && arg.split(" ").length == 1) {
                     ircAdapter.setNick(arg);
-                    processMessage(new IrcMessage(
-                            "System",
-                            "System",
-                            currentNick + " is now known as " + arg,
-                            IrcMessage.MessageType.NICK_CHANGE,
-                            Instant.now()
-                    ));
                     currentNick = arg;
                 }
                 break;
@@ -306,13 +310,21 @@ public class IrcPlugin extends Plugin {
     private void showCommandHelp() {
         String[] helpLines = {
                 "Available commands:",
+                "/away [message] - Set or remove away status",
                 "/join <channel> - Join a channel",
                 "/leave <channel> - Leave a channel",
-                "/msg <nick> <message> - Send private message",
                 "/me <action> - Send action message",
+                "/mode [#channel] [+modes|-modes] - Modify channel modes",
+                "/msg <nick> <message> - Send private message",
                 "/notice <nick> <message> - Send notice",
+                "/topic [#channel] [topic] - View or set the channel topic",
+                "/umode [+modes|-modes] - Modify user modes",
                 "/whois <nick> - Query user information",
-                "/away [message] - Set or remove away status"
+                "/bs <message> - Talk to BotServ",
+                "/cs <message> - Talk to ChanServ",
+                "/hs <message> - Talk to HostServ",
+                "/ms <message> - Talk to MemoServ",
+                "/ns <message> - Talk to NickServ"
         };
 
         for (String line : helpLines) {
@@ -460,7 +472,7 @@ public class IrcPlugin extends Plugin {
         String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
 
         if (message.startsWith(config.prefix())
-                && !message.matches("^.[opOP)(]")) {
+                && !message.matches("^.[opdOPD)(]")) {
             final int[] intStack = client.getIntStack();
             int intStackCount = client.getIntStackSize();
             intStack[intStackCount - 3] = 1;
