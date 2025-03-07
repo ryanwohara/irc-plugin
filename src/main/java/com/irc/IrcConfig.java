@@ -26,6 +26,7 @@ package com.irc;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import net.runelite.api.ChatMessageType;
 import net.runelite.client.config.*;
 
 
@@ -151,6 +152,24 @@ public interface IrcConfig extends Config
 
     @Getter
     @RequiredArgsConstructor
+    enum Chatbox {
+        FRIENDSCHAT(ChatMessageType.FRIENDSCHAT),
+        CLAN_CHAT(ChatMessageType.CLAN_CHAT);
+
+        private final ChatMessageType type;
+    }
+
+    @ConfigItem(
+            keyName = "chatboxType",
+            name = "Chatbox Type",
+            description = "Which type of chatbox will be used in-game.",
+            position = 5,
+            section = generalSettings
+    )
+    default Chatbox getChatboxType() { return Chatbox.FRIENDSCHAT; }
+
+    @Getter
+    @RequiredArgsConstructor
     enum MessageDisplay {
         Status("Show only in status window."),
         Current("Show only in current window."),
@@ -227,7 +246,7 @@ public interface IrcConfig extends Config
     )
     @ConfigItem(
             keyName = "panelPriority",
-            name = "Priority",
+            name = "Position in Sidebar",
             description = "Control where the panel appears in the sidebar of RuneLite",
             position = 4,
             section = sidePanelSettings
@@ -241,7 +260,7 @@ public interface IrcConfig extends Config
             keyName = "maxScrollback",
             name = "Maximum Scrollback per Channel",
             description = "Restrict the scrollback per channel to avoid lag",
-            position = 4,
+            position = 5,
             section = sidePanelSettings
     )
     default int getMaxScrollback() { return 100; }
