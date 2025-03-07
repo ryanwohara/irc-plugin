@@ -299,7 +299,7 @@ public class IrcPanel extends PluginPanel {
     }
 
     private static class ChannelPane extends JTextPane {
-        private StringBuilder messageLog;
+        private ArrayList<String> messageLog;
         private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("\\.(png|jpe?g|gif|bmp|webp)(\\?.*)?$", Pattern.CASE_INSENSITIVE);
         private static final int MAX_PREVIEW_WIDTH = 500;
         private static final int MAX_PREVIEW_HEIGHT = 500;
@@ -309,7 +309,7 @@ public class IrcPanel extends PluginPanel {
             setContentType("text/html");
             setFont(font);
             setEditable(false);
-            messageLog = new StringBuilder();
+            messageLog = new ArrayList<>();
 
             addHyperlinkListener(e -> {
                 if (e.getURL() != null) {
@@ -436,12 +436,15 @@ public class IrcPanel extends PluginPanel {
 
         void appendMessage(IrcMessage message, IrcConfig config) {
             String formattedMessage = formatPanelMessage(message, config);
-            messageLog.append(formattedMessage);
+            messageLog.add(formattedMessage);
+
+            if (messageLog.size() > config.getMaxScrollback()) {
+                messageLog.remove(0);
+            }
 
             SwingUtilities.invokeLater(() -> {
-                setText("<html><body style='"
-                        + "color: " + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";"
-                        + "'>" + messageLog + "</body></html>");
+                setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";'>"
+                        + String.join("\n", messageLog) + "</body></html>");
                 setCaretPosition(getDocument().getLength());
             });
         }
@@ -600,7 +603,7 @@ public class IrcPanel extends PluginPanel {
 
         public void clear() {
             this.setText("");
-            messageLog = new StringBuilder();
+            messageLog = new ArrayList<>();
         }
     }
 

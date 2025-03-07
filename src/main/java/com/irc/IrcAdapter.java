@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -17,6 +18,9 @@ public class IrcAdapter {
     private String currentNick;
     private final Map<String, Set<String>> channelUsers = new HashMap<>();
     private Consumer<IrcMessage> messageConsumer;
+    private IrcConfig config;
+    private IrcPanel panel;
+
 
     public IrcAdapter() {
         client = new SimpleIrcClient();
@@ -25,9 +29,11 @@ public class IrcAdapter {
     /**
      * Initialize the client with the provided config
      */
-    public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer) {
+    public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer, IrcPanel panel) {
         this.messageConsumer = messageConsumer;
+        this.config = config;
         this.currentNick = config.username();
+        this.panel = panel;
 
         client = new SimpleIrcClient()
                 .server(config.server().getHostname(), 6697, true)
@@ -160,6 +166,9 @@ public class IrcAdapter {
      */
     private void setupEventHandlers() {
         client.addEventListener(event -> {
+            String target = event.getTarget();
+            String source = event.getSource();
+
             switch (event.getType()) {
                 case CONNECT:
                     processMessage(new IrcMessage(
@@ -192,9 +201,24 @@ public class IrcAdapter {
                     break;
 
                 case MESSAGE:
+                    if (Objects.equals(target, source)) {
+                        switch (config.filterPMs()) {
+                            case Current:
+                                source = "[PM] " + source;
+                                target = panel.getCurrentChannel();
+                                break;
+                            case Status:
+                                source = "[PM] " + source;
+                                target = "System";
+                                break;
+                            case Private:
+                                target = event.getSource();
+                                break;
+                        }
+                    }
                     processMessage(new IrcMessage(
-                            event.getTarget(),
-                            event.getSource(),
+                            target,
+                            source,
                             event.getMessage(),
                             IrcMessage.MessageType.CHAT,
                             Instant.now()
@@ -296,20 +320,34 @@ public class IrcAdapter {
                     ));
                     break;
 
-                case NOTICE:
-                    processMessage(new IrcMessage(
-                            event.getTarget(),
-                            event.getSource(),
-                            event.getMessage(),
-                            IrcMessage.MessageType.NOTICE,
-                            Instant.now()
-                    ));
-                    break;
-
                 case SERVER_NOTICE:
+                case NOTICE:
+                    if (source.endsWith(".SwiftIRC.net")) {
+                        if (!config.filterServerNotices()) {
+                            target = "System";
+                        } else {
+                            target = source;
+                        }
+                    } else {
+                        source = "[N] " + source;
+
+                        switch (config.filterNotices()) {
+                            case Current:
+                                target = panel.getCurrentChannel();
+                                break;
+                            case Status:
+                                target = "System";
+                                break;
+                            case Private:
+                                target = source;
+                            default:
+                                break;
+                        }
+                    }
+
                     processMessage(new IrcMessage(
-                            "System",
-                            event.getSource(),
+                            target,
+                            source,
                             event.getMessage(),
                             IrcMessage.MessageType.NOTICE,
                             Instant.now()

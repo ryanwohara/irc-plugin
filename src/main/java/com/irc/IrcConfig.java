@@ -109,7 +109,7 @@ public interface IrcConfig extends Config
             name = "General",
             description = "General settings",
             position = 1,
-            closedByDefault = true
+            closedByDefault = false
     )
     String generalSettings = "generalSettings";
 
@@ -148,6 +148,35 @@ public interface IrcConfig extends Config
             section = generalSettings
     )
     default boolean filterServerNotices() { return false; }
+
+    @Getter
+    @RequiredArgsConstructor
+    enum MessageDisplay {
+        Status("Show only in status window."),
+        Current("Show only in current window."),
+        Private("Show only in a private window with the sender.");
+
+        private final String description;
+    }
+
+    @ConfigItem(
+            keyName = "filterNotices",
+            name = "Notice Window",
+            description = "Adjust how to treat the display of notices.",
+            position = 5,
+            section = generalSettings
+    )
+    default MessageDisplay filterNotices() { return MessageDisplay.Current; }
+
+
+    @ConfigItem(
+            keyName = "filterPMs",
+            name = "PM Window",
+            description = "Adjust how to treat the display of PMs.",
+            position = 6,
+            section = generalSettings
+    )
+    default MessageDisplay filterPMs() { return MessageDisplay.Current; }
 
     @ConfigSection(
             name = "Side Panel",
@@ -205,11 +234,23 @@ public interface IrcConfig extends Config
     )
     default int getPanelPriority() { return 10; }
 
+    @Range(
+            min = 0
+    )
+    @ConfigItem(
+            keyName = "maxScrollback",
+            name = "Maximum Scrollback per Channel",
+            description = "Restrict the scrollback per channel to avoid lag",
+            position = 4,
+            section = sidePanelSettings
+    )
+    default int getMaxScrollback() { return 100; }
+
     @ConfigItem(
             keyName = "fontFamily",
             name = "Font Family",
             description = "Font family to use everywhere.",
-            position = 5,
+            position = 6,
             hidden = true,
             section = sidePanelSettings
     )
@@ -219,7 +260,7 @@ public interface IrcConfig extends Config
             keyName = "fontSize",
             name = "Font Size",
             description = "Font size to use everywhere.",
-            position = 6,
+            position = 7,
             hidden = true,
             section = sidePanelSettings
     )
