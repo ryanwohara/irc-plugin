@@ -44,10 +44,10 @@ public class IrcPlugin extends Plugin {
 
     @Override
     protected void startUp() {
-        connectToIrc();
         if (config.sidePanel()) {
             setupPanel();
         }
+        connectToIrc();
 
         // Join default channel after connection
         joinDefaultChannel();
@@ -80,7 +80,7 @@ public class IrcPlugin extends Plugin {
         currentNick = config.username();
 
         ircAdapter = new IrcAdapter();
-        ircAdapter.initialize(config, this::processMessage);
+        ircAdapter.initialize(config, this::processMessage, panel);
         ircAdapter.connect();
     }
 
@@ -311,8 +311,9 @@ public class IrcPlugin extends Plugin {
         String[] helpLines = {
                 "Available commands:",
                 "/away [message] - Set or remove away status",
-                "/join <channel> - Join a channel",
-                "/leave <channel> - Leave a channel",
+                "/go <channel> - Focus on this channel (uses regex)",
+                "/join <#channel> - Join a channel",
+                "/leave [#channel] - Leave a channel",
                 "/me <action> - Send action message",
                 "/mode [#channel] [+modes|-modes] - Modify channel modes",
                 "/msg <nick> <message> - Send private message",
