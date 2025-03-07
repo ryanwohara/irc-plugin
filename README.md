@@ -56,6 +56,8 @@ View the topic: `;;topic`
 
 Change user modes: `;;umode +R`
 
+Change the focused channel: `;;go rsh`
+
 ## Configuration
 
 ### Connection
