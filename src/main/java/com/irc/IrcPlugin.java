@@ -425,7 +425,7 @@ public class IrcPlugin extends Plugin {
                 && (message.getType() != IrcMessage.MessageType.QUIT
                     || message.getChannel().equals("System"))) {
             chatMessageManager.queue(QueuedMessage.builder()
-                    .type(ChatMessageType.FRIENDSCHAT)
+                    .type(config.getChatboxType().getType())
                     .sender(message.getChannel())
                     .name(message.getSender())
                     .runeLiteFormattedMessage(
