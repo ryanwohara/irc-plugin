@@ -1,9 +1,10 @@
 package com.irc;
 
 import com.google.inject.Provides;
+import com.irc.emoji.EmojiManager;
 import com.irc.emoji.EmojiParser;
+import com.irc.emoji.EmojiService;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
 import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ScriptCallbackEvent;
@@ -21,7 +22,6 @@ import net.runelite.client.ui.ClientToolbar;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
-import java.util.Arrays;
 
 @PluginDescriptor(
         name = "IRC",
@@ -41,12 +41,16 @@ public class IrcPlugin extends Plugin {
     private IrcAdapter ircAdapter;
     private IrcPanel panel;
     private String currentNick;
+    @Inject
+    private EmojiService emojiService;
 
     @Override
     protected void startUp() {
         if (config.sidePanel()) {
             setupPanel();
         }
+        emojiService.initialize();
+
         connectToIrc();
 
         // Join default channel after connection
