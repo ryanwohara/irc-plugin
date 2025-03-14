@@ -450,7 +450,7 @@ public class IrcPlugin extends Plugin {
 
     @Subscribe
     public void onConfigChanged(ConfigChanged configChanged) {
-        if (!configChanged.getGroup().equals("irc")) {
+        if (!configChanged.getGroup().equals("irc") || configChanged.getKey().equals("fontFamily") || configChanged.getKey().equals("fontSize")) {
             return;
         }
 
