@@ -223,14 +223,16 @@ public interface IrcConfig extends Config
     )
     default boolean timestamp() { return true;}
 
-    @ConfigItem(
-            keyName = "hoverPreviewImages",
-            name = "Hover-Preview Image Links",
-            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
-            position = 2,
-            section = sidePanelSettings
-    )
-    default boolean hoverPreviewImages() { return false; }
+// Commenting this out until I can improve the UX of it
+//
+//    @ConfigItem(
+//            keyName = "hoverPreviewImages",
+//            name = "Hover-Preview Image Links",
+//            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+//            position = 2,
+//            section = sidePanelSettings
+//    )
+//    default boolean hoverPreviewImages() { return false; }
 
     @ConfigItem(
             keyName = "colorizedNicks",

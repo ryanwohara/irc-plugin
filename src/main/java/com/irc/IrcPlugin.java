@@ -1,7 +1,6 @@
 package com.irc;
 
 import com.google.inject.Provides;
-import com.irc.emoji.EmojiManager;
 import com.irc.emoji.EmojiParser;
 import com.irc.emoji.EmojiService;
 import lombok.extern.slf4j.Slf4j;

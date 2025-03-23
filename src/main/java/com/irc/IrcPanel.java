@@ -320,119 +320,121 @@ public class IrcPanel extends PluginPanel {
                             LinkBrowser.browse(e.getURL().toURI().toString());
                         } catch (Exception ignored) {
                         }
-                    } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
-                        if (config.hoverPreviewImages() && isImageUrl(url)) {
-                            showImagePreview(e.getSourceElement(), url);
-                        }
-                    } else if (e.getEventType() == HyperlinkEvent.EventType.EXITED) {
-                        hideImagePreview();
+// This feature is currently disabled until the UX can improve
+//                    } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
+//                        if (config.hoverPreviewImages() && isImageUrl(url)) {
+//                            showImagePreview(e.getSourceElement(), url);
+//                        }
+//                    } else if (e.getEventType() == HyperlinkEvent.EventType.EXITED) {
+//                        hideImagePreview();
                     }
                 }
             });
         }
 
         private boolean isImageUrl(String url) {
-            boolean matches = IMAGE_URL_PATTERN.matcher(url).find();
-            return matches;
+            return IMAGE_URL_PATTERN.matcher(url).find();
         }
 
-        private void showImagePreview(Object source, String imageUrl) {
-            hideImagePreview();
-
-            CompletableFuture.runAsync(() -> {
-                HttpURLConnection connection = null;
-                try {
-                    URL url = new URL(imageUrl);
-                    connection = (HttpURLConnection) url.openConnection();
-
-                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-                    connection.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
-                    connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
-                    connection.setRequestProperty("Sec-Fetch-Dest", "image");
-                    connection.setRequestProperty("Sec-Fetch-Mode", "no-cors");
-                    connection.setRequestProperty("Sec-Fetch-Site", "cross-site");
-
-                    connection.setConnectTimeout(5000);
-                    connection.setReadTimeout(5000);
-
-                    // Follow redirects
-                    connection.setInstanceFollowRedirects(true);
-
-                    BufferedImage originalImage = ImageIO.read(connection.getInputStream());
-                    if (originalImage == null) {
-                        return;
-                    }
-
-                    // Scale image while maintaining aspect ratio
-                    double scale = Math.min(
-                            (double) MAX_PREVIEW_WIDTH / originalImage.getWidth(),
-                            (double) MAX_PREVIEW_HEIGHT / originalImage.getHeight()
-                    );
-
-                    int scaledWidth = (int) (originalImage.getWidth() * scale);
-                    int scaledHeight = (int) (originalImage.getHeight() * scale);
-
-                    BufferedImage scaledImage = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_ARGB);
-                    Graphics2D g2d = scaledImage.createGraphics();
-                    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                    g2d.drawImage(originalImage, 0, 0, scaledWidth, scaledHeight, null);
-                    g2d.dispose();
-
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            if (source instanceof Element) {
-                                hideImagePreview();
-
-                                Rectangle bounds = getElementBounds((Element) source);
-
-                                Point location = new Point(
-                                        bounds.x,
-                                        bounds.y + bounds.height
-                                );
-                                SwingUtilities.convertPointToScreen(location, ChannelPane.this);
-
-                                JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
-                                imageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-                                imageLabel.setBackground(new Color(32, 32, 32));
-                                imageLabel.setOpaque(true);
-
-                                currentImagePreview = PopupFactory.getSharedInstance().getPopup(
-                                        ChannelPane.this,
-                                        imageLabel,
-                                        location.x,
-                                        location.y
-                                );
-                                currentImagePreview.show();
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    });
-                } catch (Exception ignored) {
-                } finally {
-                    if (connection != null) {
-                        connection.disconnect();
-                    }
-                }
-            });
-        }
-
-        private Rectangle getElementBounds(Element element) {
-            try {
-                Rectangle result = getUI().modelToView2D(this, element. getStartOffset(), Position.Bias.Forward).getBounds();
-                Rectangle endRect = getUI().modelToView2D(this, element.getEndOffset(), Position.Bias.Backward).getBounds();
-                result.add(endRect);
-                return result;
-            } catch (Exception ex) {
-                return new Rectangle(0, 0, 0, 0);
-            }
-        }
-
-        private void hideImagePreview() {
-            if (currentImagePreview != null) {
-                currentImagePreview.hide();
-                currentImagePreview = null;
-            }
-        }
+// This feature is disabled until the UX can improve
+//
+//        private void showImagePreview(Object source, String imageUrl) {
+//            hideImagePreview();
+//
+//            CompletableFuture.runAsync(() -> {
+//                HttpURLConnection connection = null;
+//                try {
+//                    URL url = new URL(imageUrl);
+//                    connection = (HttpURLConnection) url.openConnection();
+//
+//                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+//                    connection.setRequestProperty("Accept", "image/apng,image/svg+xml,image/*,*/*;q=0.8");
+//                    connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+//                    connection.setRequestProperty("Sec-Fetch-Dest", "image");
+//                    connection.setRequestProperty("Sec-Fetch-Mode", "no-cors");
+//                    connection.setRequestProperty("Sec-Fetch-Site", "cross-site");
+//
+//                    connection.setConnectTimeout(5000);
+//                    connection.setReadTimeout(5000);
+//
+//                    // Follow redirects
+//                    connection.setInstanceFollowRedirects(true);
+//
+//                    BufferedImage originalImage = ImageIO.read(connection.getInputStream());
+//                    if (originalImage == null) {
+//                        return;
+//                    }
+//
+//                    // Scale image while maintaining aspect ratio
+//                    double scale = Math.min(
+//                            (double) MAX_PREVIEW_WIDTH / originalImage.getWidth(),
+//                            (double) MAX_PREVIEW_HEIGHT / originalImage.getHeight()
+//                    );
+//
+//                    int scaledWidth = (int) (originalImage.getWidth() * scale);
+//                    int scaledHeight = (int) (originalImage.getHeight() * scale);
+//
+//                    BufferedImage scaledImage = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_ARGB);
+//                    Graphics2D g2d = scaledImage.createGraphics();
+//                    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+//                    g2d.drawImage(originalImage, 0, 0, scaledWidth, scaledHeight, null);
+//                    g2d.dispose();
+//
+//                    SwingUtilities.invokeLater(() -> {
+//                        try {
+//                            if (source instanceof Element) {
+//                                hideImagePreview();
+//
+//                                Rectangle bounds = getElementBounds((Element) source);
+//
+//                                Point location = new Point(
+//                                        bounds.x,
+//                                        bounds.y + bounds.height
+//                                );
+//                                SwingUtilities.convertPointToScreen(location, ChannelPane.this);
+//
+//                                JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
+//                                imageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+//                                imageLabel.setBackground(new Color(32, 32, 32));
+//                                imageLabel.setOpaque(true);
+//
+//                                currentImagePreview = PopupFactory.getSharedInstance().getPopup(
+//                                        ChannelPane.this,
+//                                        imageLabel,
+//                                        location.x,
+//                                        location.y
+//                                );
+//                                currentImagePreview.show();
+//                            }
+//                        } catch (Exception ignored) {
+//                        }
+//                    });
+//                } catch (Exception ignored) {
+//                } finally {
+//                    if (connection != null) {
+//                        connection.disconnect();
+//                    }
+//                }
+//            });
+//        }
+//
+//        private Rectangle getElementBounds(Element element) {
+//            try {
+//                Rectangle result = getUI().modelToView2D(this, element. getStartOffset(), Position.Bias.Forward).getBounds();
+//                Rectangle endRect = getUI().modelToView2D(this, element.getEndOffset(), Position.Bias.Backward).getBounds();
+//                result.add(endRect);
+//                return result;
+//            } catch (Exception ex) {
+//                return new Rectangle(0, 0, 0, 0);
+//            }
+//        }
+//
+//        private void hideImagePreview() {
+//            if (currentImagePreview != null) {
+//                currentImagePreview.hide();
+//                currentImagePreview = null;
+//            }
+//        }
 
         void appendMessage(IrcMessage message, IrcConfig config) {
             String formattedMessage = formatPanelMessage(message, config);
