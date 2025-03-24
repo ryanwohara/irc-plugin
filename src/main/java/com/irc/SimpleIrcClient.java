@@ -3,22 +3,15 @@ package com.irc;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,7 +21,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -73,9 +65,8 @@ public class SimpleIrcClient {
         return this;
     }
 
-    public SimpleIrcClient password(String password) {
+    public void password(String password) {
         this.password = password;
-        return this;
     }
 
     public void connect() {
@@ -88,8 +79,8 @@ public class SimpleIrcClient {
                     socket = new Socket(host, port);
                 }
 
-                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"));
-                reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+                reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
                 // Register connection
                 if (password != null && !password.isEmpty()) {
@@ -575,6 +566,7 @@ public class SimpleIrcClient {
     }
 
     // Event class for all IRC events
+    @Getter
     public static class IrcEvent {
         public enum Type {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
@@ -582,15 +574,10 @@ public class SimpleIrcClient {
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO
         }
 
-        @Getter
         private final Type type;
-        @Getter
         private final String source;
-        @Getter
         private final String target;
-        @Getter
         private final String message;
-        @Getter
         private final String additionalData;
 
         public IrcEvent(Type type, String source, String target, String message, String additionalData) {

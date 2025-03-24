@@ -18,6 +18,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
@@ -39,6 +40,7 @@ public class IrcPlugin extends Plugin {
     @Inject
     private ClientToolbar clientToolbar;
 
+    @Nullable
     private IrcAdapter ircAdapter;
     private IrcPanel panel;
     private String currentNick;
@@ -133,6 +135,8 @@ public class IrcPlugin extends Plugin {
     }
 
     private void handleCommand(String command) {
+        if (ircAdapter == null) return;
+
         String[] parts = command.split(" ", 2);
         String cmd = parts[0].toLowerCase().substring(1);
         String arg = parts.length > 1 ? parts[1].trim() : "";
@@ -304,6 +308,8 @@ public class IrcPlugin extends Plugin {
     }
 
     private void mode(String mode) {
+        if (ircAdapter == null) return;
+
         String[] split = mode.split(" ");
 
         if (mode.startsWith("#")) {
@@ -348,6 +354,8 @@ public class IrcPlugin extends Plugin {
     }
 
     private void joinChannel(String channel, String password) {
+        if (ircAdapter == null) return;
+
         ircAdapter.joinChannel(channel, password);
     }
 
@@ -367,7 +375,7 @@ public class IrcPlugin extends Plugin {
 
             if (name.startsWith("#")) {
                 leaveChannel(name);
-            } else if (!panel.isPane(name) && panel.getCurrentChannel().startsWith("#")) {
+            } else if (panel != null && !panel.isPane(name) && panel.getCurrentChannel().startsWith("#")) {
                 leaveChannel(panel.getCurrentChannel(), split[0]);
             }
         } else {
@@ -389,6 +397,8 @@ public class IrcPlugin extends Plugin {
     }
 
     private void leaveChannel(String channel) {
+        if (ircAdapter == null) return;
+
         if (channel.startsWith("#")) {
             ircAdapter.leaveChannel(channel);
         }
@@ -399,6 +409,8 @@ public class IrcPlugin extends Plugin {
     }
 
     private void leaveChannel(String channel, String reason) {
+        if (ircAdapter == null) return;
+
         ircAdapter.leaveChannel(channel, reason);
 
         if (panel != null) {
@@ -415,10 +427,14 @@ public class IrcPlugin extends Plugin {
     }
 
     private void sendMessage(String target, String message) {
+        if (ircAdapter == null) return;
+
         ircAdapter.sendMessage(target, message);
     }
 
     private void sendAction(String target, String message) {
+        if (ircAdapter == null) return;
+
         ircAdapter.sendAction(target, message);
     }
 
@@ -460,7 +476,7 @@ public class IrcPlugin extends Plugin {
 
         try {
             stopIrcPanel();
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
 
         if (config.sidePanel()) {
@@ -474,7 +490,7 @@ public class IrcPlugin extends Plugin {
 
     @Subscribe
     public void onScriptCallbackEvent(ScriptCallbackEvent event) {
-        if (!"chatDefaultReturn".equals(event.getEventName())) {
+        if (!"chatDefaultReturn".equals(event.getEventName()) || ircAdapter == null) {
             return;
         }
 

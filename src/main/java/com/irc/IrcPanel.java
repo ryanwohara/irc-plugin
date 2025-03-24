@@ -51,13 +51,13 @@ public class IrcPanel extends PluginPanel {
     private Consumer<String> onChannelLeave;
     private Font font;
 
-    private Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
-    private Timer flashTimer;
+    private final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
 
     private void initializeFlashTimer() {
-        flashTimer = new Timer(500, e -> {
+        // Change color for different flash
+        Timer flashTimer = new Timer(500, e -> {
             String currentTab = getCurrentChannel();
             for (int i = 0; i < tabbedPane.getTabCount(); i++) {
                 String tabTitle = tabbedPane.getTitleAt(i);
@@ -668,13 +668,11 @@ public class IrcPanel extends PluginPanel {
         private final KeyStroke keyStroke;
         private final String insertText;
         private final String actionKey;
-        private final String description;
 
         IrcShortcut(KeyStroke keyStroke, String insertText, String actionKey, String description) {
             this.keyStroke = keyStroke;
             this.insertText = insertText;
             this.actionKey = actionKey;
-            this.description = description;
         }
     }
 
