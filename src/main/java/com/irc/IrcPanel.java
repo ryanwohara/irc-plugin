@@ -61,12 +61,9 @@ public class IrcPanel extends PluginPanel {
             String currentTab = getCurrentChannel();
             for (int i = 0; i < tabbedPane.getTabCount(); i++) {
                 String tabTitle = tabbedPane.getTitleAt(i);
-                if (!SYSTEM_TAB.equals(tabTitle) &&
-                        unreadMessages.getOrDefault(tabTitle, false) &&
-                        !tabTitle.equals(currentTab)) {
+                if (!SYSTEM_TAB.equals(tabTitle) && unreadMessages.getOrDefault(tabTitle, false) && !tabTitle.equals(currentTab)) {
                     tabbedPane.setForegroundAt(i, new Color(135, 206, 250)); // Change color for different flash
-                } else if (!SYSTEM_TAB.equals(tabTitle) &&
-                        !unreadMessages.getOrDefault(tabTitle, false)) {
+                } else if (!SYSTEM_TAB.equals(tabTitle) && !unreadMessages.getOrDefault(tabTitle, false)) {
                     tabbedPane.setForegroundAt(i, Color.white);
                 }
             }
@@ -144,12 +141,7 @@ public class IrcPanel extends PluginPanel {
     }
 
     public NavigationButton generateNavigationButton() {
-        navigationButton = NavigationButton.builder()
-                .tooltip("IRC")
-                .icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
-                .priority(config.getPanelPriority())
-                .panel(this)
-                .build();
+        navigationButton = NavigationButton.builder().tooltip("IRC").icon(ImageUtil.loadImageResource(getClass(), "icon.png")).priority(config.getPanelPriority()).panel(this).build();
 
         return navigationButton;
     }
@@ -201,9 +193,7 @@ public class IrcPanel extends PluginPanel {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    public void init(BiConsumer<String, String> messageSendCallback,
-                     BiConsumer<String, String> channelJoinCallback,
-                     Consumer<String> channelLeaveCallback) {
+    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback) {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
@@ -279,12 +269,7 @@ public class IrcPanel extends PluginPanel {
     private void promptRemoveChannel() {
         String channel = getCurrentChannel();
         if (!channel.equals("System")) {
-            int result = JOptionPane.showConfirmDialog(
-                    this,
-                    "Close " + channel + "?",
-                    "Confirm",
-                    JOptionPane.YES_NO_OPTION
-            );
+            int result = JOptionPane.showConfirmDialog(this, "Close " + channel + "?", "Confirm", JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.YES_OPTION && onChannelLeave != null) {
                 onChannelLeave.accept(channel);
             }
@@ -297,7 +282,7 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
-        private static final Pattern VALID_LINK = Pattern.compile("\\b(https?://\\S+)\\b");
+        private static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w- ;,./?%&=]*))");
         private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
         private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
 //        private static final int MAX_PREVIEW_WIDTH = 500;
@@ -444,15 +429,13 @@ public class IrcPanel extends PluginPanel {
             }
 
             SwingUtilities.invokeLater(() -> {
-                setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";'>"
-                        + String.join("\n", messageLog) + "</body></html>");
+                setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";'>" + String.join("\n", messageLog) + "</body></html>");
                 setCaretPosition(getDocument().getLength());
             });
         }
 
         private String formatPanelMessage(IrcMessage message, IrcConfig config) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
-                    .withZone(ZoneId.systemDefault());
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
             String timeStamp = "";
             if (config.timestamp()) {
                 timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
@@ -490,12 +473,7 @@ public class IrcPanel extends PluginPanel {
                 sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);
             }
 
-            return String.format("<div style='color: %s'>%s%s:&nbsp;%s</div>",
-                    color,
-                    timeStamp,
-                    sender,
-                    formatMessage(message.getContent())
-            );
+            return String.format("<div style='color: %s'>%s%s:&nbsp;%s</div>", color, timeStamp, sender, formatMessage(message.getContent()));
         }
 
         private int asciiSum(String input) {
@@ -509,13 +487,11 @@ public class IrcPanel extends PluginPanel {
         }
 
         private String formatMessage(String message) {
-            Matcher matcher = VALID_LINK.matcher(formatColorCodes(
-                    escapeHtml4(message)
-            ));
+            String msg = formatColorCodes(escapeHtml4(message));
 
-            return convertModernEmojis(
-                    matcher.replaceAll("<a href='$1'>$1</a>")
-            );
+            Matcher matcher = VALID_LINK.matcher(msg);
+
+            return convertModernEmojis(matcher.replaceAll("<a href=\"$1\">$1</a>"));
         }
 
         private String formatColorCodes(String message) {
@@ -613,21 +589,17 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
-    private static final Pattern MODERN_EMOJI_PATTERN = Pattern.compile(
-            "[" +
-                    "\uD83E\uDD70-\uD83E\uDDFF" + // Unicode 10.0
-                    "\uD83E\uDE00-\uD83E\uDEFF" + // Unicode 11.0
-                    "\uD83E\uDF00-\uD83E\uDFFF" + // Unicode 12.0+
-                    "\uD83E\uDD00-\uD83E\uDD6F" + // Unicode 13.0
-                    "\uD83E\uDEC0-\uD83E\uDECF" +
-                    "\uD83E\uDED0-\uD83E\uDEFF" + // Unicode 14.0
-                    "\uD83E\uDF00-\uD83E\uDF2F" + // Unicode 15.0
-                    "\uD83E\uDF30-\uD83E\uDF5F" + // Unicode 16.0
-                    "\uD83E\uDF60-\uD83E\uDF8F" + // Unicode 17.0
-                    "\uD83C[\uDFFB-\uDFFF]" +     // Skin tone modifiers
-                    "\uD83E[\uDDB0-\uDDBF]" +     // Hair style modifiers
-                    "\uFE0F" +                   // Variation selector
-                    "]"
+    private static final Pattern MODERN_EMOJI_PATTERN = Pattern.compile("[" + "\uD83E\uDD70-\uD83E\uDDFF" + // Unicode 10.0
+            "\uD83E\uDE00-\uD83E\uDEFF" + // Unicode 11.0
+            "\uD83E\uDF00-\uD83E\uDFFF" + // Unicode 12.0+
+            "\uD83E\uDD00-\uD83E\uDD6F" + // Unicode 13.0
+            "\uD83E\uDEC0-\uD83E\uDECF" + "\uD83E\uDED0-\uD83E\uDEFF" + // Unicode 14.0
+            "\uD83E\uDF00-\uD83E\uDF2F" + // Unicode 15.0
+            "\uD83E\uDF30-\uD83E\uDF5F" + // Unicode 16.0
+            "\uD83E\uDF60-\uD83E\uDF8F" + // Unicode 17.0
+            "\uFE0F" +                    // Variation selector
+            "]" + "|\uD83C[\uDFFB-\uDFFF]" +            // Skin tone modifiers
+            "|\uD83E[\uDDB0-\uDDBF]"              // Hairstyle modifiers
     );
 
     public static String convertModernEmojis(String text) {
@@ -645,25 +617,13 @@ public class IrcPanel extends PluginPanel {
     }
 
     private enum IrcShortcut {
-        COLOR(KeyStroke.getKeyStroke(KeyEvent.VK_K, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
-                "\u0003",
-                "insertColorCode",
-                "Insert color code"),
+        COLOR(KeyStroke.getKeyStroke(KeyEvent.VK_K, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "\u0003", "insertColorCode", "Insert color code"),
 
-        BOLD(KeyStroke.getKeyStroke(KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
-                "\u0002",
-                "insertBold",
-                "Insert bold formatting"),
+        BOLD(KeyStroke.getKeyStroke(KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "\u0002", "insertBold", "Insert bold formatting"),
 
-        ITALIC(KeyStroke.getKeyStroke(KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
-                "\u001D",
-                "insertItalic",
-                "Insert italic formatting"),
+        ITALIC(KeyStroke.getKeyStroke(KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "\u001D", "insertItalic", "Insert italic formatting"),
 
-        UNDERLINE(KeyStroke.getKeyStroke(KeyEvent.VK_U, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
-                "\u001F",
-                "insertUnderline",
-                "Insert underline formatting");
+        UNDERLINE(KeyStroke.getKeyStroke(KeyEvent.VK_U, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "\u001F", "insertUnderline", "Insert underline formatting");
 
         private final KeyStroke keyStroke;
         private final String insertText;
@@ -696,17 +656,11 @@ public class IrcPanel extends PluginPanel {
                 int selEnd = inputField.getSelectionEnd();
                 String selectedText = inputField.getSelectedText();
 
-                newText = currentText.substring(0, selStart)
-                        + textToInsert
-                        + selectedText
-                        + textToInsert
-                        + currentText.substring(selEnd);
+                newText = currentText.substring(0, selStart) + textToInsert + selectedText + textToInsert + currentText.substring(selEnd);
 
                 newCaretPosition = selEnd + (textToInsert.length() * 2);
             } else {
-                newText = currentText.substring(0, caretPosition)
-                        + textToInsert
-                        + currentText.substring(caretPosition);
+                newText = currentText.substring(0, caretPosition) + textToInsert + currentText.substring(caretPosition);
 
                 newCaretPosition = caretPosition + textToInsert.length();
             }
