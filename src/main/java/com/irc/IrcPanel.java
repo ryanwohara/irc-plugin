@@ -9,26 +9,19 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
 
-import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.event.HyperlinkEvent;
-import javax.swing.text.Element;
-import javax.swing.text.Position;
 
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.image.BufferedImage;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -69,9 +62,9 @@ public class IrcPanel extends PluginPanel {
             for (int i = 0; i < tabbedPane.getTabCount(); i++) {
                 String tabTitle = tabbedPane.getTitleAt(i);
                 if (!SYSTEM_TAB.equals(tabTitle) &&
-                    unreadMessages.getOrDefault(tabTitle, false) &&
-                    !tabTitle.equals(currentTab)) {
-                        tabbedPane.setForegroundAt(i, new Color(135, 206, 250)); // Change color for different flash
+                        unreadMessages.getOrDefault(tabTitle, false) &&
+                        !tabTitle.equals(currentTab)) {
+                    tabbedPane.setForegroundAt(i, new Color(135, 206, 250)); // Change color for different flash
                 } else if (!SYSTEM_TAB.equals(tabTitle) &&
                         !unreadMessages.getOrDefault(tabTitle, false)) {
                     tabbedPane.setForegroundAt(i, Color.white);
@@ -300,10 +293,16 @@ public class IrcPanel extends PluginPanel {
 
     private static class ChannelPane extends JTextPane {
         private ArrayList<String> messageLog;
-        private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("\\.(png|jpe?g|gif|bmp|webp)(\\?.*)?$", Pattern.CASE_INSENSITIVE);
-        private static final int MAX_PREVIEW_WIDTH = 500;
-        private static final int MAX_PREVIEW_HEIGHT = 500;
-        private Popup currentImagePreview;
+        private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("\\.(png|jpe?g|gif|bmp)(\\?.*)?$", Pattern.CASE_INSENSITIVE);
+        private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
+        private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
+        private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
+        private static final Pattern VALID_LINK = Pattern.compile("\\b(https?://\\S+)\\b");
+        private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
+        private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
+//        private static final int MAX_PREVIEW_WIDTH = 500;
+//        private static final int MAX_PREVIEW_HEIGHT = 500;
+//        private Popup currentImagePreview;
 
         ChannelPane(Font font, IrcConfig config) {
             setContentType("text/html");
@@ -510,30 +509,35 @@ public class IrcPanel extends PluginPanel {
         }
 
         private String formatMessage(String message) {
+            Matcher matcher = VALID_LINK.matcher(formatColorCodes(
+                    escapeHtml4(message)
+            ));
+
             return convertModernEmojis(
-                    formatColorCodes(
-                            escapeHtml4(message)
-                    )
-                    .replaceAll("\\b(https?://\\S+)\\b", "<a href='$1'>$1</a>")
+                    matcher.replaceAll("<a href='$1'>$1</a>")
             );
         }
 
         private String formatColorCodes(String message) {
-            message = message
-                    .replaceAll("\u001F([^\u001F\u000F]+)[\u001F\u000F]?", "<u>$1</u>")
-                    .replaceAll("\u001D([^\u001D\u000F]+)[\u001D\u000F]?", "<i>$1</i>")
-                    .replaceAll("\u0002([^\u0002\u000F]+)[\u0002\u000F]?", "<b>$1</b>");
+            Matcher underline_matcher = UNDERLINE.matcher(message);
+            message = underline_matcher.replaceAll("<u>$1</u>");
 
-            Pattern p = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
-            Matcher m = p.matcher(message);
+            Matcher italic_matcher = ITALIC.matcher(message);
+            message = italic_matcher.replaceAll("<i>$1</i>");
+
+            Matcher bold_matcher = BOLD.matcher(message);
+            message = bold_matcher.replaceAll("<b>$1</b>");
+
+            Matcher color_matcher = COLORS.matcher(message);
+
 
             StringBuilder sb = new StringBuilder();
-            while (m.find()) {
-                m.appendReplacement(sb, "<font color=\"" + htmlColorById(m.group(1)) + "\">" + Matcher.quoteReplacement(m.group(2)) + "</font>");
+            while (color_matcher.find()) {
+                color_matcher.appendReplacement(sb, "<font color=\"" + htmlColorById(color_matcher.group(1)) + "\">" + Matcher.quoteReplacement(color_matcher.group(2)) + "</font>");
             }
-            m.appendTail(sb);
+            color_matcher.appendTail(sb);
 
-            return sb.toString().replaceAll("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F", "");
+            return STRIP_CODES.matcher(sb.toString()).replaceAll("");
         }
 
         private String htmlColorById(String id) {
@@ -623,7 +627,7 @@ public class IrcPanel extends PluginPanel {
                     "\uD83C[\uDFFB-\uDFFF]" +     // Skin tone modifiers
                     "\uD83E[\uDDB0-\uDDBF]" +     // Hair style modifiers
                     "\uFE0F" +                   // Variation selector
-                "]"
+                    "]"
     );
 
     public static String convertModernEmojis(String text) {

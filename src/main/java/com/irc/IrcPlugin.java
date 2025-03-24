@@ -21,6 +21,8 @@ import net.runelite.client.ui.ClientToolbar;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @PluginDescriptor(
         name = "IRC",
@@ -42,6 +44,9 @@ public class IrcPlugin extends Plugin {
     private String currentNick;
     @Inject
     private EmojiService emojiService;
+
+    private static final Pattern VALID_WINKS = Pattern.compile("^.[opdOPD)(]");
+    private static final Pattern STRIP_STYLES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
 
     @Override
     protected void startUp() {
@@ -155,7 +160,7 @@ public class IrcPlugin extends Plugin {
             case "go":
                 if (!arg.isEmpty()) {
                     for (String channel : panel.getChannelPanes().keySet()) {
-                        if (channel.matches(".*" + arg + ".*")) {
+                        if (channel.contains(arg)) {
                             panel.setFocusedChannel(channel);
                             break;
                         }
@@ -418,7 +423,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private String stripStyles(String message) {
-        return message.replaceAll("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F", "");
+        return STRIP_STYLES.matcher(message).replaceAll("");
     }
 
     private void processMessage(IrcMessage message) {
@@ -475,8 +480,10 @@ public class IrcPlugin extends Plugin {
 
         String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
 
+        Matcher matcher = VALID_WINKS.matcher(message);
+
         if (message.startsWith(config.prefix())
-                && !message.matches("^.[opdOPD)(]")) {
+                && !matcher.matches()) {
             final int[] intStack = client.getIntStack();
             int intStackCount = client.getIntStackSize();
             intStack[intStackCount - 3] = 1;

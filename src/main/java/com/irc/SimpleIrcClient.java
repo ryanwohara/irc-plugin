@@ -36,6 +36,8 @@ import java.util.regex.Pattern;
 public class SimpleIrcClient {
     private static final Pattern MESSAGE_PATTERN =
             Pattern.compile("^(?:[:@]([^\\s]+) )?([^\\s]+)(?: ((?:[^:\\s][^\\s]* ?)*))?(?: ?:(.*))?$");
+    private static final Pattern USER_PREFIXES = Pattern.compile("^[~&@%+].+");
+    private static final Pattern NUMERIC = Pattern.compile("^[0-9]+$");
 
     private Socket socket;
     private BufferedWriter writer;
@@ -414,7 +416,8 @@ public class SimpleIrcClient {
 
             // Numeric replies
             default:
-                if (command.matches("\\d+")) {
+                Matcher matcher = NUMERIC.matcher(command);
+                if (matcher.matches()) {
                     int numeric = Integer.parseInt(command);
                     handleNumeric(numeric, params);
                 }
@@ -497,7 +500,8 @@ public class SimpleIrcClient {
                     for (String user : users) {
                         if (!user.isEmpty()) {
                             // Strip mode prefixes (@, +, etc.)
-                            if (user.matches("^[~&@%+].*")) {
+                            Matcher matcher = USER_PREFIXES.matcher(user);
+                            if (matcher.matches()) {
                                 user = user.substring(1);
                             }
                             channelUserSet.add(user);
