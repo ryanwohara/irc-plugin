@@ -125,6 +125,45 @@ Add a color to nicks appearing in the side panel.
 
 Specifically where the side panel appears on the right, from top to bottom.
 
-## Screenshot
+## Screenshots
 
-![screenshot.png](screenshot.png)
+![sidepanel.png](sidepanel.png)
+![chatbox.png](chatbox.png)
+
+
+## Guide
+
+### Multiple Channels
+
+Auto-joining multiple channels is possible by comma separating them in the settings:
+```text
+#rshelp,#swiftirc,#cooking
+```
+
+### Registering a Nick
+
+To run commands, it is recommended to use the `System` tab of the side panel.
+
+Once there, it is possible to register your nick and email (where the email is primarily required to reset a lost password):
+```text
+/ns register <password> <email>
+```
+
+You can now save the password in the settings for the plugin. This will automatically identify you when you connect.
+
+Once you have registered your nick, you can join registered-only channels and register new channels.
+
+### Registering a Channel
+
+These commands will create and register a new channel:
+```text
+/join #secret-new-channel
+/cs register #secret-new-channel
+```
+
+### IRC Help
+
+You can ask in `#irchelp` for IRC-specific questions.
+```text
+/join #irchelp
+```
