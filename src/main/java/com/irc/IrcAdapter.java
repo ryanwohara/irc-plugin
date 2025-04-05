@@ -188,6 +188,10 @@ public class IrcAdapter {
                             IrcMessage.MessageType.SYSTEM,
                             Instant.now()
                     ));
+
+                    if (config.password() != null && !config.password().isEmpty()) {
+                        client.sendMessage("NickServ", "id " + config.password());
+                    }
                     break;
 
                 case DISCONNECT:
