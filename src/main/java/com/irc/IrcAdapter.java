@@ -260,21 +260,13 @@ public class IrcAdapter {
                     break;
 
                 case QUIT:
-                    processMessage(new IrcMessage(
-                            "System",
-                            event.getSource(),
-                            "Quit" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
-                            IrcMessage.MessageType.QUIT,
-                            Instant.now()
-                    ));
-
                     if (event.getAdditionalData() != null && !event.getAdditionalData().isEmpty()) {
                         String[] channels = event.getAdditionalData().split(",");
                         for (String channel : channels) {
                             processMessage(new IrcMessage(
                                     channel,
-                                    event.getSource(),
-                                    "Quit" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
+                                    event.getSource() + " quit",
+                                    event.getMessage() != null ? event.getMessage() : " ",
                                     IrcMessage.MessageType.QUIT,
                                     Instant.now()
                             ));
@@ -290,20 +282,12 @@ public class IrcAdapter {
                         currentNick = newNick;
                     }
 
-                    processMessage(new IrcMessage(
-                            "System",
-                            "System",
-                            oldNick + " is now known as " + newNick,
-                            IrcMessage.MessageType.NICK_CHANGE,
-                            Instant.now()
-                    ));
-
                     String[] channels = event.getAdditionalData().split(",");
                     for (String channel : channels) {
                         processMessage(new IrcMessage(
                                 channel,
-                                "System",
-                                oldNick + " is now known as " + newNick,
+                                oldNick + " is now known as",
+                                newNick,
                                 IrcMessage.MessageType.NICK_CHANGE,
                                 Instant.now()
                         ));

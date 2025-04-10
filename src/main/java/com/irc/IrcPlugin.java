@@ -445,9 +445,8 @@ public class IrcPlugin extends Plugin {
     private void processMessage(IrcMessage message) {
         if (client.getGameState() == GameState.LOGGED_IN
                 && ((config.activeChannelOnly() && panel.getCurrentChannel().equals(message.getChannel()))
-                    || !config.activeChannelOnly())
-                && (message.getType() != IrcMessage.MessageType.QUIT
-                    || message.getChannel().equals("System"))) {
+                || !config.activeChannelOnly())
+                && message.getChannel().equals("System")) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(config.getChatboxType().getType())
                     .sender(message.getChannel())

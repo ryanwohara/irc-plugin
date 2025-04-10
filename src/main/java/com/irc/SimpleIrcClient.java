@@ -334,7 +334,15 @@ public class SimpleIrcClient {
             case "NICK":
                 if (!params.isEmpty()) {
                     String newNick = params.get(0);
-                    fireEvent(new IrcEvent(IrcEvent.Type.NICK_CHANGE, sourceNick, null, newNick, String.join(",", channels)));
+
+                    userChannels = new ArrayList<>();
+                    for (Map.Entry<String, Set<String>> entry : channelUsers.entrySet()) {
+                        if (entry.getValue().contains(sourceNick)) {
+                            userChannels.add(entry.getKey());
+                        }
+                    }
+
+                    fireEvent(new IrcEvent(IrcEvent.Type.NICK_CHANGE, sourceNick, null, newNick, String.join(",", userChannels)));
 
                     // Update nickname in channel users
                     for (Set<String> users : channelUsers.values()) {
