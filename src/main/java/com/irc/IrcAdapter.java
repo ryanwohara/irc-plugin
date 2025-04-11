@@ -242,8 +242,8 @@ public class IrcAdapter {
                 case JOIN:
                     processMessage(new IrcMessage(
                             event.getTarget(),
-                            event.getSource(),
-                            "joined",
+                            event.getSource() + " joined",
+                            " ",
                             IrcMessage.MessageType.JOIN,
                             Instant.now()
                     ));
@@ -252,8 +252,8 @@ public class IrcAdapter {
                 case PART:
                     processMessage(new IrcMessage(
                             event.getTarget(),
-                            event.getSource(),
-                            "left" + (event.getMessage() != null ? ": " + event.getMessage() : ""),
+                            event.getSource() + " parted",
+                            (event.getMessage() != null ? event.getMessage() : " "),
                             IrcMessage.MessageType.PART,
                             Instant.now()
                     ));

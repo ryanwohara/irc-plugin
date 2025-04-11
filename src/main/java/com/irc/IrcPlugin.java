@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -443,10 +444,12 @@ public class IrcPlugin extends Plugin {
     }
 
     private void processMessage(IrcMessage message) {
+        IrcMessage.MessageType[] chatBoxEvents = {IrcMessage.MessageType.QUIT, IrcMessage.MessageType.NICK_CHANGE};
         if (client.getGameState() == GameState.LOGGED_IN
-                && ((config.activeChannelOnly() && panel.getCurrentChannel().equals(message.getChannel()))
-                || !config.activeChannelOnly())
-                && message.getChannel().equals("System")) {
+                && ((config.activeChannelOnly()
+                && (panel.getCurrentChannel().equals(message.getChannel())
+                || (message.getChannel().equals("System") && Arrays.binarySearch(chatBoxEvents, message.getType()) > -1)))
+                || !config.activeChannelOnly())) {
             chatMessageManager.queue(QueuedMessage.builder()
                     .type(config.getChatboxType().getType())
                     .sender(message.getChannel())
