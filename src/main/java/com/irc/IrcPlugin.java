@@ -85,10 +85,10 @@ public class IrcPlugin extends Plugin {
 
     private void connectToIrc() {
         if (config.username().isEmpty()) {
-            return;
+            currentNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
+        } else {
+            currentNick = config.username().replace(" ", "_");
         }
-
-        currentNick = config.username();
 
         ircAdapter = new IrcAdapter();
         ircAdapter.initialize(config, this::processMessage, panel);
@@ -112,18 +112,16 @@ public class IrcPlugin extends Plugin {
     }
 
     private void joinDefaultChannel() {
-        if (!config.username().isEmpty()) {
-            String channel;
-            if (config.channel().isEmpty()) {
-                channel = "#rshelp";
-            } else {
-                channel = config.channel().toLowerCase();
-                if (!channel.startsWith("#")) {
-                    channel = "#" + channel;
-                }
+        String channel;
+        if (config.channel().isEmpty()) {
+            channel = "#rshelp";
+        } else {
+            channel = config.channel().toLowerCase();
+            if (!channel.startsWith("#")) {
+                channel = "#" + channel;
             }
-            joinChannel(channel, config.channelPassword());
         }
+        joinChannel(channel, config.channelPassword());
     }
 
     private void handleMessageSend(String channel, String message) {

@@ -32,12 +32,12 @@ public class IrcAdapter {
     public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer, IrcPanel panel) {
         this.messageConsumer = messageConsumer;
         this.config = config;
-        this.currentNick = config.username();
+        this.currentNick = config.username().replace(" ", "_");
         this.panel = panel;
 
         client = new SimpleIrcClient()
                 .server(config.server().getHostname(), 6697, true)
-                .credentials(config.username(), "runelite", config.username());
+                .credentials(currentNick, "runelite", currentNick);
 
         if (config.password() != null && !config.password().isEmpty()) {
             client.password(config.password());
