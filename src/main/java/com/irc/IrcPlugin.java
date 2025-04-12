@@ -458,6 +458,15 @@ public class IrcPlugin extends Plugin {
 
     private void processMessage(IrcMessage message) {
         IrcMessage.MessageType[] chatBoxEvents = {IrcMessage.MessageType.QUIT, IrcMessage.MessageType.NICK_CHANGE};
+
+        if (panel.getChannelNames().indexOf(message.getChannel()) == -1) {
+            for (String channel : panel.getChannelNames()) {
+                if (channel.toLowerCase().equals(message.getChannel().toLowerCase())) {
+                    panel.renameChannel(channel, message.getChannel());
+                }
+            }
+        }
+
         if (client.getGameState() == GameState.LOGGED_IN
                 && ((config.activeChannelOnly()
                 && (panel.getCurrentChannel().equals(message.getChannel())

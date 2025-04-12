@@ -14,7 +14,6 @@ public class EmojiManager {
             return;
         }
 
-
         EMOJI_BY_UNICODE.clear();
         EMOJI_BY_UNICODE.putAll(emojiByUnicode);
 

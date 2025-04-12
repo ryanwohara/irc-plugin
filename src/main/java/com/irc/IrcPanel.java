@@ -238,26 +238,26 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void addChannel(String channel) {
-        if (!channelPanes.containsKey(channel)) {
-            ChannelPane pane = new ChannelPane(font, config);
-            channelPanes.put(channel, pane);
-            unreadMessages.put(channel, false);
-            tabbedPane.addTab(channel, new JScrollPane(pane));
-            if (config.autofocusOnNewTab() || channel.equals(config.channel())) {
-                tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
-            }
+        if (channelPanes.containsKey(channel)) return;
+
+        ChannelPane pane = new ChannelPane(font, config);
+        channelPanes.put(channel, pane);
+        unreadMessages.put(channel, false);
+        tabbedPane.addTab(channel, new JScrollPane(pane));
+        if (config.autofocusOnNewTab() || channel.equals(config.channel())) {
+            tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
         }
     }
 
     public void removeChannel(String channel) {
-        if (channelPanes.containsKey(channel) && !channel.equals("System")) {
-            int index = tabbedPane.indexOfTab(channel);
-            if (index != -1) {
-                tabbedPane.removeTabAt(index);
-                channelPanes.remove(channel);
-                unreadMessages.remove(channel);
-            }
-        }
+        if (!channelPanes.containsKey(channel) || channel.equals("System")) return;
+
+        int index = tabbedPane.indexOfTab(channel);
+        if (index == -1) return;
+
+        tabbedPane.removeTabAt(index);
+        channelPanes.remove(channel);
+        unreadMessages.remove(channel);
     }
 
     public void addMessage(IrcMessage message) {
@@ -286,6 +286,32 @@ public class IrcPanel extends PluginPanel {
                 onChannelJoin.accept(channel, password);
             }
         }
+    }
+
+    public void renameChannel(String old, String newName) {
+        int index = getChannelNames().indexOf(old);
+        if (index == -1) return;
+
+        ChannelPane pane = getChannelPanes().get(old);
+        if (pane == null) return;
+
+        int focusedIndex = getChannelNames().indexOf(focusedChannel);
+        if (focusedIndex == -1) return;
+
+        pane.setName(newName);
+
+        channelPanes.remove(old);
+        channelPanes.put(newName, pane);
+
+        Boolean unread = unreadMessages.get(old);
+        if (unread == null) unread = false;
+
+        unreadMessages.remove(old);
+        unreadMessages.put(newName, unread);
+
+        tabbedPane.remove(index);
+        tabbedPane.addTab(newName, pane);
+        tabbedPane.setSelectedIndex(focusedIndex);
     }
 
     private void promptRemoveChannel() {
