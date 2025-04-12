@@ -148,22 +148,19 @@ public class SimpleIrcClient {
                     try {
                         sendRawLine(reason);
                         writer.close();
-                    } catch (IOException ignored) {
-                    }
+                    } catch (IOException ignored) {}
                 }
 
                 if (reader != null) {
                     try {
                         reader.close();
-                    } catch (IOException ignored) {
-                    }
+                    } catch (IOException ignored) {}
                 }
 
                 if (socket != null) {
                     try {
                         socket.close();
-                    } catch (IOException ignored) {
-                    }
+                    } catch (IOException ignored) {}
                 }
             } finally {
                 connected = false;

@@ -208,6 +208,16 @@ public class IrcAdapter {
                             IrcMessage.MessageType.SYSTEM,
                             Instant.now()
                     ));
+
+                    for (String channel : client.getChannels()) {
+                        processMessage(new IrcMessage(
+                                channel,
+                                "System",
+                                "Disconnected from IRC",
+                                IrcMessage.MessageType.SYSTEM,
+                                Instant.now()
+                        ));
+                    }
                     break;
 
                 case MESSAGE:
