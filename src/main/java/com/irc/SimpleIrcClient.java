@@ -517,8 +517,7 @@ public class SimpleIrcClient {
                     fireEvent(new IrcEvent(IrcEvent.Type.NICK_IN_USE, null, null, takenNick, null));
 
                     // Auto-append underscore to nick
-                    String fallbackNick = takenNick + "_";
-                    setNick(fallbackNick);
+                    setNick(takenNick + "_");
                 }
                 break;
         }

@@ -301,8 +301,8 @@ public class IrcAdapter {
 
                     processMessage(new IrcMessage(
                             event.getTarget(),
-                            event.getSource(),
-                            "kicked " + kickedUser + " (" + kickReason + ")",
+                            event.getSource() + " kicked " + kickedUser,
+                            kickReason,
                             IrcMessage.MessageType.KICK,
                             Instant.now()
                     ));
