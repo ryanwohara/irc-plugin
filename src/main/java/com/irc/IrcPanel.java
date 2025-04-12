@@ -9,6 +9,7 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
 
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.Timer;
@@ -22,6 +23,7 @@ import java.awt.event.KeyEvent;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -49,11 +51,16 @@ public class IrcPanel extends PluginPanel {
     private BiConsumer<String, String> onMessageSend;
     private BiConsumer<String, String> onChannelJoin;
     private Consumer<String> onChannelLeave;
+    private Consumer<Boolean> onReconnect;
     private Font font;
 
     private final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
+
+    public ArrayList<String> getChannelNames() {
+        return new ArrayList<>(channelPanes.keySet());
+    }
 
     private void initializeFlashTimer() {
         // Change color for different flash
@@ -86,16 +93,28 @@ public class IrcPanel extends PluginPanel {
 
         JButton addButton = new JButton("+");
         JButton removeButton = new JButton("-");
-        addButton.setPreferredSize(new Dimension(45, 25));
-        removeButton.setPreferredSize(new Dimension(45, 25));
+        JButton reloadButton = new JButton();
+        try {
+            Image img = ImageUtil.loadImageResource(getClass(), "reload.png");
+            reloadButton.setIcon(new ImageIcon(img));
+        } catch (Exception ignored) {
+            reloadButton.setText("R");
+        }
+
+        Dimension standard = new Dimension(25, 25);
+        addButton.setPreferredSize(standard);
+        removeButton.setPreferredSize(standard);
+        reloadButton.setPreferredSize(standard);
 
         final JComboBox<String> fontComboBox = getStringJComboBox();
 
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
+        reloadButton.addActionListener(e -> onReconnect.accept(true));
 
         controlPanel.add(addButton);
         controlPanel.add(removeButton);
+        controlPanel.add(reloadButton);
         controlPanel.add(fontComboBox);
 
         Action originalPasteAction = inputField.getActionMap().get("paste");
@@ -193,10 +212,11 @@ public class IrcPanel extends PluginPanel {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback) {
+    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect) {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
+        this.onReconnect = onReconnect;
     }
 
     public String getCurrentChannel() {
@@ -254,6 +274,8 @@ public class IrcPanel extends PluginPanel {
 
     private void promptAddChannel() {
         String channel = JOptionPane.showInputDialog(this, "Enter channel name:");
+        if (channel == null) return;
+
         String password = JOptionPane.showInputDialog(this, "Enter channel password (optional):");
 
         if (channel != null && !channel.trim().isEmpty()) {

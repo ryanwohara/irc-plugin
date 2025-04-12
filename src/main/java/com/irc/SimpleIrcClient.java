@@ -42,6 +42,7 @@ public class SimpleIrcClient {
     private String username;
     private String realName;
     private String password;
+    @Getter
     private final Set<String> channels = new HashSet<>();
     private final Map<String, Set<String>> channelUsers = new HashMap<>();
 
@@ -131,13 +132,21 @@ public class SimpleIrcClient {
     }
 
     public void disconnect() {
+        disconnect("");
+    }
+
+    public void disconnect(String reason) {
         if (connected) {
             try {
+                if (reason.isEmpty()) {
+                    reason = "Disconnecting";
+                }
+
                 shuttingDown = true;
 
                 if (writer != null) {
                     try {
-                        sendRawLine("QUIT :Disconnecting");
+                        sendRawLine(reason);
                         writer.close();
                     } catch (IOException ignored) {
                     }

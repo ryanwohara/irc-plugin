@@ -57,7 +57,13 @@ public class IrcAdapter {
      * Disconnect from the IRC server
      */
     public void disconnect(String reason) {
-        client.disconnect();
+        client.disconnect(reason);
+    }
+
+    /**
+     * Disconnect and Reconnect to the IRC server
+     */
+    public void reconnect() {
     }
 
     /**
