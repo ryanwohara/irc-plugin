@@ -518,6 +518,7 @@ public class SimpleIrcClient {
 
                     // Auto-append underscore to nick
                     setNick(takenNick + "_");
+                    nick += "_";
                 }
                 break;
         }

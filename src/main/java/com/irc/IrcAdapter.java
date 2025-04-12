@@ -384,6 +384,8 @@ public class IrcAdapter {
 
                 case NICK_IN_USE:
                     String fallbackNick = event.getMessage() + "_";
+                    currentNick += "_";
+
                     processMessage(new IrcMessage(
                             "System",
                             "System",
