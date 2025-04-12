@@ -429,9 +429,9 @@ public class IrcPlugin extends Plugin {
     private void handleReconnect(Boolean ignored) {
         if (ircAdapter == null) return;
 
-
         ircAdapter.disconnect("Reloading, brb");
-        ircAdapter.connect();
+
+        connectToIrc();
 
         for (String channel : panel.getChannelNames()) {
             handleChannelJoin(channel, "");

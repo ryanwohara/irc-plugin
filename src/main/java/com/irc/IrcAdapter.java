@@ -33,6 +33,9 @@ public class IrcAdapter {
         this.messageConsumer = messageConsumer;
         this.config = config;
         this.currentNick = config.username().replace(" ", "_");
+        if (this.currentNick.isEmpty()) {
+            this.currentNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
+        }
         this.panel = panel;
 
         client = new SimpleIrcClient()
@@ -58,12 +61,6 @@ public class IrcAdapter {
      */
     public void disconnect(String reason) {
         client.disconnect(reason);
-    }
-
-    /**
-     * Disconnect and Reconnect to the IRC server
-     */
-    public void reconnect() {
     }
 
     /**
