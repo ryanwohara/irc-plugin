@@ -112,9 +112,9 @@ public class IrcPanel extends PluginPanel {
         removeButton.addActionListener(e -> promptRemoveChannel());
         reloadButton.addActionListener(e -> onReconnect.accept(true));
 
+        controlPanel.add(reloadButton);
         controlPanel.add(addButton);
         controlPanel.add(removeButton);
-        controlPanel.add(reloadButton);
         controlPanel.add(fontComboBox);
 
         Action originalPasteAction = inputField.getActionMap().get("paste");
