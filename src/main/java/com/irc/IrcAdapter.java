@@ -29,13 +29,10 @@ public class IrcAdapter {
     /**
      * Initialize the client with the provided config
      */
-    public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer, IrcPanel panel) {
+    public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer, IrcPanel panel, String currentNick) {
         this.messageConsumer = messageConsumer;
+        this.currentNick = currentNick;
         this.config = config;
-        this.currentNick = config.username().replace(" ", "_");
-        if (this.currentNick.isEmpty()) {
-            this.currentNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
-        }
         this.panel = panel;
 
         client = new SimpleIrcClient()

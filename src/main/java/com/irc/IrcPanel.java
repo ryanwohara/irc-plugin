@@ -525,6 +525,8 @@ public class IrcPanel extends PluginPanel {
         }
 
         private int asciiSum(String input) {
+            if (input == null) return 0;
+
             int sum = 0;
 
             for (int i = 0; i < input.length(); i++) {

@@ -3,6 +3,7 @@ package com.irc;
 import com.google.inject.Provides;
 import com.irc.emoji.EmojiParser;
 import com.irc.emoji.EmojiService;
+import joptsimple.internal.Strings;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
 import net.runelite.api.VarClientStr;
@@ -84,14 +85,14 @@ public class IrcPlugin extends Plugin {
     }
 
     private void connectToIrc() {
-        if (config.username().isEmpty()) {
+        if (Strings.isNullOrEmpty(config.username())) {
             currentNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
         } else {
             currentNick = config.username().replace(" ", "_");
         }
 
         ircAdapter = new IrcAdapter();
-        ircAdapter.initialize(config, this::processMessage, panel);
+        ircAdapter.initialize(config, this::processMessage, panel, currentNick);
         ircAdapter.connect();
     }
 
@@ -455,11 +456,13 @@ public class IrcPlugin extends Plugin {
     }
 
     private void processMessage(IrcMessage message) {
+        if (panel == null) return;
+
         IrcMessage.MessageType[] chatBoxEvents = {IrcMessage.MessageType.QUIT, IrcMessage.MessageType.NICK_CHANGE};
 
-        if (panel.getChannelNames().indexOf(message.getChannel()) == -1) {
+        if (!panel.getChannelNames().contains(message.getChannel())) {
             for (String channel : panel.getChannelNames()) {
-                if (channel.toLowerCase().equals(message.getChannel().toLowerCase())) {
+                if (channel.equalsIgnoreCase(message.getChannel())) {
                     panel.renameChannel(channel, message.getChannel());
                 }
             }
