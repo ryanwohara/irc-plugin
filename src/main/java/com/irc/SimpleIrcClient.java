@@ -136,36 +136,39 @@ public class SimpleIrcClient {
     }
 
     public void disconnect(String reason) {
-        if (connected) {
-            try {
-                if (reason.isEmpty()) {
-                    reason = "Disconnecting";
-                }
+        if (!connected) return;
 
-                shuttingDown = true;
-
-                if (writer != null) {
-                    try {
-                        sendRawLine("QUIT :" + reason);
-                        writer.close();
-                    } catch (IOException ignored) {}
-                }
-
-                if (reader != null) {
-                    try {
-                        reader.close();
-                    } catch (IOException ignored) {}
-                }
-
-                if (socket != null) {
-                    try {
-                        socket.close();
-                    } catch (IOException ignored) {}
-                }
-            } finally {
-                connected = false;
-                fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
+        try {
+            if (reason.isEmpty()) {
+                reason = "Disconnecting";
             }
+
+            shuttingDown = true;
+
+            if (writer != null) {
+                try {
+                    System.out.println("QUIT :" + reason);
+                    writer.close();
+                } catch (IOException ignored) {
+                }
+            }
+
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException ignored) {
+                }
+            }
+
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException ignored) {
+                }
+            }
+        } finally {
+            connected = false;
+            fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
         }
     }
 

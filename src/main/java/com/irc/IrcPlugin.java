@@ -155,10 +155,18 @@ public class IrcPlugin extends Plugin {
             case "close":
             case "leave":
             case "part":
-                if (!arg.isEmpty()) {
-                    closePane(arg);
-                } else {
+                if (arg.isEmpty()) {
                     closePane("");
+                } else {
+                    closePane(arg);
+                }
+                break;
+
+            case "quit":
+                if (arg.isEmpty()) {
+                    ircAdapter.disconnect("Quitting the plugin");
+                } else {
+                    ircAdapter.disconnect(arg);
                 }
                 break;
 
