@@ -146,7 +146,7 @@ public class SimpleIrcClient {
 
                 if (writer != null) {
                     try {
-                        sendRawLine(reason);
+                        sendRawLine("QUIT :" + reason);
                         writer.close();
                     } catch (IOException ignored) {}
                 }
