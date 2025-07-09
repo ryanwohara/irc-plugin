@@ -197,6 +197,15 @@ public interface IrcConfig extends Config
     )
     default MessageDisplay filterPMs() { return MessageDisplay.Current; }
 
+    @ConfigItem(
+            keyName = "hideConnectionMessages",
+            name = "Hide Join/Part/Quit/Kick",
+            description = "Hides connection status messages like joins, parts, quits, and kicks from channel windows.",
+            position = 7,
+            section = generalSettings
+    )
+    default boolean hideConnectionMessages() { return false; }
+
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
@@ -223,16 +232,14 @@ public interface IrcConfig extends Config
     )
     default boolean timestamp() { return true;}
 
-// Commenting this out until I can improve the UX of it
-//
-//    @ConfigItem(
-//            keyName = "hoverPreviewImages",
-//            name = "Hover-Preview Image Links",
-//            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
-//            position = 2,
-//            section = sidePanelSettings
-//    )
-//    default boolean hoverPreviewImages() { return false; }
+    @ConfigItem(
+            keyName = "hoverPreviewImages",
+            name = "Hover-Preview Image Links",
+            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default boolean hoverPreviewImages() { return false; }
 
     @ConfigItem(
             keyName = "colorizedNicks",

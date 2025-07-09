@@ -22,8 +22,13 @@ import net.runelite.client.ui.ClientToolbar;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
+import java.awt.Window;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,32 +56,43 @@ public class IrcPlugin extends Plugin {
 
     private static final Pattern VALID_WINKS = Pattern.compile("^.[opdOPD)(]");
     private static final Pattern STRIP_STYLES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
+    private final Map<String, String> channelPasswords = new HashMap<>();
 
     @Override
     protected void startUp() {
+        setupPanel();
         if (config.sidePanel()) {
-            setupPanel();
+            clientToolbar.addNavigation(panel.getNavigationButton());
         }
+        
+        SwingUtilities.invokeLater(() -> {
+            Window window = SwingUtilities.getWindowAncestor(panel);
+            if (window instanceof JFrame) {
+                window.addWindowFocusListener(new WindowAdapter() {
+                    @Override
+                    public void windowLostFocus(WindowEvent e) {
+                        if(panel != null) panel.hideAllPreviews();
+                    }
+                });
+            }
+        });
+
         emojiService.initialize();
-
         connectToIrc();
-
-        // Join default channel after connection
         joinDefaultChannel();
     }
 
     @Override
     protected void shutDown() {
         if (panel != null) {
-            if (config.sidePanel()) {
-                clientToolbar.removeNavigation(panel.getNavigationButton());
-            }
+            clientToolbar.removeNavigation(panel.getNavigationButton());
             panel = null;
         }
         if (ircAdapter != null) {
             ircAdapter.disconnect("Plugin shutting down");
             ircAdapter = null;
         }
+        channelPasswords.clear();
     }
 
     @Provides
@@ -104,12 +120,7 @@ public class IrcPlugin extends Plugin {
                 this::handleChannelLeave,
                 this::handleReconnect
         );
-
         panel.initializeGui();
-
-        if (config.sidePanel()) {
-            clientToolbar.addNavigation(panel.getNavigationButton());
-        }
     }
 
     private void joinDefaultChannel() {
@@ -136,7 +147,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private void handleCommand(String command) {
-        if (ircAdapter == null) return;
+        if (ircAdapter == null || panel == null) return;
 
         String[] parts = command.split(" ", 2);
         String cmd = parts[0].toLowerCase().substring(1);
@@ -155,11 +166,7 @@ public class IrcPlugin extends Plugin {
             case "close":
             case "leave":
             case "part":
-                if (arg.isEmpty()) {
-                    closePane("");
-                } else {
-                    closePane(arg);
-                }
+                closePane(arg);
                 break;
 
             case "quit":
@@ -188,10 +195,7 @@ public class IrcPlugin extends Plugin {
                     String target = msgParts[0];
                     String msg = msgParts[1];
 
-                    if (panel != null) {
-                        SwingUtilities.invokeLater(() -> panel.addChannel(target));
-                    }
-
+                    SwingUtilities.invokeLater(() -> panel.addChannel(target));
                     sendMessage(target, msg);
                 }
                 if (panel != null && msgParts.length > 0) {
@@ -222,7 +226,7 @@ public class IrcPlugin extends Plugin {
 
             case "away":
                 if (arg.isEmpty()) {
-                    ircAdapter.sendRawLine("AWAY"); // Remove away status
+                    ircAdapter.sendRawLine("AWAY");
                 } else {
                     ircAdapter.sendRawLine("AWAY :" + arg);
                 }
@@ -237,7 +241,6 @@ public class IrcPlugin extends Plugin {
             case "nick":
                 if (!arg.isEmpty() && arg.split(" ").length == 1) {
                     ircAdapter.setNick(arg);
-                    currentNick = arg;
                 }
                 break;
 
@@ -317,7 +320,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private void mode(String mode) {
-        if (ircAdapter == null) return;
+        if (ircAdapter == null || panel == null) return;
 
         String[] split = mode.split(" ");
 
@@ -364,52 +367,52 @@ public class IrcPlugin extends Plugin {
 
     private void joinChannel(String channel, String password) {
         if (ircAdapter == null) return;
-
+        if (password != null && !password.isEmpty()) {
+            channelPasswords.put(channel.toLowerCase(), password);
+        }
         ircAdapter.joinChannel(channel, password);
     }
 
-    private void closePane(String name) {
+    private void closePane(String argument) {
         if (panel == null) return;
 
-        String[] split = name.split(" ", 2);
+        String currentChannel = panel.getCurrentChannel();
+        if ("System".equalsIgnoreCase(currentChannel) && (argument.isEmpty() || !argument.split(" ", 2)[0].startsWith("#"))) {
+            return;
+        }
 
-        if (split.length == 0 || name.isEmpty()) {
-            if (panel.getCurrentChannel().startsWith("#")) {
-                leaveChannel(panel.getCurrentChannel());
-            } else if (!panel.getCurrentChannel().equals("System")) {
-                SwingUtilities.invokeLater(() -> panel.removeChannel(panel.getCurrentChannel()));
-            }
-        } else if (split.length == 1) {
-            if (!name.equals("System") && panel.isPane(name)) {
-                SwingUtilities.invokeLater(() -> panel.removeChannel(name));
-            }
+        String[] parts = argument.split(" ", 2);
+        String target = parts[0];
+        String reason = parts.length > 1 ? parts[1] : null;
 
-            if (name.startsWith("#")) {
-                leaveChannel(name);
-            } else if (!panel.isPane(name) && panel.getCurrentChannel().startsWith("#")) {
-                leaveChannel(panel.getCurrentChannel(), split[0]);
+        if (argument.isEmpty()) {
+            if (currentChannel.startsWith("#")) {
+                leaveChannel(currentChannel);
+            } else {
+                SwingUtilities.invokeLater(() -> panel.removeChannel(currentChannel));
             }
+        } else if (target.startsWith("#")) {
+            if (reason != null) {
+                leaveChannel(target, reason);
+            } else {
+                leaveChannel(target);
+            }
+        } else if (panel.isPane(target)) {
+            SwingUtilities.invokeLater(() -> panel.removeChannel(target));
         } else {
-            if (name.startsWith("#")) {
-                leaveChannel(split[0], split[1]);
-                SwingUtilities.invokeLater(() -> panel.removeChannel(split[0]));
-            } else if (panel.isPane(split[0])) {
-                SwingUtilities.invokeLater(() -> panel.removeChannel(split[0]));
-            } else if (!panel.isPane(split[0])) {
-                String active = panel.getCurrentChannel();
-                SwingUtilities.invokeLater(() -> panel.removeChannel(active));
-                if (active.startsWith("#")) {
-                    leaveChannel(active, name);
-                }
+            if (currentChannel.startsWith("#")) {
+                leaveChannel(currentChannel, argument);
             }
         }
     }
+
 
     private void leaveChannel(String channel) {
         if (ircAdapter == null) return;
 
         if (channel.startsWith("#")) {
             ircAdapter.leaveChannel(channel);
+            channelPasswords.remove(channel.toLowerCase());
         }
 
         if (panel != null) {
@@ -420,7 +423,10 @@ public class IrcPlugin extends Plugin {
     private void leaveChannel(String channel, String reason) {
         if (ircAdapter == null) return;
 
-        ircAdapter.leaveChannel(channel, reason);
+        if (channel.startsWith("#")) {
+            ircAdapter.leaveChannel(channel, reason);
+            channelPasswords.remove(channel.toLowerCase());
+        }
 
         if (panel != null) {
             SwingUtilities.invokeLater(() -> panel.removeChannel(channel));
@@ -436,26 +442,24 @@ public class IrcPlugin extends Plugin {
     }
 
     private void handleReconnect(Boolean ignored) {
-        if (ircAdapter == null) return;
-
+        if (ircAdapter == null || panel == null) return;
         ircAdapter.disconnect("Reloading, brb");
-
         connectToIrc();
-
         for (String channel : panel.getChannelNames()) {
-            handleChannelJoin(channel, "");
+            if (channel.startsWith("#")) {
+                String password = channelPasswords.getOrDefault(channel.toLowerCase(), "");
+                handleChannelJoin(channel, password);
+            }
         }
     }
 
     private void sendMessage(String target, String message) {
         if (ircAdapter == null) return;
-
         ircAdapter.sendMessage(target, message);
     }
 
     private void sendAction(String target, String message) {
         if (ircAdapter == null) return;
-
         ircAdapter.sendAction(target, message);
     }
 
@@ -496,29 +500,30 @@ public class IrcPlugin extends Plugin {
                     .build());
         }
 
-        if (panel != null) {
-            SwingUtilities.invokeLater(() -> panel.addMessage(message));
-        }
+        SwingUtilities.invokeLater(() -> panel.addMessage(message));
     }
 
     @Subscribe
     public void onConfigChanged(ConfigChanged configChanged) {
-        if (!configChanged.getGroup().equals("irc") || configChanged.getKey().equals("fontFamily") || configChanged.getKey().equals("fontSize")) {
+        if (!configChanged.getGroup().equals("irc")) {
             return;
         }
 
-        try {
-            stopIrcPanel();
-        } catch (Exception ignored) {
+        if ("sidePanel".equals(configChanged.getKey())) {
+            if (panel != null) {
+                clientToolbar.removeNavigation(panel.getNavigationButton());
+                if (config.sidePanel()) {
+                    clientToolbar.addNavigation(panel.getNavigationButton());
+                }
+            }
+        } else if ("panelPriority".equals(configChanged.getKey())) {
+            if (panel != null) {
+                clientToolbar.removeNavigation(panel.getNavigationButton());
+                if (config.sidePanel()) {
+                    clientToolbar.addNavigation(panel.generateNavigationButton());
+                }
+            }
         }
-
-        if (config.sidePanel()) {
-            clientToolbar.addNavigation(panel.generateNavigationButton());
-        }
-    }
-
-    private void stopIrcPanel() {
-        clientToolbar.removeNavigation(panel.getNavigationButton());
     }
 
     @Subscribe
@@ -528,16 +533,15 @@ public class IrcPlugin extends Plugin {
         }
 
         String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
-
         Matcher matcher = VALID_WINKS.matcher(message);
 
-        if (message.startsWith(config.prefix())
-                && !matcher.matches()) {
+        if (message.startsWith(config.prefix()) && !matcher.matches()) {
             final int[] intStack = client.getIntStack();
             int intStackCount = client.getIntStackSize();
             intStack[intStackCount - 3] = 1;
 
-            handleMessageSend(panel.getCurrentChannel(), message.substring(1));
+            String currentChannel = panel != null ? panel.getCurrentChannel() : this.config.channel();
+            handleMessageSend(currentChannel, message.substring(1));
         }
     }
 }
