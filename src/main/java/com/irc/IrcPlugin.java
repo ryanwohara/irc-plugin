@@ -468,39 +468,42 @@ public class IrcPlugin extends Plugin {
     }
 
     private void processMessage(IrcMessage message) {
-        if (panel == null) return;
-
         IrcMessage.MessageType[] chatBoxEvents = {IrcMessage.MessageType.QUIT, IrcMessage.MessageType.NICK_CHANGE};
 
-        if (!panel.getChannelNames().contains(message.getChannel())) {
-            for (String channel : panel.getChannelNames()) {
-                if (channel.equalsIgnoreCase(message.getChannel())) {
-                    panel.renameChannel(channel, message.getChannel());
+        if (panel != null) {
+            if (!panel.getChannelNames().contains(message.getChannel())) {
+                for (String channel : panel.getChannelNames()) {
+                    if (channel.equalsIgnoreCase(message.getChannel())) {
+                        panel.renameChannel(channel, message.getChannel());
+                    }
                 }
             }
         }
 
-        if (client.getGameState() == GameState.LOGGED_IN
-                && ((config.activeChannelOnly()
-                && (panel.getCurrentChannel().equals(message.getChannel())
-                || (message.getChannel().equals("System") && Arrays.binarySearch(chatBoxEvents, message.getType()) > -1)))
-                || !config.activeChannelOnly())) {
-            chatMessageManager.queue(QueuedMessage.builder()
-                    .type(config.getChatboxType().getType())
-                    .sender(message.getChannel())
-                    .name(message.getSender())
-                    .runeLiteFormattedMessage(
-                            new ChatMessageBuilder()
-                                    .append(ChatColorType.NORMAL)
-                                    .append(EmojiParser.parseToAliases(
-                                            stripStyles(message.getContent())
-                                    ))
-                                    .build())
-                    .timestamp((int) (message.getTimestamp().getEpochSecond()))
-                    .build());
+        if (client.getGameState() == GameState.LOGGED_IN) {
+            boolean activeChannelCondition = panel == null || panel.getCurrentChannel().equals(message.getChannel());
+            boolean isSystemEvent = message.getChannel().equals("System") && Arrays.binarySearch(chatBoxEvents, message.getType()) > -1;
+
+            if (!config.activeChannelOnly() || (config.activeChannelOnly() && (activeChannelCondition || isSystemEvent))) {
+                chatMessageManager.queue(QueuedMessage.builder()
+                        .type(config.getChatboxType().getType())
+                        .sender(message.getChannel())
+                        .name(message.getSender())
+                        .runeLiteFormattedMessage(
+                                new ChatMessageBuilder()
+                                        .append(ChatColorType.NORMAL)
+                                        .append(EmojiParser.parseToAliases(
+                                                stripStyles(message.getContent())
+                                        ))
+                                        .build())
+                        .timestamp((int) (message.getTimestamp().getEpochSecond()))
+                        .build());
+            }
         }
 
-        SwingUtilities.invokeLater(() -> panel.addMessage(message));
+        if (panel != null) {
+            SwingUtilities.invokeLater(() -> panel.addMessage(message));
+        }
     }
 
     @Subscribe
