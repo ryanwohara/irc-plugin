@@ -23,6 +23,8 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
 import java.awt.Window;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.Instant;
@@ -64,14 +66,38 @@ public class IrcPlugin extends Plugin {
         if (config.sidePanel()) {
             clientToolbar.addNavigation(panel.getNavigationButton());
         }
-        
+
         SwingUtilities.invokeLater(() -> {
             Window window = SwingUtilities.getWindowAncestor(panel);
-            if (window instanceof JFrame) {
+            if (window != null) {
                 window.addWindowFocusListener(new WindowAdapter() {
                     @Override
                     public void windowLostFocus(WindowEvent e) {
-                        if(panel != null) panel.hideAllPreviews();
+                        if (panel != null) {
+                            panel.hideAllPreviews();
+                        }
+                    }
+                });
+                window.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowDeactivated(WindowEvent e) {
+                        if (panel != null) {
+                            panel.hideAllPreviews();
+                        }
+                    }
+                    @Override
+                    public void windowIconified(WindowEvent e) {
+                        if (panel != null) {
+                            panel.hideAllPreviews();
+                        }
+                    }
+                });
+                window.addComponentListener(new ComponentAdapter() {
+                    @Override
+                    public void componentMoved(ComponentEvent e) {
+                        if (panel != null) {
+                            panel.hideAllPreviews();
+                        }
                     }
                 });
             }
