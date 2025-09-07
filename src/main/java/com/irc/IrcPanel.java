@@ -469,10 +469,36 @@ public class IrcPanel extends PluginPanel {
         private void displayPopup(Element sourceElement, JComponent content) {
             try {
                 hideImagePreview();
-                Rectangle bounds = getElementBounds(sourceElement);
-                if (bounds == null) return;
-                Point location = new Point(bounds.x, bounds.y + bounds.height);
+                Rectangle elementBounds = getElementBounds(sourceElement);
+                if (elementBounds == null) return;
+
+                Window topLevelWindow = SwingUtilities.getWindowAncestor(this);
+                if (topLevelWindow == null) return;
+
+                Point location = new Point(elementBounds.x, elementBounds.y + elementBounds.height);
                 SwingUtilities.convertPointToScreen(location, this);
+
+                Dimension contentSize = content.getPreferredSize();
+                Rectangle screenBounds = topLevelWindow.getGraphicsConfiguration().getBounds();
+
+                // Adjust Y coordinate if it would go off the bottom of the screen
+                if (location.y + contentSize.height > screenBounds.y + screenBounds.height) {
+                    // Try to place it above the link instead
+                    Point elementLocationOnScreen = new Point(elementBounds.x, elementBounds.y);
+                    SwingUtilities.convertPointToScreen(elementLocationOnScreen, this);
+                    location.y = elementLocationOnScreen.y - contentSize.height;
+                }
+
+                if (location.x + contentSize.width > screenBounds.x + screenBounds.width) {
+                    location.x = screenBounds.x + screenBounds.width - contentSize.width;
+                }
+
+                if (location.y < screenBounds.y) {
+                    location.y = screenBounds.y;
+                }
+                if (location.x < screenBounds.x) {
+                    location.x = screenBounds.x;
+                }
 
                 content.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
                 content.setOpaque(true);
