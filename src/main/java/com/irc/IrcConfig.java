@@ -234,7 +234,7 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "hoverPreviewImages",
-            name = "Hover-Preview Image Links",
+            name = "Hover-Preview Image Links (beta)",
             description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
             position = 2,
             section = sidePanelSettings

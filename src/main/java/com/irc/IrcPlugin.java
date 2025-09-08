@@ -25,6 +25,8 @@ import javax.swing.*;
 import java.awt.Window;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.Instant;
@@ -35,7 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @PluginDescriptor(
-        name = "IRC",
+        name = "Global Chat (IRC)",
         description = "Integrates IRC with the OSRS chatbox"
 )
 @Slf4j
@@ -98,6 +100,21 @@ public class IrcPlugin extends Plugin {
                         if (panel != null) {
                             panel.hideAllPreviews();
                         }
+                    }
+                });
+                window.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        if (panel != null) {
+                            if (!window.getBounds().contains(e.getLocationOnScreen())) {
+                                panel.hideAllPreviews();
+                            }
+                        }
+                    }
+                });
+                window.addMouseWheelListener(e -> {
+                    if (panel != null) {
+                        panel.hideAllPreviews();
                     }
                 });
             }
@@ -391,12 +408,14 @@ public class IrcPlugin extends Plugin {
         }
     }
 
-    private void joinChannel(String channel, String password) {
-        if (ircAdapter == null) return;
-        if (password != null && !password.isEmpty()) {
-            channelPasswords.put(channel.toLowerCase(), password);
+    private void joinChannel(String channels, String password) {
+        for (String channel : channels.split(",")) {
+            if (ircAdapter == null) return;
+            if (password != null && !password.isEmpty()) {
+                channelPasswords.put(channel.toLowerCase(), password);
+            }
+            ircAdapter.joinChannel(channel, password);
         }
-        ircAdapter.joinChannel(channel, password);
     }
 
     private void closePane(String argument) {

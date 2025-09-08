@@ -14,7 +14,6 @@ import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.ui.ClientUI;
 
 import javax.imageio.ImageIO;
-import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.Timer;
@@ -23,29 +22,23 @@ import javax.swing.text.Element;
 import javax.swing.text.Position;
 import javax.swing.text.View;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowEvent;
-import java.awt.event.WindowAdapter;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.util.concurrent.TimeUnit;
@@ -282,7 +275,7 @@ public class IrcPanel extends PluginPanel {
         channelPanes.put(channel, pane);
         unreadMessages.put(channel, false);
         tabbedPane.addTab(channel, new JScrollPane(pane));
-        if (config.autofocusOnNewTab() || channel.equals(config.channel())) {
+        if (config.autofocusOnNewTab() || channel.equals(config.channel()) || channelPanes.size() == 2) {
             tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
         }
     }
@@ -418,35 +411,64 @@ public class IrcPanel extends PluginPanel {
         private void handleStaticImagePreview(Element sourceElement, String imageUrl) throws IOException {
             byte[] imageBytes = imageCache.getIfPresent(imageUrl);
 
-            if (imageBytes == null) {
+            if (imageBytes == null || imageBytes.length == 0) {
                 log.debug("Cache miss for {}, fetching from network.", imageUrl);
-                final String PROXY_BASE_URL = "https://img.aworky.workers.dev/?url=";
-                String encodedUrl = URLEncoder.encode(imageUrl, StandardCharsets.UTF_8.name());
-                URL proxyUrl = new URL(PROXY_BASE_URL + encodedUrl);
 
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                try (InputStream in = proxyUrl.openStream()) {
+                URL url = new URL(imageUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setRequestProperty("Accept", "image/avif,image/png,image/apng,image/*,*/*;q=0.8");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+
+                int status = conn.getResponseCode();
+                if (status != HttpURLConnection.HTTP_OK) {
+                    log.warn("Failed to fetch image: {} returned status {}", imageUrl, status);
+                    return;
+                }
+
+                String contentType = conn.getContentType();
+                if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+                    log.warn("Invalid content-type for {}: {}", imageUrl, contentType);
+                    return;
+                }
+
+                try (InputStream in = conn.getInputStream();
+                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+
                     byte[] buffer = new byte[4096];
                     int n;
                     while ((n = in.read(buffer)) != -1) {
                         baos.write(buffer, 0, n);
                     }
+                    imageBytes = baos.toByteArray();
+                    imageCache.put(imageUrl, imageBytes);
+                } finally {
+                    conn.disconnect();
                 }
-                imageBytes = baos.toByteArray();
-                imageCache.put(imageUrl, imageBytes);
             } else {
                 log.debug("Cache hit for {}", imageUrl);
             }
-            BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
-            if (originalImage == null) {
-                log.warn("Could not decode image from URL: {}", imageUrl);
-                imageCache.invalidate(imageUrl);
-                return;
+
+            if (imageBytes.length > 0) {
+                BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
+                if (originalImage == null) {
+                    log.warn("Could not decode image from URL: {}", imageUrl);
+                    imageCache.invalidate(imageUrl);
+                    return;
+                }
+
+                ImageIcon imageIcon = new ImageIcon(scaleImage(originalImage));
+
+                JLabel preview = new JLabel(imageIcon);
+                preview.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        hideImagePreview();
+                    }
+                });
+                SwingUtilities.invokeLater(() -> displayPopup(sourceElement, preview));
             }
-
-            ImageIcon imageIcon = new ImageIcon(scaleImage(originalImage));
-
-            SwingUtilities.invokeLater(() -> displayPopup(sourceElement, new JLabel(imageIcon)));
         }
 
         private BufferedImage scaleImage(BufferedImage originalImage) {
@@ -486,7 +508,7 @@ public class IrcPanel extends PluginPanel {
                     // Try to place it above the link instead
                     Point elementLocationOnScreen = new Point(elementBounds.x, elementBounds.y);
                     SwingUtilities.convertPointToScreen(elementLocationOnScreen, this);
-                    location.y = elementLocationOnScreen.y - contentSize.height;
+                    location.y = elementLocationOnScreen.y - contentSize.height - 50;
                 }
 
                 if (location.x + contentSize.width > screenBounds.x + screenBounds.width) {

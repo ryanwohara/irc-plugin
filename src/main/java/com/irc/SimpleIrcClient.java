@@ -156,6 +156,7 @@ public class SimpleIrcClient {
             }
             sendRawLine(command);
             channels.add(channel);
+
         }
     }
 
