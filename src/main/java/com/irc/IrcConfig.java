@@ -131,6 +131,15 @@ public interface IrcConfig extends Config
     default boolean activeChannelOnly() { return false; }
 
     @ConfigItem(
+            keyName = "overlayEnabled",
+            name = "Enable Overlay",
+            description = "Show the IRC overlay window",
+            position = 2,
+            section = generalSettings
+    )
+    default boolean overlayEnabled() { return false; }
+
+    @ConfigItem(
             keyName = "autofocusOnNewTab",
             name = "Autofocus on New Tab",
             description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
