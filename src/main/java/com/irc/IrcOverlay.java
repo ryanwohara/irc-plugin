@@ -11,9 +11,9 @@ import net.runelite.client.ui.ColorScheme;
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.util.List;
 
-public class IrcOverlay extends Overlay
-{
+public class IrcOverlay extends Overlay {
     private final Client client;
     private final IrcPanel panel;
 
@@ -25,8 +25,7 @@ public class IrcOverlay extends Overlay
     private boolean enabled;
 
     @Inject
-    public IrcOverlay(Client client, IrcPanel panel, IrcConfig config)
-    {
+    public IrcOverlay(Client client, IrcPanel panel, IrcConfig config) {
         this.client = client;
         this.panel = panel;
         this.enabled = config.overlayEnabled();
@@ -39,7 +38,7 @@ public class IrcOverlay extends Overlay
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
             if (panel == null || !enabled) return false;
 
-            if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_TAB) {
+            if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
                 cycleChannel();
                 e.consume();
                 return true;
@@ -48,24 +47,21 @@ public class IrcOverlay extends Overlay
         });
     }
 
-    private void cycleChannel()
-    {
-        java.util.List<String> channels = panel.getChannelNames();
-        java.util.List<String> visibleChannels = channels.subList(Math.min(2, channels.size()), channels.size());
-        if (visibleChannels.isEmpty()) return;
+    private void cycleChannel() {
+        List<String> channels = panel.getChannelNames();
+        if (channels.isEmpty()) return;
 
         String current = panel.getCurrentChannel();
-        int index = visibleChannels.indexOf(current);
-        index = (index + 1) % visibleChannels.size();
-        panel.setFocusedChannel(visibleChannels.get(index));
+        int index = channels.indexOf(current);
+        index = (index + 1) % channels.size();
+        panel.setFocusedChannel(channels.get(index));
     }
 
     private static final int CHATBOX_GROUP = 162;
     private static final int CHATBOX_MESSAGES_CHILD = 0;
 
     @Override
-    public Dimension render(Graphics2D graphics)
-    {
+    public Dimension render(Graphics2D graphics) {
         if (!enabled || panel == null)
             return null;
 
@@ -76,7 +72,7 @@ public class IrcOverlay extends Overlay
         int x = loc.getX() + padding;
         int y = loc.getY() + padding;
         int scrollbarWidth = 16;
-        int width = chatboxMessages.getWidth() - scrollbarWidth - padding*2; // additional padding
+        int width = chatboxMessages.getWidth() - scrollbarWidth - padding * 2; // additional padding
         int height = tabHeight;
 
         // background
@@ -88,13 +84,12 @@ public class IrcOverlay extends Overlay
         int activeTabIndex = Math.max(0, channels.indexOf(panel.getCurrentChannel()));
 
         int xOffset = 0;
-        for (int i = 2; i < channels.size(); i++)
-        {
+        for (int i = 0; i < channels.size(); i++) {
             boolean isActive = i == activeTabIndex;
             String channel = channels.get(i);
 
             FontMetrics fm = graphics.getFontMetrics();
-            int tabWidth = fm.stringWidth(channel) + padding*2 -tabSpacing; // 8px padding each side
+            int tabWidth = fm.stringWidth(channel) + padding * 2 - tabSpacing; // 8px padding each side
 
             // stop drawing if tab exceeds width
             if (xOffset + tabWidth > width)
