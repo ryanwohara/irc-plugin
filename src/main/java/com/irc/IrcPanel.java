@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -416,12 +418,8 @@ public class IrcPanel extends PluginPanel {
             if (imageBytes == null || imageBytes.length == 0) {
                 log.debug("Cache miss for {}, fetching from network.", imageUrl);
 
-                URL url = new URL(imageUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-                conn.setRequestProperty("Accept", "image/avif,image/png,image/apng,image/*,*/*;q=0.8");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
+                String encodedUrl = URLEncoder.encode(imageUrl, StandardCharsets.UTF_8);
+                HttpURLConnection conn = getHttpURLConnection(imageUrl, encodedUrl);
 
                 int status = conn.getResponseCode();
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -473,6 +471,21 @@ public class IrcPanel extends PluginPanel {
             }
         }
 
+        private static HttpURLConnection getHttpURLConnection(String imageUrl, String encodedUrl) throws IOException {
+            // CloudFlare worker to protect users from IP grabbers
+            URL url = new URL("https://image-proxy.cold-pine-9570.workers.dev/?url=" + encodedUrl);
+            // Discord doesn't support CloudFlare workers :(
+            if (imageUrl.startsWith("https://cdn.discordapp.com/")) {
+                url = new URL(imageUrl);
+            }
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            conn.setRequestProperty("Accept", "image/avif,image/png,image/apng,image/*,*/*;q=0.8");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            return conn;
+        }
+
         private BufferedImage scaleImage(BufferedImage originalImage) {
             double scale = Math.min(1.0, Math.min(
                     (double) MAX_PREVIEW_WIDTH / originalImage.getWidth(),
@@ -510,7 +523,7 @@ public class IrcPanel extends PluginPanel {
                     // Try to place it above the link instead
                     Point elementLocationOnScreen = new Point(elementBounds.x, elementBounds.y);
                     SwingUtilities.convertPointToScreen(elementLocationOnScreen, this);
-                    location.y = elementLocationOnScreen.y - contentSize.height - 50;
+                    location.y = elementLocationOnScreen.y - contentSize.height;
                 }
 
                 if (location.x + contentSize.width > screenBounds.x + screenBounds.width) {

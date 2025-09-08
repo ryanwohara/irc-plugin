@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
 import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -58,7 +59,7 @@ public class IrcPlugin extends Plugin {
     @Inject
     private EmojiService emojiService;
 
-    private static final Pattern VALID_WINKS = Pattern.compile("^.[opdOPD)(]");
+    private static final Pattern VALID_WINKS = Pattern.compile("^;([opdOPD)(<>]|[-_];)");
     private static final Pattern STRIP_STYLES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
     private final Map<String, String> channelPasswords = new HashMap<>();
 
@@ -580,7 +581,7 @@ public class IrcPlugin extends Plugin {
             return;
         }
 
-        String message = client.getVarcStrValue(VarClientStr.CHATBOX_TYPED_TEXT);
+        String message = client.getVarcStrValue(VarClientID.CHATINPUT);
         Matcher matcher = VALID_WINKS.matcher(message);
 
         if (message.startsWith(config.prefix()) && !matcher.matches()) {

@@ -36,8 +36,7 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "Connection",
             description = "Connection settings",
-            position = 0,
-            closedByDefault = true
+            position = 0
     )
     String connectionSettings = "connectionSettings";
 
@@ -83,8 +82,8 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "channel",
-            name = "Channel",
-            description = "Channel to join",
+            name = "Channel(s)",
+            description = "Channel(s) to join, comma separated",
             position = 3,
             section = connectionSettings
     )
@@ -109,8 +108,7 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "General",
             description = "General settings",
-            position = 1,
-            closedByDefault = false
+            position = 1
     )
     String generalSettings = "generalSettings";
 
@@ -209,8 +207,7 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
-            position = 2,
-            closedByDefault = true
+            position = 2
     )
     String sidePanelSettings = "sidePanelSettings";
 
