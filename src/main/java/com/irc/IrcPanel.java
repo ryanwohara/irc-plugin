@@ -520,10 +520,19 @@ public class IrcPanel extends PluginPanel {
 
                 // Adjust Y coordinate if it would go off the bottom of the screen
                 if (location.y + contentSize.height > screenBounds.y + screenBounds.height) {
-                    // Try to place it above the link instead
                     Point elementLocationOnScreen = new Point(elementBounds.x, elementBounds.y);
                     SwingUtilities.convertPointToScreen(elementLocationOnScreen, this);
-                    location.y = elementLocationOnScreen.y - contentSize.height;
+
+                    int yAbove = elementLocationOnScreen.y - contentSize.height;
+
+                    // If it fits neatly above the element, place it there
+                    if (yAbove >= screenBounds.y) {
+                        location.y = yAbove;
+                    } else {
+                        // Otherwise, it doesn't fit above or below. Compromise by aligning
+                        // the bottom of the popup with the bottom of the screen.
+                        location.y = screenBounds.y + screenBounds.height - contentSize.height;
+                    }
                 }
 
                 if (location.x + contentSize.width > screenBounds.x + screenBounds.width) {

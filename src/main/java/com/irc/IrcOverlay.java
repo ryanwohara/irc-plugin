@@ -16,6 +16,7 @@ public class IrcOverlay extends Overlay
 {
     private final Client client;
     private final IrcPanel panel;
+
     final int tabHeight = 12;
     final int tabSpacing = 2; // space between tabs
     final int padding = 8;
@@ -71,7 +72,6 @@ public class IrcOverlay extends Overlay
         Widget chatboxMessages = client.getWidget(CHATBOX_GROUP, CHATBOX_MESSAGES_CHILD);
         if (chatboxMessages == null || chatboxMessages.isHidden())
             return null;
-
         net.runelite.api.Point loc = chatboxMessages.getCanvasLocation();
         int x = loc.getX() + padding;
         int y = loc.getY() + padding;
