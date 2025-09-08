@@ -17,24 +17,25 @@ public class IrcOverlay extends Overlay
     private final Client client;
     private final IrcPanel panel;
 
-    @Setter
-    private boolean enabled = false;
-
-    final int tabHeight = 20;
+    final int tabHeight = 12;
     final int tabSpacing = 2; // space between tabs
+    final int padding = 8;
+
+    @Setter
+    private boolean enabled;
 
     @Inject
     public IrcOverlay(Client client, IrcPanel panel, IrcConfig config)
     {
         this.client = client;
         this.panel = panel;
-        this.enabled = config.overlayEnabled()  ;
-        setPosition(OverlayPosition.ABOVE_CHATBOX_RIGHT);
+        this.enabled = config.overlayEnabled();
+
+        setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
-        subscribeKeyEvents();
     }
 
-    private void subscribeKeyEvents() {
+    public void subscribeKeyEvents() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
             if (panel == null || !enabled) return false;
 
@@ -47,9 +48,9 @@ public class IrcOverlay extends Overlay
         });
     }
 
-    private void cycleChannel() {
+    private void cycleChannel()
+    {
         java.util.List<String> channels = panel.getChannelNames();
-        // skip first two special tabs (system/status)
         java.util.List<String> visibleChannels = channels.subList(Math.min(2, channels.size()), channels.size());
         if (visibleChannels.isEmpty()) return;
 
@@ -71,34 +72,45 @@ public class IrcOverlay extends Overlay
         Widget chatboxMessages = client.getWidget(CHATBOX_GROUP, CHATBOX_MESSAGES_CHILD);
         if (chatboxMessages == null || chatboxMessages.isHidden())
             return null;
+        net.runelite.api.Point loc = chatboxMessages.getCanvasLocation();
+        int x = loc.getX() + padding;
+        int y = loc.getY() + padding;
+        int scrollbarWidth = 16;
+        int width = chatboxMessages.getWidth() - scrollbarWidth - padding*2; // additional padding
+        int height = tabHeight;
 
-        int width = chatboxMessages.getWidth();
-
-        // draw background bar
+        // background
         graphics.setColor(ColorScheme.DARKER_GRAY_COLOR);
-        graphics.fillRect(0, 0, width, tabHeight);
+        graphics.fillRect(x, y, width, height);
 
+        // tabs
         java.util.List<String> channels = panel.getChannelNames();
         int activeTabIndex = Math.max(0, channels.indexOf(panel.getCurrentChannel()));
 
-        int x = 0; // start drawing from left
-        for (int i = 2; i < channels.size(); i++) { // skip first two tabs
+        int xOffset = 0;
+        for (int i = 2; i < channels.size(); i++)
+        {
             boolean isActive = i == activeTabIndex;
-
             String channel = channels.get(i);
+
             FontMetrics fm = graphics.getFontMetrics();
-            int tabWidth = fm.stringWidth(channel) + 16; // padding 8px each side
+            int tabWidth = fm.stringWidth(channel) + padding*2 -tabSpacing; // 8px padding each side
 
-            // draw tab background
+            // stop drawing if tab exceeds width
+            if (xOffset + tabWidth > width)
+                break;
+
+            // tab background
             graphics.setColor(isActive ? ColorScheme.BRAND_ORANGE : ColorScheme.DARKER_GRAY_COLOR.darker());
-            graphics.fillRect(x, 0, tabWidth, tabHeight);
-            // draw channel name
-            graphics.setColor(isActive ? Color.WHITE : ColorScheme.BRAND_ORANGE.darker());
-            graphics.drawString(channel, x + 8, tabHeight - 6);
+            graphics.fillRect(x + xOffset, y, tabWidth, height);
 
-            x += tabWidth + tabSpacing;
+            // channel name
+            graphics.setColor(isActive ? Color.WHITE : ColorScheme.BRAND_ORANGE.darker());
+            graphics.drawString(channel, x + xOffset + 8, y + height);
+
+            xOffset += tabWidth + tabSpacing;
         }
 
-        return new Dimension(width, tabHeight);
+        return new Dimension(width, height);
     }
 }

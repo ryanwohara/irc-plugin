@@ -132,7 +132,7 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "overlayEnabled",
-            name = "Enable Overlay",
+            name = "Enable Channel Overlay",
             description = "Show the IRC overlay window",
             position = 2,
             section = generalSettings

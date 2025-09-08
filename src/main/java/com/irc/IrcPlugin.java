@@ -130,6 +130,7 @@ public class IrcPlugin extends Plugin {
         });
         overlay = new IrcOverlay(client, panel, config);
         overlayManager.add(overlay);
+        overlay.subscribeKeyEvents();
         emojiService.initialize();
         connectToIrc();
         joinDefaultChannel();
