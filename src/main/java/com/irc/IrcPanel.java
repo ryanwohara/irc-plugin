@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
@@ -377,7 +378,8 @@ public class IrcPanel extends PluginPanel {
                     if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
                         try {
                             LinkBrowser.browse(e.getURL().toURI().toString());
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
                         if (config.hoverPreviewImages() && isImageUrl(url)) {
                             showImagePreview(e.getSourceElement(), url);
@@ -627,23 +629,50 @@ public class IrcPanel extends PluginPanel {
 
         private String htmlColorById(String id) {
             switch (id) {
-                case "00": case "0": return "white";
-                case "01": case "1": return "black";
-                case "02": case "2": return "#000080";
-                case "03": case "3": return "#008000";
-                case "04": case "4": return "#FF0000";
-                case "05": case "5": return "#800000";
-                case "06": case "6": return "#800080";
-                case "07": case "7": return "#FFA500";
-                case "08": case "8": return "#FFFF00";
-                case "09": case "9": return "#00FF00";
-                case "10": return "#008080";
-                case "11": return "#00FFFF";
-                case "12": return "#0000FF";
-                case "13": return "#FF00FF";
-                case "14": return "#808080";
-                case "15": return "#C0C0C0";
-                default: return "black";
+                case "00":
+                case "0":
+                    return "white";
+                case "01":
+                case "1":
+                    return "black";
+                case "02":
+                case "2":
+                    return "#000080";
+                case "03":
+                case "3":
+                    return "#008000";
+                case "04":
+                case "4":
+                    return "#FF0000";
+                case "05":
+                case "5":
+                    return "#800000";
+                case "06":
+                case "6":
+                    return "#800080";
+                case "07":
+                case "7":
+                    return "#FFA500";
+                case "08":
+                case "8":
+                    return "#FFFF00";
+                case "09":
+                case "9":
+                    return "#00FF00";
+                case "10":
+                    return "#008080";
+                case "11":
+                    return "#00FFFF";
+                case "12":
+                    return "#0000FF";
+                case "13":
+                    return "#FF00FF";
+                case "14":
+                    return "#808080";
+                case "15":
+                    return "#C0C0C0";
+                default:
+                    return "black";
             }
         }
 
@@ -702,9 +731,11 @@ public class IrcPanel extends PluginPanel {
 
     private class TextInsertAction extends AbstractAction {
         private final String textToInsert;
+
         TextInsertAction(String textToInsert) {
             this.textToInsert = textToInsert;
         }
+
         @Override
         public void actionPerformed(ActionEvent e) {
             String currentText = inputField.getText();
