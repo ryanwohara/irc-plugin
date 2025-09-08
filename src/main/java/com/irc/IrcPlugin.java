@@ -6,6 +6,7 @@ import com.irc.emoji.EmojiService;
 import joptsimple.internal.Strings;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
+import net.runelite.api.Client;
 import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.VarClientID;
@@ -19,6 +20,8 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.input.KeyManager;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -46,12 +49,17 @@ public class IrcPlugin extends Plugin {
     @Inject
     private IrcConfig config;
     @Inject
-    private net.runelite.api.Client client;
+    private Client client;
     @Inject
     private ChatMessageManager chatMessageManager;
     @Inject
+    private OverlayManager overlayManager;
+    @Inject
     private ClientToolbar clientToolbar;
-
+    @Inject
+    private KeyManager keyManager;
+    @Inject
+    private IrcOverlay overlay;
     @Nullable
     private IrcAdapter ircAdapter;
     private IrcPanel panel;
@@ -120,7 +128,8 @@ public class IrcPlugin extends Plugin {
                 });
             }
         });
-
+        overlay = new IrcOverlay(client, panel, config);
+        overlayManager.add(overlay);
         emojiService.initialize();
         connectToIrc();
         joinDefaultChannel();
@@ -135,6 +144,10 @@ public class IrcPlugin extends Plugin {
         if (ircAdapter != null) {
             ircAdapter.disconnect("Plugin shutting down");
             ircAdapter = null;
+        }
+        if (overlayManager != null) {
+            overlayManager.remove(overlay);
+            overlay = null;
         }
         channelPasswords.clear();
     }
@@ -571,6 +584,10 @@ public class IrcPlugin extends Plugin {
                 if (config.sidePanel()) {
                     clientToolbar.addNavigation(panel.generateNavigationButton());
                 }
+            }
+        } else if ("overlayEnabled".equals(configChanged.getKey())) {
+            if (overlay != null) {
+                overlay.setEnabled(config.overlayEnabled());
             }
         }
     }
