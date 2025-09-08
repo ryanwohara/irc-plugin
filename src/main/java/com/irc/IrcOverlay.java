@@ -94,7 +94,7 @@ public class IrcOverlay extends Overlay
             String channel = channels.get(i);
 
             FontMetrics fm = graphics.getFontMetrics();
-            int tabWidth = fm.stringWidth(channel) + 16 -tabSpacing; // 8px padding each side
+            int tabWidth = fm.stringWidth(channel) + padding*2 -tabSpacing; // 8px padding each side
 
             // stop drawing if tab exceeds width
             if (xOffset + tabWidth > width)
