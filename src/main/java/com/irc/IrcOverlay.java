@@ -84,6 +84,7 @@ public class IrcOverlay extends Overlay {
         int activeTabIndex = Math.max(0, channels.indexOf(panel.getCurrentChannel()));
 
         int xOffset = 0;
+        int yOffset = 0;
         for (int i = 0; i < channels.size(); i++) {
             boolean isActive = i == activeTabIndex;
             String channel = channels.get(i);
@@ -92,16 +93,18 @@ public class IrcOverlay extends Overlay {
             int tabWidth = fm.stringWidth(channel) + padding * 2 - tabSpacing; // 8px padding each side
 
             // stop drawing if tab exceeds width
-            if (xOffset + tabWidth > width)
-                break;
+            if (xOffset + tabWidth > width) {
+                yOffset += height;
+                xOffset = 0;
+            }
 
             // tab background
             graphics.setColor(isActive ? ColorScheme.BRAND_ORANGE : ColorScheme.DARKER_GRAY_COLOR.darker());
-            graphics.fillRect(x + xOffset, y, tabWidth, height);
+            graphics.fillRect(x + xOffset, y + yOffset, tabWidth, height);
 
             // channel name
             graphics.setColor(isActive ? Color.WHITE : ColorScheme.BRAND_ORANGE.darker());
-            graphics.drawString(channel, x + xOffset + 8, y + height);
+            graphics.drawString(channel, x + xOffset + 8, y + yOffset + height);
 
             xOffset += tabWidth + tabSpacing;
         }
