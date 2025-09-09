@@ -7,7 +7,6 @@ import joptsimple.internal.Strings;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
 import net.runelite.api.Client;
-import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.chat.ChatColorType;
@@ -130,7 +129,7 @@ public class IrcPlugin extends Plugin {
         });
         overlay = new IrcOverlay(client, panel, config);
         overlayManager.add(overlay);
-        overlay.subscribeKeyEvents();
+        overlay.subscribeEvents();
         emojiService.initialize();
         connectToIrc();
         joinDefaultChannel();

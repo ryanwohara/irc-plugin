@@ -59,7 +59,7 @@ public class IrcPanel extends PluginPanel {
     private ClientUI clientUI;
 
     private JTabbedPane tabbedPane;
-    private JTextField inputField;
+    public JTextField inputField;
     @Getter
     private Map<String, ChannelPane> channelPanes;
     @Getter
@@ -102,7 +102,7 @@ public class IrcPanel extends PluginPanel {
         setLayout(new BorderLayout());
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         tabbedPane = new JTabbedPane();
-        tabbedPane.setPreferredSize(new Dimension(300, 425));
+        tabbedPane.setPreferredSize(new Dimension(300, 400));
         tabbedPane.setUI(new BasicTabbedPaneUI() {
             @Override
             protected int calculateTabAreaHeight(int tabPlacement, int runCount, int maxTabHeight) {
@@ -154,20 +154,7 @@ public class IrcPanel extends PluginPanel {
             }
             index++;
         }
-        bufferDropdown.addActionListener(e -> {
-            int idx = bufferDropdown.getSelectedIndex();
-            int i = 0;
-            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
-                if (i == idx) {
-                    this.setFocusedChannel(channel.getKey());
-                    displayPane.setDocument(channel.getValue().getStyledDocument());
-                    break;
-                }
-
-                i++;
-            }
-            hideAllPreviews();
-        });
+        bufferDropdown.addActionListener(this::actionPerformed);
 
         frame.setLayout(new BorderLayout());
         frame.add(bufferDropdown, BorderLayout.NORTH);
@@ -216,6 +203,7 @@ public class IrcPanel extends PluginPanel {
                 }
             }
         });
+        initializeFlashTimer();
     }
 
     private JComboBox<String> getFontComboBox() {
@@ -281,6 +269,7 @@ public class IrcPanel extends PluginPanel {
             for (Map.Entry<String, ChannelPane> entry : channelPanes.entrySet()) {
                 if (entry.getKey().equals(channel)) {
                     index = i;
+                    break;
                 }
                 i++;
             }
@@ -365,6 +354,7 @@ public class IrcPanel extends PluginPanel {
         tabbedPane.addTab(channel, new JScrollPane(pane));
         if (config.autofocusOnNewTab() || channel.equals(config.channel()) || channelPanes.size() == 2) {
             tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
+            this.setFocusedChannel(channel);
         }
     }
 
@@ -427,6 +417,21 @@ public class IrcPanel extends PluginPanel {
                 onChannelLeave.accept(channel);
             }
         }
+    }
+
+    private void actionPerformed(ActionEvent e) {
+        int idx = bufferDropdown.getSelectedIndex();
+        int i = 0;
+        for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
+            if (i == idx) {
+                displayPane.setDocument(channel.getValue().getStyledDocument());
+                this.setFocusedChannel(channel.getKey());
+                break;
+            }
+
+            i++;
+        }
+        hideAllPreviews();
     }
 
 
