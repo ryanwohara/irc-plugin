@@ -18,6 +18,7 @@ import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.event.HyperlinkEvent;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.text.Element;
 import javax.swing.text.Position;
 import javax.swing.text.View;
@@ -74,6 +75,8 @@ public class IrcPanel extends PluginPanel {
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
 
+    private static final JComboBox<String> bufferDropdown = new JComboBox<>();
+
     public ArrayList<String> getChannelNames() {
         return new ArrayList<>(channelPanes.keySet());
     }
@@ -99,6 +102,12 @@ public class IrcPanel extends PluginPanel {
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         tabbedPane = new JTabbedPane();
         tabbedPane.setPreferredSize(new Dimension(300, 425));
+        tabbedPane.setUI(new BasicTabbedPaneUI() {
+            @Override
+            protected int calculateTabAreaHeight(int tabPlacement, int runCount, int maxTabHeight) {
+                return 0;
+            }
+        });
         inputField = new JTextField();
         inputField.setFont(font);
         channelPanes = new LinkedHashMap<>();
@@ -110,20 +119,11 @@ public class IrcPanel extends PluginPanel {
             }
         });
 
-        tabbedPane.addChangeListener(e -> {
-            hideAllPreviews();
-            String newChannel = getCurrentChannel();
-            if (newChannel != null && unreadMessages.containsKey(newChannel)) {
-                unreadMessages.put(newChannel, false);
-                int selectedIndex = tabbedPane.getSelectedIndex();
-                if (selectedIndex != -1) {
-                    tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
-                }
-            }
-            this.setFocusedChannel(newChannel);
-        });
+        JPanel controlPanel = new JPanel();
+        controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.RIGHT));
 
-        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         JButton addButton = new JButton("+");
         JButton removeButton = new JButton("-");
         JButton reloadButton = new JButton();
@@ -138,13 +138,53 @@ public class IrcPanel extends PluginPanel {
         removeButton.setPreferredSize(standard);
         reloadButton.setPreferredSize(standard);
         final JComboBox<String> fontComboBox = getStringJComboBox();
+
+        bufferDropdown.setBackground(Color.DARK_GRAY);
+        bufferDropdown.setForeground(Color.WHITE);
+
+        JFrame frame = new JFrame("Buffers");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(500, 300);
+
+        JTextPane displayPane = new JTextPane();
+        displayPane.setEditable(false);
+
+        int index = 0;
+        for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
+            if (index == 0) {
+                displayPane.setDocument(channel.getValue().getStyledDocument()); // show first one
+            }
+            index++;
+        }
+        bufferDropdown.addActionListener(e -> {
+            int idx = bufferDropdown.getSelectedIndex();
+            int i = 0;
+            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
+                if (i == idx) {
+                    this.setFocusedChannel(channel.getKey());
+                    displayPane.setDocument(channel.getValue().getStyledDocument());
+                    break;
+                }
+
+                i++;
+            }
+            hideAllPreviews();
+        });
+
+        frame.setLayout(new BorderLayout());
+        frame.add(bufferDropdown, BorderLayout.NORTH);
+        frame.add(new JScrollPane(displayPane), BorderLayout.CENTER);
+
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
         reloadButton.addActionListener(e -> onReconnect.accept(true));
-        controlPanel.add(reloadButton);
-        controlPanel.add(addButton);
-        controlPanel.add(removeButton);
-        controlPanel.add(fontComboBox);
+        row1.add(reloadButton);
+        row1.add(addButton);
+        row1.add(removeButton);
+        row1.add(fontComboBox);
+        row2.add(bufferDropdown);
+        controlPanel.add(row1);
+        controlPanel.add(row2);
         Action originalPasteAction = inputField.getActionMap().get("paste");
         Action customPasteAction = new AbstractAction() {
             @Override
@@ -177,8 +217,9 @@ public class IrcPanel extends PluginPanel {
                     tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
                 }
             }
-            this.setFocusedChannel(newChannel);
         });
+
+
         initializeFlashTimer();
     }
 
@@ -201,12 +242,22 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void setFocusedChannel(String channel) {
-        this.focusedChannel = channel;
-        if (channel != null) {
-            int index = tabbedPane.indexOfTab(channel);
-            if (index != -1) {
-                tabbedPane.setSelectedIndex(index);
+        if (channel != null && unreadMessages.containsKey(channel)) {
+            int i = 0;
+            int index = 0;
+            for (Map.Entry<String, ChannelPane> entry : channelPanes.entrySet()) {
+                if (entry.getKey().equals(channel)) {
+                    index = i;
+                }
+                i++;
             }
+
+            unreadMessages.put(channel, false);
+            tabbedPane.setForegroundAt(index, Color.WHITE);
+            tabbedPane.setSelectedIndex(index);
+            bufferDropdown.setSelectedIndex(index);
+
+            this.focusedChannel = channel;
         }
     }
 
@@ -271,6 +322,7 @@ public class IrcPanel extends PluginPanel {
     public void addChannel(String channel) {
         if (channelPanes.containsKey(channel)) return;
         ChannelPane pane = new ChannelPane(font, config);
+        bufferDropdown.addItem(channel);
 
         JScrollPane scrollPane = new JScrollPane(pane);
         scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> pane.hideImagePreview());
