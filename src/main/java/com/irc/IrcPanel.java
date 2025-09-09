@@ -75,7 +75,8 @@ public class IrcPanel extends PluginPanel {
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
 
-    private static final JComboBox<String> bufferDropdown = new JComboBox<>();
+    private final JComboBox<String> bufferDropdown = getBufferComboBox();
+    private final JTextPane displayPane = new JTextPane();
 
     public ArrayList<String> getChannelNames() {
         return new ArrayList<>(channelPanes.keySet());
@@ -137,16 +138,13 @@ public class IrcPanel extends PluginPanel {
         addButton.setPreferredSize(standard);
         removeButton.setPreferredSize(standard);
         reloadButton.setPreferredSize(standard);
-        final JComboBox<String> fontComboBox = getStringJComboBox();
+        final JComboBox<String> fontComboBox = getFontComboBox();
 
-        bufferDropdown.setBackground(Color.DARK_GRAY);
-        bufferDropdown.setForeground(Color.WHITE);
 
         JFrame frame = new JFrame("Buffers");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(500, 300);
 
-        JTextPane displayPane = new JTextPane();
         displayPane.setEditable(false);
 
         int index = 0;
@@ -218,9 +216,44 @@ public class IrcPanel extends PluginPanel {
                 }
             }
         });
+    }
 
+    private JComboBox<String> getFontComboBox() {
+        final JComboBox<String> fontComboBox = getStringFontComboBox();
+        fontComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                Font font = new Font(value.toString(), Font.PLAIN, config.fontSize());
+                label.setFont(font);
+                return label;
+            }
+        });
 
-        initializeFlashTimer();
+        bufferDropdown.setBackground(Color.DARK_GRAY);
+        bufferDropdown.setForeground(Color.WHITE);
+
+        return fontComboBox;
+    }
+
+    private JComboBox<String> getBufferComboBox() {
+        final JComboBox<String> bufferComboBox = new JComboBox<>();
+
+        bufferComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+                if (unreadMessages.getOrDefault(value.toString(), false)) {
+                    label.setForeground(new Color(135, 206, 250)); // Change color for different flash
+                } else {
+                    label.setForeground(Color.white);
+                }
+
+                return label;
+            }
+        });
+        return bufferComboBox;
     }
 
     public void hideAllPreviews() {
@@ -261,7 +294,7 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
-    private JComboBox<String> getStringJComboBox() {
+    private JComboBox<String> getStringFontComboBox() {
         String[] fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         final JComboBox<String> fontComboBox = new JComboBox<>(fonts);
         int selectedIndex = Arrays.asList(fonts).indexOf(config.fontFamily());
