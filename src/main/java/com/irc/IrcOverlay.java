@@ -88,6 +88,7 @@ public class IrcOverlay extends Overlay {
         for (int i = 0; i < channels.size(); i++) {
             boolean isActive = i == activeTabIndex;
             String channel = channels.get(i);
+            boolean isUnread = panel.unreadMessages.get(channel);
 
             FontMetrics fm = graphics.getFontMetrics();
             int tabWidth = fm.stringWidth(channel) + padding * 2 - tabSpacing; // 8px padding each side
@@ -103,7 +104,7 @@ public class IrcOverlay extends Overlay {
             graphics.fillRect(x + xOffset, y + yOffset, tabWidth, height);
 
             // channel name
-            graphics.setColor(isActive ? Color.WHITE : ColorScheme.BRAND_ORANGE.darker());
+            graphics.setColor(isActive ? Color.WHITE : isUnread ? ColorScheme.BRAND_ORANGE.brighter() : ColorScheme.BRAND_ORANGE.darker());
             graphics.drawString(channel, x + xOffset + 8, y + yOffset + height);
 
             xOffset += tabWidth + tabSpacing;

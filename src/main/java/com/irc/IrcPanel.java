@@ -71,7 +71,7 @@ public class IrcPanel extends PluginPanel {
     private Consumer<Boolean> onReconnect;
     private Font font;
 
-    private final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
+    public final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
 
