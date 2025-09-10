@@ -53,11 +53,18 @@ public class IrcOverlay extends Overlay {
                 Component focusOwner = KeyboardFocusManager
                         .getCurrentKeyboardFocusManager()
                         .getFocusOwner();
+
                 // Only process if NOT inside the text input
-                if (!focusOwner.equals(panel.inputField) && e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
-                    panel.cycleChannel();
-                    e.consume();
-                    return true;
+                if (!focusOwner.equals(panel.inputField)) {
+                    if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE && (e.getModifiersEx() & KeyEvent.SHIFT_DOWN_MASK) != 0) {
+                        panel.cycleChannelBackwards();
+                        e.consume();
+                        return true;
+                    } else if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
+                        panel.cycleChannel();
+                        e.consume();
+                        return true;
+                    }
                 }
 
             }
