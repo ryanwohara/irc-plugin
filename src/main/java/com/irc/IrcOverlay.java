@@ -1,7 +1,10 @@
 package com.irc;
 
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.overlay.Overlay;
@@ -14,6 +17,7 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.util.List;
 
+@Slf4j
 public class IrcOverlay extends Overlay {
     private final Client client;
     private final IrcPanel panel;
@@ -75,6 +79,7 @@ public class IrcOverlay extends Overlay {
 
     private static final int CHATBOX_GROUP = 162;
     private static final int CHATBOX_MESSAGES_CHILD = 0;
+    private static final int CHATAREA = InterfaceID.Chatbox.CHATAREA;
 
     @Override
     public Dimension render(Graphics2D graphics) {
@@ -82,7 +87,8 @@ public class IrcOverlay extends Overlay {
             return null;
 
         Widget chatboxMessages = client.getWidget(CHATBOX_GROUP, CHATBOX_MESSAGES_CHILD);
-        if (chatboxMessages == null || chatboxMessages.isHidden())
+        Widget chatarea = client.getWidget(CHATAREA);
+        if (chatboxMessages == null || chatboxMessages.isHidden() || chatarea == null || chatarea.isHidden())
             return null;
         net.runelite.api.Point loc = chatboxMessages.getCanvasLocation();
         int x = loc.getX() + padding;
