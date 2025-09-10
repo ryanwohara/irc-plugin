@@ -127,7 +127,7 @@ public class IrcOverlay extends Overlay {
 
             // channel name
             graphics.setColor(isActive ? Color.WHITE : isUnread ? ColorScheme.BRAND_ORANGE.brighter() : ColorScheme.BRAND_ORANGE.darker());
-            graphics.drawString(channel, x + xOffset + 8, y + yOffset + height);
+            graphics.drawString(channel, x + xOffset + padding, y + yOffset + height);
 
             xOffset += tabWidth + tabSpacing;
         }
