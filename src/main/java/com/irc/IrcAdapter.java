@@ -1,5 +1,6 @@
 package com.irc;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -16,6 +17,7 @@ import java.util.function.Consumer;
  */
 @Slf4j
 public class IrcAdapter {
+    @Getter
     private SimpleIrcClient client;
     private String currentNick;
     private final Map<String, Set<String>> channelUsers = new HashMap<>();

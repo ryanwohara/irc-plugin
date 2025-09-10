@@ -301,6 +301,12 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "id":
+                if (!arg.isEmpty()) {
+                    ircAdapter.getClient().sendMessage("NickServ", "identify " + arg);
+                }
+                break;
+
             case "ns":
                 if (!arg.isEmpty()) {
                     sendMessage("NickServ", arg);
@@ -396,7 +402,7 @@ public class IrcPlugin extends Plugin {
                 "/away [message] - Set or remove away status",
                 "/go <channel> - Focus on this channel (uses regex)",
                 "/join <#channel> - Join a channel",
-                "/leave [#channel] - Leave a channel",
+                "/part [#channel] - Leave a channel (aliased as /leave)",
                 "/me <action> - Send action message",
                 "/mode [#channel] [+modes|-modes] - Modify channel modes",
                 "/msg <nick> <message> - Send private message",
@@ -408,7 +414,8 @@ public class IrcPlugin extends Plugin {
                 "/cs <message> - Talk to ChanServ",
                 "/hs <message> - Talk to HostServ",
                 "/ms <message> - Talk to MemoServ",
-                "/ns <message> - Talk to NickServ"
+                "/ns <message> - Talk to NickServ",
+                "/id <password - Log in to NickServ without logging it"
         };
 
         for (String line : helpLines) {
