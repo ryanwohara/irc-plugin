@@ -37,53 +37,33 @@ public class IrcOverlay extends Overlay {
 
     public void subscribeEvents() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
-            if (panel == null || !enabled) return false;
+            if (panel == null) return false;
 
-            Component focusOwner = KeyboardFocusManager
-                    .getCurrentKeyboardFocusManager()
-                    .getFocusOwner();
-
-            // Only process if NOT inside the text input
-            if (!focusOwner.equals(panel.inputField)) {
-                if (e.getID() == KeyEvent.KEY_PRESSED) {
-                    if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
-                        cycleChannel();
-                        e.consume();
-                        return true;
-                    } else if (e.getKeyCode() == KeyEvent.VK_PAGE_UP) {
-                        cycleChannelBackwards();
-                        e.consume();
-                        return true;
-                    } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN) {
-                        cycleChannel();
-                        e.consume();
-                        return true;
-                    }
+            if (e.getID() == KeyEvent.KEY_PRESSED) {
+                if (e.getKeyCode() == KeyEvent.VK_PAGE_UP) {
+                    panel.cycleChannelBackwards();
+                    e.consume();
+                    return true;
+                } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN) {
+                    panel.cycleChannel();
+                    e.consume();
+                    return true;
                 }
+
+                Component focusOwner = KeyboardFocusManager
+                        .getCurrentKeyboardFocusManager()
+                        .getFocusOwner();
+                // Only process if NOT inside the text input
+                if (!focusOwner.equals(panel.inputField) && e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
+                    panel.cycleChannel();
+                    e.consume();
+                    return true;
+                }
+
             }
 
             return false;
         });
-    }
-
-    private void cycleChannel() {
-        List<String> channels = panel.getChannelNames();
-        if (channels.isEmpty()) return;
-
-        String current = panel.getCurrentChannel();
-        int index = channels.indexOf(current);
-        index = (index + 1) % channels.size();
-        panel.setFocusedChannel(channels.get(index));
-    }
-
-    private void cycleChannelBackwards() {
-        List<String> channels = panel.getChannelNames();
-        if (channels.isEmpty()) return;
-
-        String current = panel.getCurrentChannel();
-        int index = channels.indexOf(current);
-        index = (index - 1 < 0 ? channels.size() - 1 : (index - 1) % channels.size());
-        panel.setFocusedChannel(channels.get(index));
     }
 
     private static final int CHATBOX_GROUP = 162;

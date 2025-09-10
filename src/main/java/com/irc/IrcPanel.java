@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -206,6 +207,26 @@ public class IrcPanel extends PluginPanel {
         initializeFlashTimer();
     }
 
+    public void cycleChannel() {
+        List<String> channels = this.getChannelNames();
+        if (channels.isEmpty()) return;
+
+        String current = this.getCurrentChannel();
+        int index = channels.indexOf(current);
+        index = (index + 1) % channels.size();
+        this.setFocusedChannel(channels.get(index));
+    }
+
+    public void cycleChannelBackwards() {
+        List<String> channels = this.getChannelNames();
+        if (channels.isEmpty()) return;
+
+        String current = this.getCurrentChannel();
+        int index = channels.indexOf(current);
+        index = (index - 1 < 0 ? channels.size() - 1 : (index - 1) % channels.size());
+        this.setFocusedChannel(channels.get(index));
+    }
+
     private JComboBox<String> getFontComboBox() {
         final JComboBox<String> fontComboBox = getStringFontComboBox();
         fontComboBox.setRenderer(new DefaultListCellRenderer() {
@@ -241,6 +262,20 @@ public class IrcPanel extends PluginPanel {
                 return label;
             }
         });
+
+        bufferComboBox.addMouseWheelListener(e -> {
+            if (e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
+                int direction = e.getWheelRotation(); // +1 down, -1 up
+                int index = bufferComboBox.getSelectedIndex();
+
+                if (direction > 0 && index < bufferComboBox.getItemCount() - 1) {
+                    this.cycleChannel();
+                } else if (direction < 0 && index > 0) {
+                    this.cycleChannelBackwards();
+                }
+            }
+        });
+
         return bufferComboBox;
     }
 
