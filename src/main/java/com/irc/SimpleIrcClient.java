@@ -354,7 +354,7 @@ public class SimpleIrcClient {
                     }
 
                     if (target.startsWith("#")) {
-                        fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, "* " + sourceNick + " sets mode(s):", target, modeString.toString().trim(), null));
+                        fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, "* " + sourceNick + " sets mode(s)", target, modeString.toString().trim(), null));
                     } else {
                         fireEvent(new IrcEvent(IrcEvent.Type.USER_MODE, sourceNick, target, modeString.toString().trim(), null));
                     }
