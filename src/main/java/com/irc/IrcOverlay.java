@@ -131,7 +131,7 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
     @Override
     public Dimension render(Graphics2D graphics) {
-        if (!enabled || panel == null)
+        if (!enabled || panel == null || isDialogOpen() || isOptionsDialogOpen())
             return null;
 
         Widget chatboxMessages = client.getWidget(CHATBOX_GROUP, CHATBOX_MESSAGES_CHILD);
