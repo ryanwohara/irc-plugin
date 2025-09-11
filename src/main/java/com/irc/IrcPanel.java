@@ -83,6 +83,9 @@ public class IrcPanel extends PluginPanel {
         return new ArrayList<>(channelPanes.keySet());
     }
 
+    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=]*))");
+
+
     private void initializeFlashTimer() {
         // Change color for different flash
         Timer flashTimer = new Timer(500, e -> {
@@ -478,7 +481,6 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
-        private static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=]*))");
         private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
         private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(?:,\\d\\d)?)?|\u001D|\u0015|\u000F");
         private static final int MAX_PREVIEW_WIDTH = 500;

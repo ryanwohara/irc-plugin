@@ -7,8 +7,13 @@ import joptsimple.internal.Strings;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameState;
 import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
+import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -21,6 +26,8 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.input.KeyManager;
+import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.util.Text;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -33,9 +40,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,6 +73,7 @@ public class IrcPlugin extends Plugin {
 
     private static final Pattern VALID_WINKS = Pattern.compile("^;([opdOPD)(<>]|[-_];)");
     private static final Pattern STRIP_STYLES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
+
     private final Map<String, String> channelPasswords = new HashMap<>();
 
     @Override
@@ -95,6 +101,7 @@ public class IrcPlugin extends Plugin {
                             panel.hideAllPreviews();
                         }
                     }
+
                     @Override
                     public void windowIconified(WindowEvent e) {
                         if (panel != null) {
@@ -619,5 +626,89 @@ public class IrcPlugin extends Plugin {
             String currentChannel = panel != null ? panel.getCurrentChannel() : this.config.channel();
             handleMessageSend(currentChannel, message.substring(1));
         }
+    }
+
+    @Subscribe
+    public void onMenuEntryAdded(MenuEntryAdded entry) {
+        // Only target chat message widgets
+        if (entry.getType() != MenuAction.CC_OP.getId() && entry.getType() != MenuAction.CC_OP_LOW_PRIORITY.getId()) {
+            return;
+        }
+
+        final int groupId = WidgetUtil.componentToInterface(entry.getActionParam1());
+        final int childId = WidgetUtil.componentToId(entry.getActionParam1());
+
+        // Make sure we're in the chatbox
+        if (groupId != InterfaceID.CHATBOX) {
+            return;
+        }
+
+        if (!entry.getOption().equals("Report")) {
+            return;
+        }
+
+        final Widget widget = client.getWidget(groupId, childId);
+        if (widget == null) {
+            return;
+        }
+
+        final Widget parent = widget.getParent();
+        if (parent == null || InterfaceID.Chatbox.SCROLLAREA != parent.getId()) {
+            return;
+        }
+
+        // Get child id of first chat message static child so we can subtract this offset to link to dynamic child
+        final int first = WidgetUtil.componentToId(InterfaceID.Chatbox.LINE0);
+
+        // Convert current message static widget id to dynamic widget id of message node with message contents
+        final int dynamicChildId = (childId - first) * 4 + 1;
+
+        // Extract message contents from the specific widget being right-clicked
+        final Widget messageContents = parent.getChild(dynamicChildId);
+        if (messageContents == null) {
+            return;
+        }
+
+        String currentMessage = messageContents.getText();
+        if (currentMessage == null) {
+            return;
+        }
+
+        // Remove formatting tags and check for URLs in this specific message
+        String cleanMessage = Text.removeTags(currentMessage);
+        List<String> urls = extractUrls(cleanMessage);
+
+        if (!urls.isEmpty()) {
+            // Add menu entries for each URL found in this specific message
+            for (int i = 0; i < urls.size(); i++) {
+                final String url = urls.get(i);
+
+                client.createMenuEntry(1)
+                        .setOption("Open URL: " + url.substring(0, Math.min(25, url.length())) + (url.length() > 25 ? "..." : ""))
+                        .setTarget(entry.getTarget())
+                        .setType(MenuAction.RUNELITE)
+                        .onClick(e -> LinkBrowser.browse(url));
+            }
+        }
+    }
+
+    private List<String> extractUrls(String message) {
+        List<String> urls = new ArrayList<>();
+        Matcher matcher = IrcPanel.VALID_LINK.matcher(message);
+
+        while (matcher.find()) {
+            String url = matcher.group().trim();
+            // Ensure URLs have proper protocol
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                if (url.startsWith("www.")) {
+                    url = "https://" + url;
+                } else {
+                    url = "https://" + url;
+                }
+            }
+            urls.add(url);
+        }
+
+        return urls;
     }
 }
