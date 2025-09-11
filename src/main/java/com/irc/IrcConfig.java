@@ -36,8 +36,7 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "Connection",
             description = "Connection settings",
-            position = 0,
-            closedByDefault = true
+            position = 0
     )
     String connectionSettings = "connectionSettings";
 
@@ -83,8 +82,8 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "channel",
-            name = "Channel",
-            description = "Channel to join",
+            name = "Channel(s)",
+            description = "Channel(s) to join, comma separated",
             position = 3,
             section = connectionSettings
     )
@@ -109,8 +108,7 @@ public interface IrcConfig extends Config
     @ConfigSection(
             name = "General",
             description = "General settings",
-            position = 1,
-            closedByDefault = false
+            position = 1
     )
     String generalSettings = "generalSettings";
 
@@ -133,10 +131,37 @@ public interface IrcConfig extends Config
     default boolean activeChannelOnly() { return false; }
 
     @ConfigItem(
+            keyName = "overlayEnabled",
+            name = "Enable Channel Overlay",
+            description = "Show the IRC overlay window",
+            position = 2,
+            section = generalSettings
+    )
+    default boolean overlayEnabled() { return false; }
+
+    @ConfigItem(
+            keyName = "backTickNavigation",
+            name = "Backtick Channel Navigation",
+            description = "Use ` and shift+` to navigate channels",
+            position = 3,
+            section = generalSettings
+    )
+    default boolean backTickNavigation() { return true; }
+
+    @ConfigItem(
+            keyName = "pageUpDownNavigation",
+            name = "Page Up/Down Channel Navigation",
+            description = "Use PageUp/PageDn and shift+PageUp/shift+PageDn to navigate channels",
+            position = 4,
+            section = generalSettings
+    )
+    default boolean pageUpDownNavigation() { return true; }
+
+    @ConfigItem(
             keyName = "autofocusOnNewTab",
             name = "Autofocus on New Tab",
             description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
-            position = 3,
+            position = 5,
             section = generalSettings
     )
     default boolean autofocusOnNewTab() { return false; }
@@ -145,7 +170,7 @@ public interface IrcConfig extends Config
             keyName = "filterServerNotices",
             name = "Server Notice Tab",
             description = "Receiving a server notice will open a new dedicated tab for it.",
-            position = 4,
+            position = 6,
             section = generalSettings
     )
     default boolean filterServerNotices() { return false; }
@@ -163,7 +188,7 @@ public interface IrcConfig extends Config
             keyName = "chatboxType",
             name = "Chatbox Type",
             description = "Which type of chatbox will be used in-game.",
-            position = 5,
+            position = 7,
             section = generalSettings
     )
     default Chatbox getChatboxType() { return Chatbox.FRIENDSCHAT; }
@@ -182,7 +207,7 @@ public interface IrcConfig extends Config
             keyName = "filterNotices",
             name = "Notice Window",
             description = "Adjust how to treat the display of notices.",
-            position = 5,
+            position = 8,
             section = generalSettings
     )
     default MessageDisplay filterNotices() { return MessageDisplay.Current; }
@@ -192,16 +217,24 @@ public interface IrcConfig extends Config
             keyName = "filterPMs",
             name = "PM Window",
             description = "Adjust how to treat the display of PMs.",
-            position = 6,
+            position = 9,
             section = generalSettings
     )
     default MessageDisplay filterPMs() { return MessageDisplay.Current; }
 
+    @ConfigItem(
+            keyName = "hideConnectionMessages",
+            name = "Hide Join/Part/Quit/Kick",
+            description = "Hides connection status messages like joins, parts, quits, and kicks from channel windows.",
+            position = 10,
+            section = generalSettings
+    )
+    default boolean hideConnectionMessages() { return false; }
+
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
-            position = 2,
-            closedByDefault = true
+            position = 2
     )
     String sidePanelSettings = "sidePanelSettings";
 
@@ -223,16 +256,14 @@ public interface IrcConfig extends Config
     )
     default boolean timestamp() { return true;}
 
-// Commenting this out until I can improve the UX of it
-//
-//    @ConfigItem(
-//            keyName = "hoverPreviewImages",
-//            name = "Hover-Preview Image Links",
-//            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
-//            position = 2,
-//            section = sidePanelSettings
-//    )
-//    default boolean hoverPreviewImages() { return false; }
+    @ConfigItem(
+            keyName = "hoverPreviewImages",
+            name = "Hover-Preview Image Links",
+            description = "Display an image just by hovering over the link (WARNING: could leak your IP without clicking)",
+            position = 2,
+            section = sidePanelSettings
+    )
+    default boolean hoverPreviewImages() { return false; }
 
     @ConfigItem(
             keyName = "colorizedNicks",

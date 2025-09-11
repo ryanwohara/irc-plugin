@@ -44,6 +44,7 @@ ChanServ: ;;cs
 HostServ: ;;hs
 MemoServ: ;;ms
 NickServ: ;;ns
+NickServ Identification: ;;id
 ```
 
 ### Miscellaneous Commands
