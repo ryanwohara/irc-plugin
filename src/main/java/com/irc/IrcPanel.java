@@ -400,6 +400,7 @@ public class IrcPanel extends PluginPanel {
         tabbedPane.removeTabAt(index);
         channelPanes.remove(channel);
         unreadMessages.remove(channel);
+        bufferDropdown.removeItem(channel);
     }
 
     public void addMessage(IrcMessage message) {

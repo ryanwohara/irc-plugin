@@ -28,11 +28,13 @@ public class IrcOverlay extends Overlay {
 
     @Setter
     private boolean enabled;
+    private IrcConfig config;
 
     @Inject
     public IrcOverlay(Client client, IrcPanel panel, IrcConfig config) {
         this.client = client;
         this.panel = panel;
+        this.config = config;
         this.enabled = config.overlayEnabled();
 
         setPosition(OverlayPosition.DYNAMIC);
@@ -44,11 +46,11 @@ public class IrcOverlay extends Overlay {
             if (panel == null) return false;
 
             if (e.getID() == KeyEvent.KEY_PRESSED) {
-                if (e.getKeyCode() == KeyEvent.VK_PAGE_UP) {
+                if (e.getKeyCode() == KeyEvent.VK_PAGE_UP && this.config.pageUpDownNavigation()) {
                     panel.cycleChannelBackwards();
                     e.consume();
                     return true;
-                } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN) {
+                } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN && this.config.pageUpDownNavigation()) {
                     panel.cycleChannel();
                     e.consume();
                     return true;
@@ -59,7 +61,7 @@ public class IrcOverlay extends Overlay {
                         .getFocusOwner();
 
                 // Only process if NOT inside the text input
-                if (!focusOwner.equals(panel.inputField)) {
+                if (!focusOwner.equals(panel.inputField) && this.config.backTickNavigation()) {
                     if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE && (e.getModifiersEx() & KeyEvent.SHIFT_DOWN_MASK) != 0) {
                         panel.cycleChannelBackwards();
                         e.consume();

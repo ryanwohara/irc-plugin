@@ -448,6 +448,7 @@ public class IrcPlugin extends Plugin {
         }
 
         String[] parts = argument.split(" ", 2);
+
         String target = parts[0];
         String reason = parts.length > 1 ? parts[1] : null;
 
@@ -479,6 +480,7 @@ public class IrcPlugin extends Plugin {
         if (channel.startsWith("#")) {
             ircAdapter.leaveChannel(channel);
             channelPasswords.remove(channel.toLowerCase());
+            panel.removeChannel(channel);
         }
 
         if (panel != null) {
@@ -492,6 +494,7 @@ public class IrcPlugin extends Plugin {
         if (channel.startsWith("#")) {
             ircAdapter.leaveChannel(channel, reason);
             channelPasswords.remove(channel.toLowerCase());
+            panel.removeChannel(channel);
         }
 
         if (panel != null) {
