@@ -127,7 +127,6 @@ public class IrcOverlay extends Overlay implements KeyListener {
     private static final int CHATBOX_GROUP = 162;
     private static final int CHATBOX_MESSAGES_CHILD = 0;
     private static final int CHATAREA = InterfaceID.Chatbox.CHATAREA;
-    private static final int CHATINPUT = InterfaceID.Chatbox.INPUT;
 
     @Override
     public Dimension render(Graphics2D graphics) {

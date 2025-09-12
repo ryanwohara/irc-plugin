@@ -512,7 +512,13 @@ public class IrcPanel extends PluginPanel {
                         }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
                         if (config.hoverPreviewImages() && isImageUrl(url)) {
-                            showImagePreview(e.getSourceElement(), url);
+                            MouseEvent mouseEvent = (e.getInputEvent() instanceof MouseEvent)
+                                    ? (MouseEvent) e.getInputEvent()
+                                    : null;
+
+                            if (mouseEvent != null) {
+                                showImagePreview(mouseEvent.getPoint(), url);
+                            }
                         }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.EXITED) {
                         hideImagePreview();
@@ -525,7 +531,7 @@ public class IrcPanel extends PluginPanel {
             return IMAGE_URL_PATTERN.matcher(url).find();
         }
 
-        private void showImagePreview(Element sourceElement, String imageUrl) {
+        private void showImagePreview(Point mousePoint, String imageUrl) {
             hideImagePreview();
             if (imagePreviewFuture != null && !imagePreviewFuture.isDone()) {
                 imagePreviewFuture.cancel(true);
@@ -533,14 +539,14 @@ public class IrcPanel extends PluginPanel {
 
             imagePreviewFuture = CompletableFuture.runAsync(() -> {
                 try {
-                    handleStaticImagePreview(sourceElement, imageUrl);
+                    handleStaticImagePreview(mousePoint, imageUrl);
                 } catch (Exception e) {
                     log.warn("Failed to create image preview for {}", imageUrl, e);
                 }
             });
         }
 
-        private void handleStaticImagePreview(Element sourceElement, String imageUrl) throws IOException {
+        private void handleStaticImagePreview(Point mousePoint, String imageUrl) throws IOException {
             byte[] imageBytes = imageCache.getIfPresent(imageUrl);
 
             if (imageBytes == null || imageBytes.length == 0) {
@@ -595,7 +601,7 @@ public class IrcPanel extends PluginPanel {
                         hideImagePreview();
                     }
                 });
-                SwingUtilities.invokeLater(() -> displayPopup(sourceElement, preview));
+                SwingUtilities.invokeLater(() -> displayPopup(mousePoint, preview));
             }
         }
 
@@ -631,34 +637,29 @@ public class IrcPanel extends PluginPanel {
             return scaledImage;
         }
 
-        private void displayPopup(Element sourceElement, JComponent content) {
+        private void displayPopup(Point location, JComponent content) {
             try {
                 hideImagePreview();
-                Rectangle elementBounds = getElementBounds(sourceElement);
-                if (elementBounds == null) return;
+                if (!isShowing()) {
+                    return;
+                }
 
                 Window topLevelWindow = SwingUtilities.getWindowAncestor(this);
                 if (topLevelWindow == null) return;
 
-                Point location = new Point(elementBounds.x, elementBounds.y + elementBounds.height);
                 SwingUtilities.convertPointToScreen(location, this);
 
                 Dimension contentSize = content.getPreferredSize();
                 Rectangle screenBounds = topLevelWindow.getGraphicsConfiguration().getBounds();
 
-                // Adjust Y coordinate if it would go off the bottom of the screen
+                // Adjust Y coordinate
                 if (location.y + contentSize.height > screenBounds.y + screenBounds.height) {
-                    Point elementLocationOnScreen = new Point(elementBounds.x, elementBounds.y);
-                    SwingUtilities.convertPointToScreen(elementLocationOnScreen, this);
+                    Point componentOnScreen = this.getLocationOnScreen();
+                    int yAbove = componentOnScreen.y + location.y - contentSize.height;
 
-                    int yAbove = elementLocationOnScreen.y - contentSize.height;
-
-                    // If it fits neatly above the element, place it there
                     if (yAbove >= screenBounds.y) {
                         location.y = yAbove;
                     } else {
-                        // Otherwise, it doesn't fit above or below. Compromise by aligning
-                        // the bottom of the popup with the bottom of the screen.
                         location.y = screenBounds.y + screenBounds.height - contentSize.height;
                     }
                 }
@@ -682,16 +683,6 @@ public class IrcPanel extends PluginPanel {
                 currentImagePreview.show();
             } catch (Exception e) {
                 log.warn("Could not display popup", e);
-            }
-        }
-
-        private Rectangle getElementBounds(Element element) {
-            try {
-                View view = getUI().getRootView(this).getView(0);
-                Shape allocation = view.modelToView(element.getStartOffset(), Position.Bias.Forward, element.getEndOffset(), Position.Bias.Backward, getBounds());
-                return (allocation instanceof Rectangle) ? (Rectangle) allocation : allocation.getBounds();
-            } catch (Exception ex) {
-                return null;
             }
         }
 
