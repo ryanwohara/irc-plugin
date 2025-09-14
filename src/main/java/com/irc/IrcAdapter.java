@@ -308,7 +308,9 @@ public class IrcAdapter {
                     break;
 
                 case NICK_IN_USE:
-                    processMessage(new IrcMessage("System", "System", "Nickname '" + event.getMessage() + "' is already in use.", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    currentNick += "_";
+                    processMessage(new IrcMessage("System", "System", "Nickname is already in use. Trying: " + currentNick, IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    sendRawLine("NICK " + currentNick);
                     break;
 
                 case BAD_CHANNEL_KEY:
