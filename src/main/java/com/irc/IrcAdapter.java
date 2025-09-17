@@ -62,6 +62,9 @@ public class IrcAdapter {
     public void disconnect(String reason) {
         client.disconnect(reason);
     }
+    public void disconnect() {
+        client.disconnect();
+    }
 
     /**
      * Join a channel
@@ -331,6 +334,7 @@ public class IrcAdapter {
 
                 case ERROR:
                     processMessage(new IrcMessage("System", "Error", event.getMessage() != null ? event.getMessage() : "Unknown error", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    disconnect();
                     break;
 
                 case TOPIC_INFO:

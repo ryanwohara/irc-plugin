@@ -285,7 +285,7 @@ public class IrcPanel extends PluginPanel {
     public void hideAllPreviews() {
         if (channelPanes != null) {
             for (ChannelPane pane : channelPanes.values()) {
-                pane.hideImagePreview();
+                pane.cancelPreviewManager();
             }
         }
     }
@@ -385,7 +385,7 @@ public class IrcPanel extends PluginPanel {
         bufferDropdown.addItem(channel);
 
         JScrollPane scrollPane = new JScrollPane(pane);
-        scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> pane.hideImagePreview());
+        scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> pane.cancelPreviewManager());
 
         channelPanes.put(channel, pane);
         unreadMessages.put(channel, false);
@@ -474,7 +474,7 @@ public class IrcPanel extends PluginPanel {
     }
 
 
-    private static class ChannelPane extends JTextPane {
+    public static class ChannelPane extends JTextPane {
         private final IrcConfig config;
         private ArrayList<String> messageLog;
         private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("\\.(png|jpe?g|bmp)(\\?.*)?$", Pattern.CASE_INSENSITIVE);
@@ -485,13 +485,14 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(?:,\\d\\d)?)?|\u001D|\u0015|\u000F");
         private static final int MAX_PREVIEW_WIDTH = 500;
         private static final int MAX_PREVIEW_HEIGHT = 500;
-
         private Popup currentImagePreview;
         private CompletableFuture<?> imagePreviewFuture;
         private final Cache<String, byte[]> imageCache;
+        private final PreviewManager previewManager;
 
         ChannelPane(Font font, IrcConfig config) {
             this.config = config;
+            this.previewManager = new PreviewManager(this);
             setContentType("text/html");
             setFont(font);
             setEditable(false);
@@ -511,17 +512,17 @@ public class IrcPanel extends PluginPanel {
                         } catch (Exception ignored) {
                         }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
-                        if (config.hoverPreviewImages() && isImageUrl(url)) {
+                        if (this.config.hoverPreviewImages() && isImageUrl(url)) {
                             MouseEvent mouseEvent = (e.getInputEvent() instanceof MouseEvent)
                                     ? (MouseEvent) e.getInputEvent()
                                     : null;
 
                             if (mouseEvent != null) {
-                                showImagePreview(mouseEvent.getPoint(), url);
+                                previewManager.requestShow(mouseEvent.getPoint(), url);
                             }
                         }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.EXITED) {
-                        hideImagePreview();
+                        previewManager.cancelPreview();
                     }
                 }
             });
@@ -531,8 +532,8 @@ public class IrcPanel extends PluginPanel {
             return IMAGE_URL_PATTERN.matcher(url).find();
         }
 
-        private void showImagePreview(Point mousePoint, String imageUrl) {
-            hideImagePreview();
+        public void showImagePreview(Point mousePoint, String imageUrl) {
+            cancelPreviewManager();
             if (imagePreviewFuture != null && !imagePreviewFuture.isDone()) {
                 imagePreviewFuture.cancel(true);
             }
@@ -598,7 +599,7 @@ public class IrcPanel extends PluginPanel {
                 preview.addMouseListener(new MouseAdapter() {
                     @Override
                     public void mouseExited(MouseEvent e) {
-                        hideImagePreview();
+                        cancelPreviewManager();
                     }
                 });
                 SwingUtilities.invokeLater(() -> displayPopup(mousePoint, preview));
@@ -639,7 +640,7 @@ public class IrcPanel extends PluginPanel {
 
         private void displayPopup(Point location, JComponent content) {
             try {
-                hideImagePreview();
+                cancelPreviewManager();
                 if (!isShowing()) {
                     return;
                 }
@@ -694,6 +695,14 @@ public class IrcPanel extends PluginPanel {
             if (currentImagePreview != null) {
                 currentImagePreview.hide();
                 currentImagePreview = null;
+            }
+        }
+
+        void cancelPreviewManager() {
+            if (previewManager != null) {
+                previewManager.cancelPreview();
+            } else {
+                hideImagePreview();
             }
         }
 

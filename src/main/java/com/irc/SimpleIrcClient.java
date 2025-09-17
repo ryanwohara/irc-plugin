@@ -97,6 +97,8 @@ public class SimpleIrcClient {
                     while (!shuttingDown && (line = reader.readLine()) != null) {
                         processLine(line);
                     }
+
+                    if (!shuttingDown) disconnect();
                 } catch (IOException e) {
                     if (!shuttingDown) {
                         log.error("Error reading from IRC server", e);
@@ -121,6 +123,7 @@ public class SimpleIrcClient {
         SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
         sslSocket.setEnabledProtocols(sslSocket.getSupportedProtocols());
         sslSocket.startHandshake();
+        sslSocket.setSoTimeout(240000);
         socket = sslSocket;
     }
 
@@ -138,10 +141,17 @@ public class SimpleIrcClient {
                     sendRawLine("QUIT :" + (reason.isEmpty() ? "Disconnecting" : reason));
                     writer.flush();
                     writer.close();
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {
+                }
             }
-            if (reader != null) try { reader.close(); } catch (IOException ignored) {}
-            if (socket != null) try { socket.close(); } catch (IOException ignored) {}
+            if (reader != null) try {
+                reader.close();
+            } catch (IOException ignored) {
+            }
+            if (socket != null) try {
+                socket.close();
+            } catch (IOException ignored) {
+            }
         } finally {
             connected = false;
             fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
@@ -406,25 +416,32 @@ public class SimpleIrcClient {
                 fireEvent(new IrcEvent(IrcEvent.Type.REGISTERED, null, null, null, null));
                 break;
             case 301:
-                if (params.size() >= 3) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is away: %s", params.get(1), params.get(2)), null));
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is away: %s", params.get(1), params.get(2)), null));
                 break;
             case 311:
-                if (params.size() >= 5) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is %s@%s (%s)", params.get(1), params.get(2), params.get(3), params.get(5)), null));
+                if (params.size() >= 5)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is %s@%s (%s)", params.get(1), params.get(2), params.get(3), params.get(5)), null));
                 break;
             case 312:
-                if (params.size() >= 4) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is connected to %s (%s)", params.get(1), params.get(2), params.get(3)), null));
+                if (params.size() >= 4)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is connected to %s (%s)", params.get(1), params.get(2), params.get(3)), null));
                 break;
             case 313:
-                if (params.size() >= 2) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), params.get(1) + " is an IRC operator", null));
+                if (params.size() >= 2)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), params.get(1) + " is an IRC operator", null));
                 break;
             case 317:
-                if (params.size() >= 3) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s has been idle for %s seconds", params.get(1), params.get(2)), null));
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s has been idle for %s seconds", params.get(1), params.get(2)), null));
                 break;
             case 318:
-                if (params.size() >= 2) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), "End of WHOIS for " + params.get(1), null));
+                if (params.size() >= 2)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), "End of WHOIS for " + params.get(1), null));
                 break;
             case 319:
-                if (params.size() >= 3) fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
                 break;
             case 324:
                 if (params.size() >= 2) {
@@ -435,10 +452,12 @@ public class SimpleIrcClient {
                 }
                 break;
             case 332:
-                if (params.size() >= 3) fireEvent(new IrcEvent(IrcEvent.Type.TOPIC, "System", params.get(1), params.get(2), null));
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.TOPIC, "System", params.get(1), params.get(2), null));
                 break;
             case 333:
-                if (params.size() >= 4) fireEvent(new IrcEvent(IrcEvent.Type.TOPIC_INFO, "* Topic set by", params.get(1), params.get(2), null));
+                if (params.size() >= 4)
+                    fireEvent(new IrcEvent(IrcEvent.Type.TOPIC_INFO, "* Topic set by", params.get(1), params.get(2), null));
                 break;
             case 353:
                 if (params.size() >= 4) {
@@ -446,16 +465,19 @@ public class SimpleIrcClient {
                     String[] users = params.get(3).split(" ");
                     Set<String> channelUserSet = channelUsers.computeIfAbsent(channel, k -> new HashSet<>());
                     for (String user : users) {
-                        if (!user.isEmpty()) channelUserSet.add(USER_PREFIXES.matcher(user).matches() ? user.substring(1) : user);
+                        if (!user.isEmpty())
+                            channelUserSet.add(USER_PREFIXES.matcher(user).matches() ? user.substring(1) : user);
                     }
                     fireEvent(new IrcEvent(IrcEvent.Type.NAMES, null, channel, String.join(" ", users), null));
                 }
                 break;
             case 433:
-                if (params.size() >= 2) fireEvent(new IrcEvent(IrcEvent.Type.NICK_IN_USE, null, null, params.get(1), null));
+                if (params.size() >= 2)
+                    fireEvent(new IrcEvent(IrcEvent.Type.NICK_IN_USE, null, null, params.get(1), null));
                 break;
             case 475:
-                if (params.size() >= 2) fireEvent(new IrcEvent(IrcEvent.Type.BAD_CHANNEL_KEY, null, params.get(1), params.get(2), null));
+                if (params.size() >= 2)
+                    fireEvent(new IrcEvent(IrcEvent.Type.BAD_CHANNEL_KEY, null, params.get(1), params.get(2), null));
                 break;
         }
     }
