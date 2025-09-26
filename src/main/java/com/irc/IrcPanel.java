@@ -19,9 +19,6 @@ import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
-import javax.swing.text.Element;
-import javax.swing.text.Position;
-import javax.swing.text.View;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -615,7 +612,7 @@ public class IrcPanel extends PluginPanel {
             }
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            conn.setRequestProperty("Accept", "image/avif,image/png,image/apng,image/*,*/*;q=0.8");
+            conn.setRequestProperty("Accept", "image/png,image/apng,image/*,*/*;q=0.8");
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
             return conn;

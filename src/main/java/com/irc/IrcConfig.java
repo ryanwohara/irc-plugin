@@ -131,19 +131,10 @@ public interface IrcConfig extends Config
     default boolean activeChannelOnly() { return false; }
 
     @ConfigItem(
-            keyName = "overlayEnabled",
-            name = "Enable Channel Overlay",
-            description = "Show the IRC overlay window",
-            position = 2,
-            section = generalSettings
-    )
-    default boolean overlayEnabled() { return false; }
-
-    @ConfigItem(
             keyName = "backTickNavigation",
             name = "Backtick Channel Navigation",
             description = "Use ` and shift+` to navigate channels",
-            position = 3,
+            position = 2,
             section = generalSettings
     )
     default boolean backTickNavigation() { return true; }
@@ -152,7 +143,7 @@ public interface IrcConfig extends Config
             keyName = "pageUpDownNavigation",
             name = "Page Up/Down Channel Navigation",
             description = "Use PageUp/PageDn and shift+PageUp/shift+PageDn to navigate channels",
-            position = 4,
+            position = 3,
             section = generalSettings
     )
     default boolean pageUpDownNavigation() { return true; }
@@ -161,7 +152,7 @@ public interface IrcConfig extends Config
             keyName = "autofocusOnNewTab",
             name = "Autofocus on New Tab",
             description = "If you receive a PM/notice or join a new channel, it will become your focus. Initial channel join will always focus regardless of this setting.",
-            position = 5,
+            position = 4,
             section = generalSettings
     )
     default boolean autofocusOnNewTab() { return false; }
@@ -170,7 +161,7 @@ public interface IrcConfig extends Config
             keyName = "filterServerNotices",
             name = "Server Notice Tab",
             description = "Receiving a server notice will open a new dedicated tab for it.",
-            position = 6,
+            position = 5,
             section = generalSettings
     )
     default boolean filterServerNotices() { return false; }
@@ -188,7 +179,7 @@ public interface IrcConfig extends Config
             keyName = "chatboxType",
             name = "Chatbox Type",
             description = "Which type of chatbox will be used in-game.",
-            position = 7,
+            position = 6,
             section = generalSettings
     )
     default Chatbox getChatboxType() { return Chatbox.FRIENDSCHAT; }
@@ -207,7 +198,7 @@ public interface IrcConfig extends Config
             keyName = "filterNotices",
             name = "Notice Window",
             description = "Adjust how to treat the display of notices.",
-            position = 8,
+            position = 7,
             section = generalSettings
     )
     default MessageDisplay filterNotices() { return MessageDisplay.Current; }
@@ -217,7 +208,7 @@ public interface IrcConfig extends Config
             keyName = "filterPMs",
             name = "PM Window",
             description = "Adjust how to treat the display of PMs.",
-            position = 9,
+            position = 8,
             section = generalSettings
     )
     default MessageDisplay filterPMs() { return MessageDisplay.Current; }
@@ -226,15 +217,49 @@ public interface IrcConfig extends Config
             keyName = "hideConnectionMessages",
             name = "Hide Join/Part/Quit/Kick",
             description = "Hides connection status messages like joins, parts, quits, and kicks from channel windows.",
-            position = 10,
+            position = 9,
             section = generalSettings
     )
     default boolean hideConnectionMessages() { return false; }
 
     @ConfigSection(
+            name = "Overlay",
+            description = "In-game overlay",
+            position = 2
+    )
+    String overlaySettings = "overlaySettings";
+
+    @ConfigItem(
+            keyName = "overlayEnabled",
+            name = "Enable In-Game Overlay",
+            description = "Show the IRC overlay inside the game",
+            position = 0,
+            section = overlaySettings
+    )
+    default boolean overlayEnabled() { return true; }
+
+    @ConfigItem(
+            keyName = "overlayDynamic",
+            name = "Overlay the Chat Box",
+            description = "Toggle between a chatbox overlay or an alt+click & drag overlay.",
+            position = 1,
+            section = overlaySettings
+    )
+    default boolean overlayDynamic() { return true; }
+
+    @ConfigItem(
+            keyName = "overlayMaxWidth",
+            name = "Overlay Max Width",
+            description = "Max width of the overlay",
+            position = 2,
+            section = overlaySettings
+    )
+    default int overlayMaxWidth() { return 500; }
+
+    @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",
-            position = 2
+            position = 3
     )
     String sidePanelSettings = "sidePanelSettings";
 

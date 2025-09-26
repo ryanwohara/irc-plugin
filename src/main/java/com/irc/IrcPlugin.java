@@ -480,7 +480,6 @@ public class IrcPlugin extends Plugin {
         }
     }
 
-
     private void leaveChannel(String channel) {
         if (ircAdapter == null) return;
 
@@ -605,6 +604,13 @@ public class IrcPlugin extends Plugin {
         } else if ("overlayEnabled".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());
+            }
+        } else if ("overlayDynamic".equals(configChanged.getKey())) {
+            if (overlay != null) {
+                overlayManager.remove(overlay);
+                overlay = new IrcOverlay(client, panel, config);
+                overlayManager.add(overlay);
+                overlay.subscribeEvents();
             }
         }
     }

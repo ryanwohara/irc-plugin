@@ -5,9 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.input.MouseManager;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -17,12 +16,13 @@ import javax.inject.Inject;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.util.List;
 
 @Slf4j
 public class IrcOverlay extends Overlay implements KeyListener {
     private final Client client;
     private final IrcPanel panel;
+    @Inject
+    private ConfigManager configManager;
 
     final int tabHeight = 12;
     final int tabSpacing = 2; // space between tabs
@@ -30,6 +30,7 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
     @Setter
     private boolean enabled;
+    private boolean overlayDynamic;
     private IrcConfig config;
 
     @Inject
@@ -39,8 +40,7 @@ public class IrcOverlay extends Overlay implements KeyListener {
         this.config = config;
         this.enabled = config.overlayEnabled();
 
-        setPosition(OverlayPosition.DYNAMIC);
-        setLayer(OverlayLayer.ABOVE_WIDGETS);
+        updatePosition();
 
         this.client.getCanvas().addKeyListener(this);
     }
@@ -128,6 +128,16 @@ public class IrcOverlay extends Overlay implements KeyListener {
     private static final int CHATBOX_MESSAGES_CHILD = 0;
     private static final int CHATAREA = InterfaceID.Chatbox.CHATAREA;
 
+    public void updatePosition() {
+        if (config.overlayDynamic()) {
+            setPosition(OverlayPosition.DYNAMIC);
+        } else {
+            setPosition(OverlayPosition.ABOVE_CHATBOX_RIGHT);
+        }
+
+        setLayer(OverlayLayer.ABOVE_WIDGETS);
+    }
+
     @Override
     public Dimension render(Graphics2D graphics) {
         if (!enabled || panel == null || isDialogOpen() || isOptionsDialogOpen())
@@ -137,15 +147,24 @@ public class IrcOverlay extends Overlay implements KeyListener {
         Widget chatarea = client.getWidget(CHATAREA);
         if (chatboxMessages == null || chatboxMessages.isHidden() || chatarea == null || chatarea.isHidden())
             return null;
+
         net.runelite.api.Point loc = chatboxMessages.getCanvasLocation();
         int x = loc.getX() + padding;
         int y = loc.getY() + padding;
         int scrollbarWidth = 16;
         int width = chatboxMessages.getWidth() - scrollbarWidth - padding * 2; // additional padding
+        if (width > config.overlayMaxWidth()) {
+            width = config.overlayMaxWidth();
+        }
         int height = tabHeight;
 
         // background
         graphics.setColor(ColorScheme.DARKER_GRAY_COLOR);
+        if (!config.overlayDynamic()) {
+            x = 0;
+            y = 0;
+        }
+
         graphics.fillRect(x, y, width, height);
 
         // tabs
