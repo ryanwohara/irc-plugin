@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class SimpleIrcClient {
     private static final Pattern MESSAGE_PATTERN =
-            Pattern.compile("^(?:[:@]([^\\s]+) )?([^\\s]+)(?: ((?:[^:\\s][^\\s]* ?)*))?(?: ?:(.*))?$");
+            Pattern.compile("^(?:[:@](\\S+) )?(\\S+)(?: ((?:[^:\\s]\\S* ?)*))?(?: ?:(.*))?$");
     private static final Pattern USER_PREFIXES = Pattern.compile("^[~&@%+].+");
     private static final Pattern NUMERIC = Pattern.compile("^[0-9]+$");
 
@@ -247,6 +247,8 @@ public class SimpleIrcClient {
             if (command.equals("PING")) {
                 sendRawLine("PONG " + (params.isEmpty() ? "" : params.get(0)));
                 return;
+            } else if (command.equals("443")) {
+                fireEvent(new IrcEvent(IrcEvent.Type.NICK_IN_USE, null, null, params.get(1), null));
             }
 
             processCommand(source, command, params);
