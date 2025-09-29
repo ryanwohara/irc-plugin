@@ -12,8 +12,8 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.ui.ClientUI;
+import okhttp3.OkHttpClient;
 
-import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.Timer;
@@ -21,29 +21,14 @@ import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 
@@ -55,6 +40,8 @@ public class IrcPanel extends PluginPanel {
     private ConfigManager configManager;
     @Inject
     private ClientUI clientUI;
+    @Inject
+    private OkHttpClient okHttpClient;
 
     private JTabbedPane tabbedPane;
     public JTextField inputField;
@@ -81,7 +68,6 @@ public class IrcPanel extends PluginPanel {
     }
 
     public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=]*))");
-
 
     private void initializeFlashTimer() {
         // Change color for different flash
@@ -378,7 +364,7 @@ public class IrcPanel extends PluginPanel {
 
     public void addChannel(String channel) {
         if (channelPanes.containsKey(channel)) return;
-        ChannelPane pane = new ChannelPane(font, config);
+        ChannelPane pane = new ChannelPane(font, config, okHttpClient);
         bufferDropdown.addItem(channel);
 
         JScrollPane scrollPane = new JScrollPane(pane);
@@ -474,31 +460,20 @@ public class IrcPanel extends PluginPanel {
     public static class ChannelPane extends JTextPane {
         private final IrcConfig config;
         private ArrayList<String> messageLog;
-        private static final Pattern IMAGE_URL_PATTERN = Pattern.compile("\\.(png|jpe?g|bmp)(\\?.*)?$", Pattern.CASE_INSENSITIVE);
         private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
         private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
         private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(?:,\\d\\d)?)?|\u001D|\u0015|\u000F");
-        private static final int MAX_PREVIEW_WIDTH = 500;
-        private static final int MAX_PREVIEW_HEIGHT = 500;
-        private Popup currentImagePreview;
-        private CompletableFuture<?> imagePreviewFuture;
-        private final Cache<String, byte[]> imageCache;
         private final PreviewManager previewManager;
 
-        ChannelPane(Font font, IrcConfig config) {
+        ChannelPane(Font font, IrcConfig config, OkHttpClient okHttpClient) {
             this.config = config;
-            this.previewManager = new PreviewManager(this);
+            this.previewManager = new PreviewManager(this, okHttpClient);
             setContentType("text/html");
             setFont(font);
             setEditable(false);
             messageLog = new ArrayList<>();
-
-            this.imageCache = CacheBuilder.newBuilder()
-                    .maximumSize(50)
-                    .expireAfterWrite(5, TimeUnit.MINUTES)
-                    .build();
 
             addHyperlinkListener(e -> {
                 if (e.getURL() != null) {
@@ -509,7 +484,7 @@ public class IrcPanel extends PluginPanel {
                         } catch (Exception ignored) {
                         }
                     } else if (e.getEventType() == HyperlinkEvent.EventType.ENTERED) {
-                        if (this.config.hoverPreviewImages() && isImageUrl(url)) {
+                        if (this.config.hoverPreviewImages() && previewManager.isImageUrl(url)) {
                             MouseEvent mouseEvent = (e.getInputEvent() instanceof MouseEvent)
                                     ? (MouseEvent) e.getInputEvent()
                                     : null;
@@ -523,184 +498,6 @@ public class IrcPanel extends PluginPanel {
                     }
                 }
             });
-        }
-
-        private boolean isImageUrl(String url) {
-            return IMAGE_URL_PATTERN.matcher(url).find();
-        }
-
-        public void showImagePreview(Point mousePoint, String imageUrl) {
-            cancelPreviewManager();
-            if (imagePreviewFuture != null && !imagePreviewFuture.isDone()) {
-                imagePreviewFuture.cancel(true);
-            }
-
-            imagePreviewFuture = CompletableFuture.runAsync(() -> {
-                try {
-                    handleStaticImagePreview(mousePoint, imageUrl);
-                } catch (Exception e) {
-                    log.warn("Failed to create image preview for {}", imageUrl, e);
-                }
-            });
-        }
-
-        private void handleStaticImagePreview(Point mousePoint, String imageUrl) throws IOException {
-            byte[] imageBytes = imageCache.getIfPresent(imageUrl);
-
-            if (imageBytes == null || imageBytes.length == 0) {
-                log.debug("Cache miss for {}, fetching from network.", imageUrl);
-
-                String encodedUrl = URLEncoder.encode(imageUrl, StandardCharsets.UTF_8);
-                HttpURLConnection conn = getHttpURLConnection(imageUrl, encodedUrl);
-
-                int status = conn.getResponseCode();
-                if (status != HttpURLConnection.HTTP_OK) {
-                    log.warn("Failed to fetch image: {} returned status {}", imageUrl, status);
-                    return;
-                }
-
-                String contentType = conn.getContentType();
-                if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
-                    log.warn("Invalid content-type for {}: {}", imageUrl, contentType);
-                    return;
-                }
-
-                try (InputStream in = conn.getInputStream();
-                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-
-                    byte[] buffer = new byte[4096];
-                    int n;
-                    while ((n = in.read(buffer)) != -1) {
-                        baos.write(buffer, 0, n);
-                    }
-                    imageBytes = baos.toByteArray();
-                    imageCache.put(imageUrl, imageBytes);
-                } finally {
-                    conn.disconnect();
-                }
-            } else {
-                log.debug("Cache hit for {}", imageUrl);
-            }
-
-            if (imageBytes.length > 0) {
-                BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
-                if (originalImage == null) {
-                    log.warn("Could not decode image from URL: {}", imageUrl);
-                    imageCache.invalidate(imageUrl);
-                    return;
-                }
-
-                ImageIcon imageIcon = new ImageIcon(scaleImage(originalImage));
-
-                JLabel preview = new JLabel(imageIcon);
-                preview.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseExited(MouseEvent e) {
-                        cancelPreviewManager();
-                    }
-                });
-                SwingUtilities.invokeLater(() -> displayPopup(mousePoint, preview));
-            }
-        }
-
-        private static HttpURLConnection getHttpURLConnection(String imageUrl, String encodedUrl) throws IOException {
-            // CloudFlare worker to protect users from IP grabbers
-            URL url = new URL("https://image-proxy.cold-pine-9570.workers.dev/?url=" + encodedUrl);
-            // Discord doesn't support CloudFlare workers :(
-            if (imageUrl.startsWith("https://cdn.discordapp.com/")) {
-                url = new URL(imageUrl);
-            }
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            conn.setRequestProperty("Accept", "image/png,image/apng,image/*,*/*;q=0.8");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            return conn;
-        }
-
-        private BufferedImage scaleImage(BufferedImage originalImage) {
-            double scale = Math.min(1.0, Math.min(
-                    (double) MAX_PREVIEW_WIDTH / originalImage.getWidth(),
-                    (double) MAX_PREVIEW_HEIGHT / originalImage.getHeight()
-            ));
-
-            int scaledWidth = (int) (originalImage.getWidth() * scale);
-            int scaledHeight = (int) (originalImage.getHeight() * scale);
-
-            BufferedImage scaledImage = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2d = scaledImage.createGraphics();
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2d.drawImage(originalImage, 0, 0, scaledWidth, scaledHeight, null);
-            g2d.dispose();
-            return scaledImage;
-        }
-
-        private void displayPopup(Point location, JComponent content) {
-            try {
-                cancelPreviewManager();
-                if (!isShowing()) {
-                    return;
-                }
-
-                Window topLevelWindow = SwingUtilities.getWindowAncestor(this);
-                if (topLevelWindow == null) return;
-
-                SwingUtilities.convertPointToScreen(location, this);
-
-                Dimension contentSize = content.getPreferredSize();
-                Rectangle screenBounds = topLevelWindow.getGraphicsConfiguration().getBounds();
-
-                // Adjust Y coordinate
-                if (location.y + contentSize.height > screenBounds.y + screenBounds.height) {
-                    Point componentOnScreen = this.getLocationOnScreen();
-                    int yAbove = componentOnScreen.y + location.y - contentSize.height;
-
-                    if (yAbove >= screenBounds.y) {
-                        location.y = yAbove;
-                    } else {
-                        location.y = screenBounds.y + screenBounds.height - contentSize.height;
-                    }
-                }
-
-                if (location.x + contentSize.width > screenBounds.x + screenBounds.width) {
-                    location.x = screenBounds.x + screenBounds.width - contentSize.width;
-                }
-
-                if (location.y < screenBounds.y) {
-                    location.y = screenBounds.y;
-                }
-                if (location.x < screenBounds.x) {
-                    location.x = screenBounds.x;
-                }
-
-                content.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-                content.setOpaque(true);
-
-                currentImagePreview = PopupFactory.getSharedInstance().getPopup(
-                        this, content, location.x, location.y);
-                currentImagePreview.show();
-            } catch (Exception e) {
-                log.warn("Could not display popup", e);
-            }
-        }
-
-        void hideImagePreview() {
-            if (imagePreviewFuture != null && !imagePreviewFuture.isDone()) {
-                imagePreviewFuture.cancel(true);
-                imagePreviewFuture = null;
-            }
-            if (currentImagePreview != null) {
-                currentImagePreview.hide();
-                currentImagePreview = null;
-            }
-        }
-
-        void cancelPreviewManager() {
-            if (previewManager != null) {
-                previewManager.cancelPreview();
-            } else {
-                hideImagePreview();
-            }
         }
 
         void appendMessage(IrcMessage message, IrcConfig config) {
@@ -826,6 +623,10 @@ public class IrcPanel extends PluginPanel {
         public void clear() {
             this.setText("");
             messageLog = new ArrayList<>();
+        }
+
+        public void cancelPreviewManager() {
+            this.previewManager.cancelPreviewManager();
         }
     }
 
