@@ -81,14 +81,14 @@ public class PreviewManager {
 
         imagePreviewFuture = CompletableFuture.runAsync(() -> {
             try {
-                handleStaticImagePreview(mousePoint, imageUrl);
+                handleStaticImagePreview(imageUrl);
             } catch (Exception e) {
                 log.warn("Failed to create image preview for {}", imageUrl, e);
             }
         });
     }
 
-    private void handleStaticImagePreview(Point mousePoint, String imageUrl) throws IOException {
+    private void handleStaticImagePreview(String imageUrl) throws IOException {
         if (okHttpClient == null) {
             log.warn("No OkHttp connection available");
             return;
