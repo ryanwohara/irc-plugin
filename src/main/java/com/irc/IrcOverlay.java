@@ -6,7 +6,8 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.config.ConfigManager;
+import net.runelite.client.input.KeyManager;
+import net.runelite.client.input.KeyListener;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -15,14 +16,11 @@ import net.runelite.client.ui.ColorScheme;
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 
 @Slf4j
 public class IrcOverlay extends Overlay implements KeyListener {
     private final Client client;
     private final IrcPanel panel;
-    @Inject
-    private ConfigManager configManager;
 
     final int tabHeight = 12;
     final int tabSpacing = 2; // space between tabs
@@ -30,57 +28,24 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
     @Setter
     private boolean enabled;
-    private boolean overlayDynamic;
-    private IrcConfig config;
+    private final IrcConfig config;
+    private final KeyManager keyManager;
 
     @Inject
-    public IrcOverlay(Client client, IrcPanel panel, IrcConfig config) {
+    public IrcOverlay(Client client, IrcPanel panel, IrcConfig config, KeyManager keyManager) {
         this.client = client;
         this.panel = panel;
         this.config = config;
         this.enabled = config.overlayEnabled();
+        this.keyManager = keyManager;
 
         updatePosition();
 
-        this.client.getCanvas().addKeyListener(this);
+        keyManager.registerKeyListener(this);
     }
 
-    public void subscribeEvents() {
-        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
-            if (panel == null) return false;
-
-            if (e.getID() == KeyEvent.KEY_PRESSED) {
-                if (e.getKeyCode() == KeyEvent.VK_PAGE_UP && this.config.pageUpDownNavigation()) {
-                    panel.cycleChannelBackwards();
-                    e.consume();
-                    return true;
-                } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN && this.config.pageUpDownNavigation()) {
-                    panel.cycleChannel();
-                    e.consume();
-                    return true;
-                }
-
-                Component focusOwner = KeyboardFocusManager
-                        .getCurrentKeyboardFocusManager()
-                        .getFocusOwner();
-
-                // Only process if NOT inside the text input
-                if (!focusOwner.equals(panel.inputField) && chatboxFocused() && this.config.backTickNavigation()) {
-                    if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE && (e.getModifiersEx() & KeyEvent.SHIFT_DOWN_MASK) != 0) {
-                        e.consume();
-                        panel.cycleChannelBackwards();
-                        return true;
-                    } else if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
-                        e.consume();
-                        panel.cycleChannel();
-                        return true;
-                    }
-                }
-
-            }
-
-            return false;
-        });
+    public void shutdown() {
+        keyManager.unregisterKeyListener(this);
     }
 
     private boolean isHidden(int component) {
@@ -100,28 +65,6 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
     boolean isOptionsDialogOpen() {
         return client.getWidget(InterfaceID.Chatmenu.OPTIONS) != null;
-    }
-
-    boolean chatboxFocused() {
-        Widget chatboxParent = client.getWidget(InterfaceID.Chatbox.UNIVERSE);
-        if (chatboxParent == null || chatboxParent.getOnKeyListener() == null) {
-            return false;
-        }
-
-        // If the search box on the world map is open and focused, ~keypress_permit blocks the keypress
-        Widget worldMapSearch = client.getWidget(InterfaceID.Worldmap.MAPLIST_DISPLAY);
-        if (worldMapSearch != null && client.getVarcIntValue(VarClientID.WORLDMAP_SEARCHING) == 1) {
-            return false;
-        }
-
-        // The report interface blocks input due to 162:54 being hidden, however player/npc dialog and
-        // options do this too, and so we can't disable remapping just due to 162:54 being hidden.
-        Widget report = client.getWidget(InterfaceID.Reportabuse.UNIVERSE);
-        if (report != null) {
-            return false;
-        }
-
-        return true;
     }
 
     private static final int CHATBOX_GROUP = 162;
@@ -203,29 +146,19 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (panel == null) return;
+        if (panel == null || panel.getChannelPanes() == null) return;
 
         if (e.getKeyCode() == KeyEvent.VK_PAGE_UP && this.config.pageUpDownNavigation()) {
             panel.cycleChannelBackwards();
             e.consume();
-            return;
         } else if (e.getKeyCode() == KeyEvent.VK_PAGE_DOWN && this.config.pageUpDownNavigation()) {
             panel.cycleChannel();
             e.consume();
-            return;
-        }
-
-        Component focusOwner = KeyboardFocusManager
-                .getCurrentKeyboardFocusManager()
-                .getFocusOwner();
-
-        // Only process if NOT inside the text input
-        if (!focusOwner.equals(panel.inputField) && chatboxFocused() && this.config.backTickNavigation()) {
+        } else if (this.config.backTickNavigation()) {
             if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE && (e.getModifiersEx() & KeyEvent.SHIFT_DOWN_MASK) != 0) {
                 panel.cycleChannelBackwards();
                 e.consume();
             } else if (e.getKeyCode() == KeyEvent.VK_BACK_QUOTE) {
-                log.debug("f");
                 panel.cycleChannel();
                 e.consume();
             }
@@ -241,4 +174,11 @@ public class IrcOverlay extends Overlay implements KeyListener {
     public void keyReleased(KeyEvent e) {
         // Unnecessary
     }
+
+    @Override
+    public boolean isEnabledOnLoginScreen()
+    {
+        return true;
+    }
+
 }

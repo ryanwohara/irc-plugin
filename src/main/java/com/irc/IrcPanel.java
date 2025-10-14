@@ -64,7 +64,7 @@ public class IrcPanel extends PluginPanel {
     private final JTextPane displayPane = new JTextPane();
 
     public ArrayList<String> getChannelNames() {
-        return new ArrayList<>(channelPanes.keySet());
+        return new ArrayList<>(getChannelPanes().keySet());
     }
 
     public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=]*))");
@@ -232,6 +232,25 @@ public class IrcPanel extends PluginPanel {
     }
 
     private JComboBox<String> getBufferComboBox() {
+        final JComboBox<String> bufferComboBox = getStringJComboBox();
+
+        bufferComboBox.addMouseWheelListener(e -> {
+            if (e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
+                int direction = e.getWheelRotation(); // +1 down, -1 up
+                int index = bufferComboBox.getSelectedIndex();
+
+                if (direction > 0 && index < bufferComboBox.getItemCount() - 1) {
+                    this.cycleChannel();
+                } else if (direction < 0 && index > 0) {
+                    this.cycleChannelBackwards();
+                }
+            }
+        });
+
+        return bufferComboBox;
+    }
+
+    private JComboBox<String> getStringJComboBox() {
         final JComboBox<String> bufferComboBox = new JComboBox<>();
 
         bufferComboBox.setRenderer(new DefaultListCellRenderer() {
@@ -248,20 +267,6 @@ public class IrcPanel extends PluginPanel {
                 return label;
             }
         });
-
-        bufferComboBox.addMouseWheelListener(e -> {
-            if (e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
-                int direction = e.getWheelRotation(); // +1 down, -1 up
-                int index = bufferComboBox.getSelectedIndex();
-
-                if (direction > 0 && index < bufferComboBox.getItemCount() - 1) {
-                    this.cycleChannel();
-                } else if (direction < 0 && index > 0) {
-                    this.cycleChannelBackwards();
-                }
-            }
-        });
-
         return bufferComboBox;
     }
 

@@ -134,9 +134,8 @@ public class IrcPlugin extends Plugin {
                 });
             }
         });
-        overlay = new IrcOverlay(client, panel, config);
+        overlay = new IrcOverlay(client, panel, config, keyManager);
         overlayManager.add(overlay);
-        overlay.subscribeEvents();
         emojiService.initialize();
         connectToIrc();
         joinDefaultChannel();
@@ -153,6 +152,7 @@ public class IrcPlugin extends Plugin {
             ircAdapter = null;
         }
         if (overlayManager != null) {
+            overlay.shutdown();
             overlayManager.remove(overlay);
             overlay = null;
         }
@@ -608,9 +608,8 @@ public class IrcPlugin extends Plugin {
         } else if ("overlayDynamic".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlayManager.remove(overlay);
-                overlay = new IrcOverlay(client, panel, config);
+                overlay = new IrcOverlay(client, panel, config, keyManager);
                 overlayManager.add(overlay);
-                overlay.subscribeEvents();
             }
         }
     }
