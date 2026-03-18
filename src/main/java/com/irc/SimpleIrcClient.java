@@ -288,9 +288,11 @@ public class SimpleIrcClient {
 
                     if (!sourceNick.equals(nick)) {
                         fireEvent(new IrcEvent(IrcEvent.Type.PART, sourceNick, channel, reason, null));
-                    }
-                    if (channelUsers.containsKey(channel)) {
-                        channelUsers.get(channel).remove(sourceNick);
+                        if (channelUsers.containsKey(channel)) {
+                            channelUsers.get(channel).remove(sourceNick);
+                        }
+                    } else {
+                        channelUsers.remove(channel);
                     }
                 }
                 break;
@@ -339,8 +341,12 @@ public class SimpleIrcClient {
                     String kickMessage = params.size() > 2 ? params.get(2) : "";
 
                     fireEvent(new IrcEvent(IrcEvent.Type.KICK, sourceNick, channel, kickedUser + " " + kickMessage, null));
-                    if (channelUsers.containsKey(channel)) {
-                        channelUsers.get(channel).remove(kickedUser);
+                    if (!kickedUser.equals(nick)) {
+                        if (channelUsers.containsKey(channel)) {
+                            channelUsers.get(channel).remove(kickedUser);
+                        }
+                    } else {
+                        channelUsers.remove(channel);
                     }
                 }
                 break;
