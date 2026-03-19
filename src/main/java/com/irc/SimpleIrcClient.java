@@ -52,6 +52,16 @@ public class SimpleIrcClient {
     private boolean connected = false;
     private volatile boolean shuttingDown = false;
 
+    String currentTagTime;   // package-private: accessed by TestableIrcClient subclass
+    String currentTagBatch;  // package-private: accessed by TestableIrcClient subclass
+
+    private final Map<String, List<IrcEvent>> activeBatches = new HashMap<>();
+    private final Map<String, String> activeBatchChannels = new HashMap<>();
+
+    boolean capHistorySupported = false;  // package-private: accessed by TestableIrcClient subclass
+    private boolean capEndSent = false;
+    private final Set<String> advertisedCaps = new HashSet<>();
+
     public SimpleIrcClient server(String host, int port, boolean secure) {
         this.host = host;
         this.port = port;
@@ -86,8 +96,12 @@ public class SimpleIrcClient {
                 if (password != null && !password.isEmpty()) {
                     sendRawLine("PASS " + password);
                 }
+                advertisedCaps.clear();
+                capEndSent = false;
+                capHistorySupported = false;
                 sendRawLine("NICK " + nick);
                 sendRawLine("USER " + username + " 0 * :" + realName);
+                sendRawLine("CAP LS 302");
 
                 connected = true;
                 fireEvent(new IrcEvent(IrcEvent.Type.CONNECT, null, null, null, null));
@@ -153,6 +167,8 @@ public class SimpleIrcClient {
             } catch (IOException ignored) {
             }
         } finally {
+            activeBatches.clear();
+            activeBatchChannels.clear();
             connected = false;
             fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
         }
@@ -210,6 +226,10 @@ public class SimpleIrcClient {
         }
     }
 
+    void setNickDirect(String nick) {
+        this.nick = nick;
+    }
+
     public synchronized void sendRawLine(String line) {
         if (writer == null) return;
         try {
@@ -220,7 +240,29 @@ public class SimpleIrcClient {
         }
     }
 
-    private void processLine(String line) {
+    void processLine(String line) {
+        // Reset per-line tag state
+        currentTagTime = null;
+        currentTagBatch = null;
+
+        // Strip and parse IRCv3 message tags (@key=value;...)
+        if (line.startsWith("@")) {
+            int spaceIdx = line.indexOf(' ');
+            if (spaceIdx > 0) {
+                String tagSegment = line.substring(1, spaceIdx);
+                line = line.substring(spaceIdx + 1);
+                for (String tag : tagSegment.split(";")) {
+                    int eq = tag.indexOf('=');
+                    if (eq > 0) {
+                        String key = tag.substring(0, eq);
+                        String value = tag.substring(eq + 1);
+                        if ("time".equals(key)) currentTagTime = value;
+                        else if ("batch".equals(key)) currentTagBatch = value;
+                    }
+                }
+            }
+        }
+
         Matcher matcher = MESSAGE_PATTERN.matcher(line);
 
         if (matcher.matches()) {
@@ -258,6 +300,33 @@ public class SimpleIrcClient {
     private void processCommand(String source, String command, List<String> params) {
         String sourceNick = extractNick(source);
 
+        // IRCv3 batch intercept: accumulate tagged messages instead of processing normally
+        if (currentTagBatch != null && activeBatches.containsKey(currentTagBatch)) {
+            String batchRef = currentTagBatch;
+            if (command.equalsIgnoreCase("PRIVMSG") && params.size() >= 2) {
+                String target = params.get(0);
+                String msgBody = params.get(1);
+                if (msgBody.startsWith("\u0001") && msgBody.endsWith("\u0001")) {
+                    // CTCP — check for ACTION
+                    String ctcp = msgBody.substring(1, msgBody.length() - 1);
+                    String[] parts = ctcp.split(" ", 2);
+                    if ("ACTION".equals(parts[0])) {
+                        String actionText = parts.length > 1 ? parts[1] : "";
+                        activeBatches.get(batchRef).add(
+                            new IrcEvent(IrcEvent.Type.ACTION, sourceNick, target, actionText, currentTagTime)
+                        );
+                    }
+                } else {
+                    activeBatches.get(batchRef).add(
+                        new IrcEvent(IrcEvent.Type.MESSAGE, sourceNick, target, msgBody, currentTagTime)
+                    );
+                }
+                return;
+            }
+            // Non-PRIVMSG commands in a chathistory batch are silently ignored
+            return;
+        }
+
         switch (command.toUpperCase()) {
             case "PRIVMSG":
                 if (params.size() >= 2) {
@@ -278,6 +347,9 @@ public class SimpleIrcClient {
                     String channel = params.get(0);
                     fireEvent(new IrcEvent(IrcEvent.Type.JOIN, sourceNick, channel, null, null));
                     channelUsers.computeIfAbsent(channel, k -> new HashSet<>()).add(sourceNick);
+                    if (sourceNick.equals(nick) && capHistorySupported) {
+                        sendRawLine("CHATHISTORY LATEST " + channel + " * 100");
+                    }
                 }
                 break;
 
@@ -384,6 +456,74 @@ public class SimpleIrcClient {
                     String channel = params.get(0);
                     String topic = params.get(1);
                     fireEvent(new IrcEvent(IrcEvent.Type.TOPIC, sourceNick, channel, topic, null));
+                }
+                break;
+
+            case "BATCH":
+                if (params.isEmpty()) break;
+                String batchToken = params.get(0);
+                if (batchToken.startsWith("+")) {
+                    String ref = batchToken.substring(1);
+                    // params = [+ref, type, channel]
+                    String batchChannel = params.size() >= 3 ? params.get(2) : "";
+                    activeBatches.put(ref, new ArrayList<>());
+                    activeBatchChannels.put(ref, batchChannel);
+                } else if (batchToken.startsWith("-")) {
+                    String ref = batchToken.substring(1);
+                    List<IrcEvent> accumulated = activeBatches.remove(ref);
+                    String batchChannel = activeBatchChannels.remove(ref);
+                    if (accumulated != null && batchChannel != null) {
+                        fireEvent(new IrcEvent(IrcEvent.Type.HISTORY_BATCH, null, batchChannel, null, null, accumulated));
+                    }
+                }
+                break;
+
+            case "CAP":
+                if (params.size() < 2) break;
+                String capSubCommand = params.get(1).toUpperCase();
+                switch (capSubCommand) {
+                    case "LS": {
+                        // Check for multi-line continuation: params = [clientNick, LS, *, cap-list] vs [clientNick, LS, cap-list]
+                        boolean isContinuation = params.size() >= 4 && "*".equals(params.get(2));
+                        String capList = isContinuation ? params.get(3) : (params.size() >= 3 ? params.get(2) : "");
+                        for (String cap : capList.split(" ")) {
+                            if (!cap.isEmpty()) advertisedCaps.add(cap);
+                        }
+                        if (!isContinuation) {
+                            // Final LS line: decide what to request
+                            List<String> toRequest = new ArrayList<>();
+                            if (advertisedCaps.contains("chathistory")) toRequest.add("chathistory");
+                            if (advertisedCaps.contains("batch")) toRequest.add("batch");
+                            if (advertisedCaps.contains("server-time")) toRequest.add("server-time");
+                            if (!toRequest.isEmpty()) {
+                                sendRawLine("CAP REQ :" + String.join(" ", toRequest));
+                            } else if (!capEndSent) {
+                                sendRawLine("CAP END");
+                                capEndSent = true;
+                            }
+                        }
+                        break;
+                    }
+                    case "ACK": {
+                        String acked = params.size() >= 3 ? params.get(2) : "";
+                        for (String cap : acked.split(" ")) {
+                            if ("chathistory".equals(cap.trim())) {
+                                capHistorySupported = true;
+                            }
+                        }
+                        if (!capEndSent) {
+                            sendRawLine("CAP END");
+                            capEndSent = true;
+                        }
+                        break;
+                    }
+                    case "NAK":
+                        capHistorySupported = false;
+                        if (!capEndSent) {
+                            sendRawLine("CAP END");
+                            capEndSent = true;
+                        }
+                        break;
                 }
                 break;
 
@@ -539,7 +679,8 @@ public class SimpleIrcClient {
         public enum Type {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
-            TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY
+            TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
+            HISTORY_BATCH
         }
 
         private final Type type;
@@ -547,13 +688,20 @@ public class SimpleIrcClient {
         private final String target;
         private final String message;
         private final String additionalData;
+        private final List<IrcEvent> historyMessages;
 
-        public IrcEvent(Type type, String source, String target, String message, String additionalData) {
+        public IrcEvent(Type type, String source, String target, String message,
+                        String additionalData, List<IrcEvent> historyMessages) {
             this.type = type;
             this.source = source;
             this.target = target;
             this.message = message;
             this.additionalData = additionalData;
+            this.historyMessages = historyMessages;
+        }
+
+        public IrcEvent(Type type, String source, String target, String message, String additionalData) {
+            this(type, source, target, message, additionalData, null);
         }
     }
 }
