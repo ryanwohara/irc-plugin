@@ -487,7 +487,10 @@ public class SimpleIrcClient {
                         boolean isContinuation = params.size() >= 4 && "*".equals(params.get(2));
                         String capList = isContinuation ? params.get(3) : (params.size() >= 3 ? params.get(2) : "");
                         for (String cap : capList.split(" ")) {
-                            if (!cap.isEmpty()) advertisedCaps.add(cap);
+                            if (!cap.isEmpty()) {
+                                int eq = cap.indexOf('=');
+                                advertisedCaps.add(eq > 0 ? cap.substring(0, eq) : cap);
+                            }
                         }
                         if (!isContinuation) {
                             // Final LS line: decide what to request
