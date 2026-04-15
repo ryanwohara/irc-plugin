@@ -518,6 +518,9 @@ public class IrcPanel extends PluginPanel {
         }
 
         private String formatPanelMessage(IrcMessage message, IrcConfig config) {
+            if (message.getType() == IrcMessage.MessageType.HISTORY_SEPARATOR) {
+                return "<div style='color: #808080; text-align: center;'>--- Begin of chat ---</div>";
+            }
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
             String timeStamp = "";
             if (config.timestamp()) {

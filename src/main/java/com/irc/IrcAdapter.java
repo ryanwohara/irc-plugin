@@ -340,6 +340,34 @@ public class IrcAdapter {
                 case TOPIC_INFO:
                     processMessage(new IrcMessage(event.getTarget(), event.getSource(), event.getMessage(), IrcMessage.MessageType.TOPIC, Instant.now()));
                     break;
+
+                case HISTORY_BATCH:
+                    if (event.getHistoryMessages() != null && !event.getHistoryMessages().isEmpty()) {
+                        for (SimpleIrcClient.IrcEvent accEvent : event.getHistoryMessages()) {
+                            Instant timestamp;
+                            try {
+                                String timeStr = accEvent.getAdditionalData();
+                                timestamp = (timeStr != null && !timeStr.isEmpty())
+                                    ? Instant.parse(timeStr)
+                                    : Instant.now();
+                            } catch (Exception e) {
+                                timestamp = Instant.now();
+                            }
+                            String sender = accEvent.getSource() != null ? accEvent.getSource() : "";
+                            if (accEvent.getType() == SimpleIrcClient.IrcEvent.Type.ACTION) {
+                                sender = "* " + sender;
+                            }
+                            processMessage(new IrcMessage(
+                                event.getTarget(), sender, accEvent.getMessage(),
+                                IrcMessage.MessageType.HISTORY, timestamp
+                            ));
+                        }
+                        processMessage(new IrcMessage(
+                            event.getTarget(), "*", "--- Begin of chat ---",
+                            IrcMessage.MessageType.HISTORY_SEPARATOR, Instant.now()
+                        ));
+                    }
+                    break;
             }
         });
     }
