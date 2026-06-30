@@ -142,11 +142,13 @@ public class IrcPanel extends PluginPanel {
         displayPane.setEditable(false);
 
         int index = 0;
-        for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
-            if (index == 0) {
-                displayPane.setDocument(channel.getValue().getStyledDocument()); // show first one
+        synchronized (channelPanes) {
+            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
+                if (index == 0) {
+                    displayPane.setDocument(channel.getValue().getStyledDocument()); // show first one
+                }
+                index++;
             }
-            index++;
         }
         bufferDropdown.addActionListener(this::actionPerformed);
 
@@ -279,8 +281,10 @@ public class IrcPanel extends PluginPanel {
 
     public void hideAllPreviews() {
         if (channelPanes != null) {
-            for (ChannelPane pane : channelPanes.values()) {
-                pane.cancelPreviewManager();
+            synchronized (channelPanes) {
+                for (ChannelPane pane : channelPanes.values()) {
+                    pane.cancelPreviewManager();
+                }
             }
         }
     }
@@ -299,12 +303,14 @@ public class IrcPanel extends PluginPanel {
         if (channel != null && unreadMessages.containsKey(channel)) {
             int i = 0;
             int index = 0;
-            for (Map.Entry<String, ChannelPane> entry : channelPanes.entrySet()) {
-                if (entry.getKey().equals(channel)) {
-                    index = i;
-                    break;
+            synchronized (channelPanes) {
+                for (Map.Entry<String, ChannelPane> entry : channelPanes.entrySet()) {
+                    if (entry.getKey().equals(channel)) {
+                        index = i;
+                        break;
+                    }
+                    i++;
                 }
-                i++;
             }
 
             unreadMessages.put(channel, false);
@@ -339,8 +345,10 @@ public class IrcPanel extends PluginPanel {
     private void updateFont() {
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         inputField.setFont(font);
-        for (ChannelPane channelPane : channelPanes.values()) {
-            channelPane.setFont(font);
+        synchronized (channelPanes) {
+            for (ChannelPane channelPane : channelPanes.values()) {
+                channelPane.setFont(font);
+            }
         }
     }
 
@@ -456,14 +464,16 @@ public class IrcPanel extends PluginPanel {
     private void actionPerformed(ActionEvent e) {
         int idx = bufferDropdown.getSelectedIndex();
         int i = 0;
-        for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
-            if (i == idx) {
-                displayPane.setDocument(channel.getValue().getStyledDocument());
-                this.setFocusedChannel(channel.getKey());
-                break;
-            }
+        synchronized (channelPanes) {
+            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
+                if (i == idx) {
+                    displayPane.setDocument(channel.getValue().getStyledDocument());
+                    this.setFocusedChannel(channel.getKey());
+                    break;
+                }
 
-            i++;
+                i++;
+            }
         }
         hideAllPreviews();
     }
