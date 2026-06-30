@@ -71,10 +71,22 @@ public interface IrcConfig extends Config
     String username();
 
     @ConfigItem(
+            keyName = "accountName",
+            name = "Account Name (Optional)",
+            description = "NickServ account to identify against, if different from your nick. Leave blank to identify by nick.",
+            position = 2,
+            section = connectionSettings
+    )
+    default String accountName()
+    {
+        return "";
+    }
+
+    @ConfigItem(
             keyName = "password",
             name = "Password (Optional) (not Jagex)",
             description = "NickServ password (Optional) (NEVER your RS password!)",
-            position = 2,
+            position = 3,
             secret = true,
             section = connectionSettings
     )
@@ -84,7 +96,7 @@ public interface IrcConfig extends Config
             keyName = "channel",
             name = "Channel(s)",
             description = "Channel(s) to join, comma separated",
-            position = 3,
+            position = 4,
             section = connectionSettings
     )
     default String channel()
@@ -96,7 +108,7 @@ public interface IrcConfig extends Config
             keyName = "channelPassword",
             name = "Channel Password",
             description = "Password to enter channel. (Optional)",
-            position = 4,
+            position = 5,
             secret = true,
             section = connectionSettings
     )

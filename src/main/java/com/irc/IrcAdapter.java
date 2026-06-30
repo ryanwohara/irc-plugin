@@ -151,6 +151,16 @@ public class IrcAdapter {
     }
 
     /**
+     * Builds the NickServ identify payload
+     */
+    static String nickServIdentify(String account, String password) {
+        if (account != null && !account.isEmpty()) {
+            return "id " + account + " " + password;
+        }
+        return "id " + password;
+    }
+
+    /**
      * Process and forward incoming messages to the plugin
      */
     private void processMessage(IrcMessage message) {
@@ -180,7 +190,7 @@ public class IrcAdapter {
                     processMessage(new IrcMessage("System", "System", "Welcome to IRC! To chat in the current channel, use '" + config.prefix() + "' followed by your message in the game chatbox.", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     processMessage(new IrcMessage("System", "System", "For a list of commands, type '/help' in the side panel input box.", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     if (config.password() != null && !config.password().isEmpty()) {
-                        client.sendMessage("NickServ", "id " + config.password());
+                        client.sendMessage("NickServ", nickServIdentify(config.accountName(), config.password()));
                     }
                     break;
 
