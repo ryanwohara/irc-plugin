@@ -183,8 +183,6 @@ public class IrcAdapter {
                     break;
 
                 case REGISTERED:
-                    // Adopt the nick the server actually registered us with - it may
-                    // differ from the requested nick after a nick-in-use retry.
                     currentNick = client.getNick();
                     processMessage(new IrcMessage("System", "System", "Registration complete - ready for commands", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     processMessage(new IrcMessage("System", "System", "Welcome to IRC! To chat in the current channel, use '" + config.prefix() + "' followed by your message in the game chatbox.", IrcMessage.MessageType.SYSTEM, Instant.now()));

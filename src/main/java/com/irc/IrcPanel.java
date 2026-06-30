@@ -45,8 +45,6 @@ public class IrcPanel extends PluginPanel {
 
     private JTabbedPane tabbedPane;
     public JTextField inputField;
-    // Accessed from both the EDT (addChannel/removeChannel) and the IRC reader thread
-    // (getChannelNames via IrcPlugin.processMessage); must be thread-safe.
     @Getter
     private final Map<String, ChannelPane> channelPanes = Collections.synchronizedMap(new LinkedHashMap<>());
     @Getter
@@ -66,9 +64,6 @@ public class IrcPanel extends PluginPanel {
     private final JTextPane displayPane = new JTextPane();
 
     public ArrayList<String> getChannelNames() {
-        // Synchronize the snapshot so the keySet copy can't race with a concurrent
-        // put/remove on another thread (which corrupted the array copy and threw
-        // ArrayIndexOutOfBoundsException / ConcurrentModificationException).
         Map<String, ChannelPane> panes = getChannelPanes();
         synchronized (panes) {
             return new ArrayList<>(panes.keySet());
