@@ -67,7 +67,6 @@ public class IrcPlugin extends Plugin {
     @Nullable
     private IrcAdapter ircAdapter;
     private IrcPanel panel;
-    private String currentNick;
     @Inject
     private EmojiService emojiService;
 
@@ -165,14 +164,17 @@ public class IrcPlugin extends Plugin {
     }
 
     private void connectToIrc() {
+        // Seed nick only; once connected the network's confirmed nick (tracked by the
+        // adapter from the raw NICK event) is the source of truth - see ircAdapter.getNick().
+        String initialNick;
         if (Strings.isNullOrEmpty(config.username())) {
-            currentNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
+            initialNick = "RLGuest" + (int) (Math.random() * 9999 + 1);
         } else {
-            currentNick = config.username().replace(" ", "_");
+            initialNick = config.username().replace(" ", "_");
         }
 
         ircAdapter = new IrcAdapter();
-        ircAdapter.initialize(config, this::processMessage, panel, currentNick);
+        ircAdapter.initialize(config, this::processMessage, panel, initialNick);
         ircAdapter.connect();
     }
 
@@ -355,9 +357,9 @@ public class IrcPlugin extends Plugin {
             case "umode":
             case "umode2":
                 if (!arg.isEmpty()) {
-                    ircAdapter.sendRawLine("MODE " + currentNick + " :" + arg);
+                    ircAdapter.sendRawLine("MODE " + ircAdapter.getNick() + " :" + arg);
                 } else {
-                    ircAdapter.sendRawLine("MODE " + currentNick);
+                    ircAdapter.sendRawLine("MODE " + ircAdapter.getNick());
                 }
                 break;
 
