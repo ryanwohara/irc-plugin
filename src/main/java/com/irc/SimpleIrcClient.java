@@ -226,10 +226,6 @@ public class SimpleIrcClient {
         }
     }
 
-    void setNickDirect(String nick) {
-        this.nick = nick;
-    }
-
     public synchronized void sendRawLine(String line) {
         if (writer == null) return;
         try {
