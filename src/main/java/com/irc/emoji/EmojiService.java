@@ -12,9 +12,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Singleton
@@ -40,9 +38,9 @@ public class EmojiService {
     }
 
     private void loadEmojis() throws Exception {
-        Map<String, Emoji> emojiByUnicode = new HashMap<>();
-        Map<String, Emoji> emojiByAlias = new HashMap<>();
-        List<Emoji> allEmojis = new ArrayList<>();
+        if (EmojiManager.isInitialized()) {
+            return;
+        }
 
         try (InputStream is = EmojiManager.class.getResourceAsStream(EMOJI_JSON_PATH)) {
             if (is == null) {
@@ -72,17 +70,11 @@ public class EmojiService {
                         }
                     }
 
-                    Emoji emoji = new Emoji(unicode, aliases, supportsFitzpatrick);
-                    emojiByUnicode.put(unicode, emoji);
-                    allEmojis.add(emoji);
-
-                    for (String alias : aliases) {
-                        emojiByAlias.put(alias, emoji);
-                    }
+                    EmojiManager.register(new Emoji(unicode, aliases, supportsFitzpatrick));
                 }
             }
         }
 
-        EmojiManager.initialize(emojiByUnicode, emojiByAlias, allEmojis);
+        EmojiManager.finishInitialization();
     }
 }

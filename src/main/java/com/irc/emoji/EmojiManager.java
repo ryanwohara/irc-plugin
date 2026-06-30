@@ -9,22 +9,20 @@ public class EmojiManager {
     private static EmojiTrie EMOJI_TRIE;
     private static boolean initialized = false;
 
-    static void initialize(Map<String, Emoji> emojiByUnicode, Map<String, Emoji> emojiByAlias, List<Emoji> allEmojis) {
-        if (initialized) {
-            return;
+    static boolean isInitialized() {
+        return initialized;
+    }
+
+    static void register(Emoji emoji) {
+        EMOJI_BY_UNICODE.put(emoji.getUnicode(), emoji);
+        ALL_EMOJIS.add(emoji);
+        for (String alias : emoji.getAliases()) {
+            EMOJI_BY_ALIAS.put(alias, emoji);
         }
+    }
 
-        EMOJI_BY_UNICODE.clear();
-        EMOJI_BY_UNICODE.putAll(emojiByUnicode);
-
-        EMOJI_BY_ALIAS.clear();
-        EMOJI_BY_ALIAS.putAll(emojiByAlias);
-
-        ALL_EMOJIS.clear();
-        ALL_EMOJIS.addAll(allEmojis);
-
+    static void finishInitialization() {
         EMOJI_TRIE = new EmojiTrie(ALL_EMOJIS);
-
         initialized = true;
     }
 
