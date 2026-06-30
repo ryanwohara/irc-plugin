@@ -289,8 +289,6 @@ public class SimpleIrcClient {
             if (command.equals("PING")) {
                 sendRawLine("PONG " + (params.isEmpty() ? "" : params.get(0)));
                 return;
-            } else if (command.equals("443")) {
-                fireEvent(new IrcEvent(IrcEvent.Type.NICK_IN_USE, null, null, params.get(1), null));
             }
 
             processCommand(source, command, params);
@@ -563,6 +561,12 @@ public class SimpleIrcClient {
     private void handleNumeric(int numeric, String source, List<String> params) {
         switch (numeric) {
             case 1:
+                // RPL_WELCOME: the server states our final, authoritative nick here.
+                // This is how we learn our real nick after a 433/nick-in-use retry, as
+                // the server does not echo a NICK during registration.
+                if (!params.isEmpty()) {
+                    nick = params.get(0);
+                }
                 connected = true;
                 fireEvent(new IrcEvent(IrcEvent.Type.REGISTERED, null, null, null, null));
                 break;
