@@ -310,11 +310,18 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "id":
-                if (!arg.isEmpty()) {
-                    ircAdapter.getClient().sendMessage("NickServ", "identify " + arg);
+            case "id": {
+                String idCommand = identifyCommandFromArgs(arg);
+                if (idCommand != null) {
+                    // Both account and password supplied inline.
+                    ircAdapter.getClient().sendMessage("NickServ", idCommand);
+                } else {
+                    // A lone token is the account; no token means prompt for the account too.
+                    String idAccount = arg.isEmpty() ? null : arg.trim().split("\\s+")[0];
+                    promptForIdentify(idAccount);
                 }
                 break;
+            }
 
             case "ns":
                 if (!arg.isEmpty()) {
@@ -405,6 +412,60 @@ public class IrcPlugin extends Plugin {
         }
     }
 
+    /**
+     * Builds a NickServ IDENTIFY command. NickServ expects "identify [account] password"; when no
+     * account is given it identifies against the current nick's account using just the password.
+     */
+    static String identifyCommand(String account, String password) {
+        if (account != null && !account.isEmpty()) {
+            return "identify " + account + " " + password;
+        }
+        return "identify " + password;
+    }
+
+    /**
+     * Parses inline /id arguments, given as "[account] [password]", into a NickServ IDENTIFY
+     * command. Returns null when the password is not supplied inline (a lone token is the
+     * account), signalling the caller to prompt for the password.
+     */
+    static String identifyCommandFromArgs(String arg) {
+        String[] parts = (arg == null || arg.isEmpty()) ? new String[0] : arg.trim().split("\\s+");
+        if (parts.length >= 2) {
+            return identifyCommand(parts[0], parts[1]);
+        }
+        return null;
+    }
+
+    /**
+     * Prompts for any missing /id input and sends the IDENTIFY. When the account is null it is
+     * prompted for first (optional; blank identifies by nick); the password is always prompted
+     * for (masked).
+     */
+    private void promptForIdentify(String account) {
+        if (ircAdapter == null) return;
+
+        SwingUtilities.invokeLater(() -> {
+            String acct = account;
+            if (acct == null) {
+                acct = JOptionPane.showInputDialog(panel,
+                        "Enter your NickServ account (leave blank to identify by nick):",
+                        "Account (optional)", JOptionPane.QUESTION_MESSAGE);
+                if (acct == null) return; // cancelled
+                acct = acct.trim();
+            }
+
+            JPasswordField passwordField = new JPasswordField();
+            int result = JOptionPane.showConfirmDialog(panel, passwordField,
+                    "Enter your NickServ password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (result != JOptionPane.OK_OPTION) return;
+
+            String password = new String(passwordField.getPassword());
+            if (password.isEmpty()) return;
+
+            ircAdapter.getClient().sendMessage("NickServ", identifyCommand(acct, password));
+        });
+    }
+
     private void showCommandHelp() {
         String[] helpLines = {
                 "Available commands:",
@@ -424,7 +485,7 @@ public class IrcPlugin extends Plugin {
                 "/hs <message> - Talk to HostServ",
                 "/ms <message> - Talk to MemoServ",
                 "/ns <message> - Talk to NickServ",
-                "/id <password - Log in to NickServ without logging it"
+                "/id [account] [password] - Identify to NickServ (prompts for the password if omitted)"
         };
 
         for (String line : helpLines) {
