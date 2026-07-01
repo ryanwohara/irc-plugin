@@ -42,7 +42,6 @@ public class SimpleIrcClient {
     private String nick;
     private String username;
     private String realName;
-    private String password;
     private String saslAccount;
     private String saslPassword;
     private boolean saslEnabled = false;
@@ -80,10 +79,6 @@ public class SimpleIrcClient {
         return this;
     }
 
-    public void password(String password) {
-        this.password = password;
-    }
-
     public void sasl(String account, String password) {
         this.saslAccount = account;
         this.saslPassword = password;
@@ -108,9 +103,6 @@ public class SimpleIrcClient {
                 writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
-                if (password != null && !password.isEmpty()) {
-                    sendRawLine("PASS " + password);
-                }
                 advertisedCaps.clear();
                 capEndSent = false;
                 capHistorySupported = false;

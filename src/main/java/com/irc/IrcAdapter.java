@@ -43,7 +43,6 @@ public class IrcAdapter {
                 .credentials(currentNick, "runelite", currentNick);
 
         if (config.password() != null && !config.password().isEmpty()) {
-            client.password(config.password());
             client.sasl(config.accountName(), config.password());
         }
 
