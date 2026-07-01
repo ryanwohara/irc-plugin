@@ -13,6 +13,7 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,6 +43,9 @@ public class SimpleIrcClient {
     private String username;
     private String realName;
     private String password;
+    private String saslAccount;
+    private String saslPassword;
+    private boolean saslEnabled = false;
     @Getter
     private final Set<String> channels = new HashSet<>();
     private final Map<String, Set<String>> channelUsers = new HashMap<>();
@@ -78,6 +82,17 @@ public class SimpleIrcClient {
 
     public void password(String password) {
         this.password = password;
+    }
+
+    public void sasl(String account, String password) {
+        this.saslAccount = account;
+        this.saslPassword = password;
+        this.saslEnabled = password != null && !password.isEmpty();
+    }
+
+    static String saslPlainResponse(String authcid, String password) {
+        String payload = "\0" + authcid + "\0" + password;
+        return Base64.getEncoder().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 
     public void connect() {
@@ -492,6 +507,7 @@ public class SimpleIrcClient {
                             if (advertisedCaps.contains("chathistory")) toRequest.add("chathistory");
                             if (advertisedCaps.contains("batch")) toRequest.add("batch");
                             if (advertisedCaps.contains("server-time")) toRequest.add("server-time");
+                            if (saslEnabled && advertisedCaps.contains("sasl")) toRequest.add("sasl");
                             if (!toRequest.isEmpty()) {
                                 sendRawLine("CAP REQ :" + String.join(" ", toRequest));
                             } else if (!capEndSent) {
@@ -503,12 +519,17 @@ public class SimpleIrcClient {
                     }
                     case "ACK": {
                         String acked = params.size() >= 3 ? params.get(2) : "";
+                        boolean saslAcked = false;
                         for (String cap : acked.split(" ")) {
-                            if ("chathistory".equals(cap.trim())) {
-                                capHistorySupported = true;
-                            }
+                            String c = cap.trim();
+                            if ("chathistory".equals(c)) capHistorySupported = true;
+                            if ("sasl".equals(c)) saslAcked = true;
                         }
-                        if (!capEndSent) {
+                        if (saslAcked) {
+                            // Begin SASL PLAIN; hold CAP END until the SASL exchange completes
+                            // (RPL_SASLSUCCESS or an error numeric).
+                            sendRawLine("AUTHENTICATE PLAIN");
+                        } else if (!capEndSent) {
                             sendRawLine("CAP END");
                             capEndSent = true;
                         }
@@ -521,6 +542,14 @@ public class SimpleIrcClient {
                             capEndSent = true;
                         }
                         break;
+                }
+                break;
+
+            case "AUTHENTICATE":
+                // Server replies "AUTHENTICATE +" when ready for the SASL PLAIN response.
+                if (saslEnabled && !params.isEmpty() && "+".equals(params.get(0))) {
+                    String authcid = (saslAccount != null && !saslAccount.isEmpty()) ? saslAccount : nick;
+                    sendRawLine("AUTHENTICATE " + saslPlainResponse(authcid, saslPassword));
                 }
                 break;
 
@@ -630,6 +659,28 @@ public class SimpleIrcClient {
                 if (params.size() >= 2)
                     fireEvent(new IrcEvent(IrcEvent.Type.BAD_CHANNEL_KEY, null, params.get(1), params.get(2), null));
                 break;
+            case 903: // RPL_SASLSUCCESS
+                if (!capEndSent) {
+                    sendRawLine("CAP END");
+                    capEndSent = true;
+                }
+                fireEvent(new IrcEvent(IrcEvent.Type.SASL_SUCCESS, null, null,
+                        params.size() >= 2 ? params.get(params.size() - 1) : "SASL authentication successful", null));
+                break;
+            case 902: // ERR_NICKLOCKED
+            case 904: // ERR_SASLFAIL
+            case 905: // ERR_SASLTOOLONG
+            case 906: // ERR_SASLABORTED
+            case 908: // RPL_SASLMECHS
+                // Authentication failed; end capability negotiation so registration can proceed
+                // unauthenticated rather than stalling.
+                if (!capEndSent) {
+                    sendRawLine("CAP END");
+                    capEndSent = true;
+                }
+                fireEvent(new IrcEvent(IrcEvent.Type.SASL_FAILED, null, null,
+                        params.size() >= 2 ? params.get(params.size() - 1) : "SASL authentication failed", null));
+                break;
         }
     }
 
@@ -683,7 +734,7 @@ public class SimpleIrcClient {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
-            HISTORY_BATCH
+            HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED
         }
 
         private final Type type;
