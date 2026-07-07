@@ -62,6 +62,7 @@ public class IrcPanel extends PluginPanel {
 
     private final JComboBox<String> bufferDropdown = getBufferComboBox();
     private final JTextPane displayPane = new JTextPane();
+    private final InputHistory inputHistory = new InputHistory(20);
 
     public ArrayList<String> getChannelNames() {
         Map<String, ChannelPane> panes = getChannelPanes();
@@ -176,6 +177,7 @@ public class IrcPanel extends PluginPanel {
             String message = inputField.getText();
             if (!message.isEmpty() && onMessageSend != null) {
                 onMessageSend.accept(getCurrentChannel(), message);
+                inputHistory.add(message);
                 inputField.setText("");
             }
         });
@@ -784,12 +786,6 @@ public class IrcPanel extends PluginPanel {
             return "black";
         }
 
-        /**
-         * Builds the HTML run for an IRC color code. The foreground is always applied (via the
-         * 0-98 palette, falling back to black for unknown codes). A background is applied only
-         * for a real palette code 0-98; code 99 ("default background") or anything out of range
-         * renders with no background so the panel theme shows through.
-         */
         static String colorSpan(String fgId, String bgId, String text) {
             StringBuilder style = new StringBuilder("color:").append(htmlColorById(fgId));
             if (hasPaletteColor(bgId)) {
@@ -902,5 +898,28 @@ public class IrcPanel extends PluginPanel {
             inputMap.put(shortcut.keyStroke, shortcut.actionKey);
             actionMap.put(shortcut.actionKey, new TextInsertAction(shortcut.insertText));
         }
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "historyPrevious");
+        actionMap.put("historyPrevious", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                recallHistory(inputHistory.previous(inputField.getText()));
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "historyNext");
+        actionMap.put("historyNext", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                recallHistory(inputHistory.next());
+            }
+        });
+    }
+
+    private void recallHistory(String text) {
+        if (text == null) {
+            return;
+        }
+        inputField.setText(text);
+        inputField.setCaretPosition(text.length());
     }
 }
