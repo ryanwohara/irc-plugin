@@ -436,14 +436,31 @@ public class IrcPanel extends PluginPanel {
         if (index == -1) {
             return;
         }
-        ChannelPane pane = channelPanes.remove(oldName);
-        Boolean unread = unreadMessages.remove(oldName);
-        channelPanes.put(newName, pane);
-        unreadMessages.put(newName, unread != null && unread);
+        synchronized (channelPanes) {
+            renameKeyInPlace(channelPanes, oldName, newName);
+        }
+        renameKeyInPlace(unreadMessages, oldName, newName);
         tabbedPane.setTitleAt(index, newName);
         if (oldName.equals(focusedChannel)) {
             focusedChannel = newName;
         }
+    }
+
+    /**
+     * Replaces {@code oldKey} with {@code newKey} while preserving the map's iteration order,
+     * so the renamed entry keeps its position instead of moving to the end. No-op if oldKey is
+     * absent or newKey already present.
+     */
+    static <V> void renameKeyInPlace(Map<String, V> map, String oldKey, String newKey) {
+        if (!map.containsKey(oldKey) || map.containsKey(newKey)) {
+            return;
+        }
+        LinkedHashMap<String, V> rebuilt = new LinkedHashMap<>();
+        for (Map.Entry<String, V> entry : map.entrySet()) {
+            rebuilt.put(entry.getKey().equals(oldKey) ? newKey : entry.getKey(), entry.getValue());
+        }
+        map.clear();
+        map.putAll(rebuilt);
     }
 
     private void promptRemoveChannel() {

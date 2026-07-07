@@ -62,7 +62,10 @@ public class IrcPlugin extends Plugin {
     private ClientToolbar clientToolbar;
     @Inject
     private KeyManager keyManager;
-    @Inject
+    // Not @Inject: Guice would eagerly build an overlay wired to a throwaway, uninitialized
+    // IrcPanel (IrcPanel is not a singleton) and register its key listener, so PageUp/PageDown
+    // would hit that empty orphan panel. The real overlay is created in startUp() against the
+    // displayed panel.
     private IrcOverlay overlay;
     @Nullable
     private IrcAdapter ircAdapter;
@@ -150,7 +153,7 @@ public class IrcPlugin extends Plugin {
             ircAdapter.disconnect("Plugin shutting down");
             ircAdapter = null;
         }
-        if (overlayManager != null) {
+        if (overlay != null) {
             overlay.shutdown();
             overlayManager.remove(overlay);
             overlay = null;
