@@ -441,6 +441,7 @@ public class IrcPanel extends PluginPanel {
         }
         renameKeyInPlace(unreadMessages, oldName, newName);
         tabbedPane.setTitleAt(index, newName);
+        renameBufferDropdownItem(oldName, newName);
         if (oldName.equals(focusedChannel)) {
             focusedChannel = newName;
         }
@@ -456,6 +457,35 @@ public class IrcPanel extends PluginPanel {
         }
         map.clear();
         map.putAll(rebuilt);
+    }
+
+    private void renameBufferDropdownItem(String oldName, String newName) {
+        int itemIndex = -1;
+        for (int i = 0; i < bufferDropdown.getItemCount(); i++) {
+            if (oldName.equals(bufferDropdown.getItemAt(i))) {
+                itemIndex = i;
+                break;
+            }
+        }
+        if (itemIndex == -1) {
+            return;
+        }
+        int selected = bufferDropdown.getSelectedIndex();
+        ActionListener[] listeners = bufferDropdown.getActionListeners();
+        for (ActionListener listener : listeners) {
+            bufferDropdown.removeActionListener(listener);
+        }
+        try {
+            bufferDropdown.removeItemAt(itemIndex);
+            bufferDropdown.insertItemAt(newName, itemIndex);
+            if (selected >= 0 && selected < bufferDropdown.getItemCount()) {
+                bufferDropdown.setSelectedIndex(selected);
+            }
+        } finally {
+            for (ActionListener listener : listeners) {
+                bufferDropdown.addActionListener(listener);
+            }
+        }
     }
 
     private void promptRemoveChannel() {
