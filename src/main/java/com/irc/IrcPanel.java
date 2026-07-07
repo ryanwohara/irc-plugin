@@ -591,7 +591,7 @@ public class IrcPanel extends PluginPanel {
             return STRIP_CODES.matcher(sb.toString()).replaceAll("");
         }
 
-        private String htmlColorById(String id) {
+        static String htmlColorById(String id) {
             switch (id) {
                 case "00":
                 case "0":
@@ -636,8 +636,109 @@ public class IrcPanel extends PluginPanel {
                 case "15":
                     return "#C0C0C0";
                 default:
-                    return "black";
+                    return extendedColorById(id);
             }
+        }
+
+        /**
+         * https://modern.ircdocs.horse/formatting.html
+         */
+        private static final String[] EXTENDED_COLORS = {
+            "#470000", // 16
+            "#472100", // 17
+            "#474700", // 18
+            "#324700", // 19
+            "#004700", // 20
+            "#00472C", // 21
+            "#004747", // 22
+            "#002747", // 23
+            "#000047", // 24
+            "#2E0047", // 25
+            "#470047", // 26
+            "#47002A", // 27
+            "#740000", // 28
+            "#743A00", // 29
+            "#747400", // 30
+            "#517400", // 31
+            "#007400", // 32
+            "#007449", // 33
+            "#007474", // 34
+            "#004074", // 35
+            "#000074", // 36
+            "#4B0074", // 37
+            "#740074", // 38
+            "#740045", // 39
+            "#B50000", // 40
+            "#B56300", // 41
+            "#B5B500", // 42
+            "#7DB500", // 43
+            "#00B500", // 44
+            "#00B571", // 45
+            "#00B5B5", // 46
+            "#0063B5", // 47
+            "#0000B5", // 48
+            "#7500B5", // 49
+            "#B500B5", // 50
+            "#B5006B", // 51
+            "#FF0000", // 52
+            "#FF8C00", // 53
+            "#FFFF00", // 54
+            "#B2FF00", // 55
+            "#00FF00", // 56
+            "#00FFA0", // 57
+            "#00FFFF", // 58
+            "#008CFF", // 59
+            "#0000FF", // 60
+            "#A500FF", // 61
+            "#FF00FF", // 62
+            "#FF0098", // 63
+            "#FF5959", // 64
+            "#FFB459", // 65
+            "#FFFF71", // 66
+            "#CFFF60", // 67
+            "#6FFF6F", // 68
+            "#65FFC9", // 69
+            "#6DFFFF", // 70
+            "#59B4FF", // 71
+            "#5959FF", // 72
+            "#C459FF", // 73
+            "#FF66FF", // 74
+            "#FF59BC", // 75
+            "#FF9C9C", // 76
+            "#FFD39C", // 77
+            "#FFFF9C", // 78
+            "#E2FF9C", // 79
+            "#9CFF9C", // 80
+            "#9CFFDB", // 81
+            "#9CFFFF", // 82
+            "#9CD3FF", // 83
+            "#9C9CFF", // 84
+            "#DC9CFF", // 85
+            "#FF9CFF", // 86
+            "#FF94D3", // 87
+            "#000000", // 88
+            "#131313", // 89
+            "#282828", // 90
+            "#363636", // 91
+            "#4D4D4D", // 92
+            "#656565", // 93
+            "#818181", // 94
+            "#9F9F9F", // 95
+            "#BCBCBC", // 96
+            "#E2E2E2", // 97
+            "#FFFFFF", // 98
+        };
+
+        private static String extendedColorById(String id) {
+            try {
+                int code = Integer.parseInt(id);
+                if (code >= 16 && code <= 98) {
+                    return EXTENDED_COLORS[code - 16];
+                }
+            } catch (NumberFormatException ignored) {
+                // Not a numeric code - fall through to the default below.
+            }
+            return "black";
         }
 
         public void clear() {
