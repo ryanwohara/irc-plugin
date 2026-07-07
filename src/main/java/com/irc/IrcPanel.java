@@ -788,10 +788,12 @@ public class IrcPanel extends PluginPanel {
 
         static String colorSpan(String fgId, String bgId, String text) {
             StringBuilder style = new StringBuilder("color:").append(htmlColorById(fgId));
+            String content = text;
             if (hasPaletteColor(bgId)) {
                 style.append(";background-color:").append(htmlColorById(bgId));
+                content = text.replace(" ", "&nbsp;");
             }
-            return "<span style=\"" + style + "\">" + text + "</span>";
+            return "<span style=\"" + style + "\">" + content + "</span>";
         }
 
         private static boolean hasPaletteColor(String id) {
