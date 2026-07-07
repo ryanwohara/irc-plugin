@@ -446,11 +446,6 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
-    /**
-     * Replaces {@code oldKey} with {@code newKey} while preserving the map's iteration order,
-     * so the renamed entry keeps its position instead of moving to the end. No-op if oldKey is
-     * absent or newKey already present.
-     */
     static <V> void renameKeyInPlace(Map<String, V> map, String oldKey, String newKey) {
         if (!map.containsKey(oldKey) || map.containsKey(newKey)) {
             return;

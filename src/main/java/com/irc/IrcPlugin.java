@@ -62,10 +62,6 @@ public class IrcPlugin extends Plugin {
     private ClientToolbar clientToolbar;
     @Inject
     private KeyManager keyManager;
-    // Not @Inject: Guice would eagerly build an overlay wired to a throwaway, uninitialized
-    // IrcPanel (IrcPanel is not a singleton) and register its key listener, so PageUp/PageDown
-    // would hit that empty orphan panel. The real overlay is created in startUp() against the
-    // displayed panel.
     private IrcOverlay overlay;
     @Nullable
     private IrcAdapter ircAdapter;
@@ -313,11 +309,18 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "id":
-                if (!arg.isEmpty()) {
-                    ircAdapter.getClient().sendMessage("NickServ", "identify " + arg);
+            case "id": {
+                String idCommand = identifyCommandFromArgs(arg);
+                if (idCommand != null) {
+                    // Both account and password supplied inline.
+                    ircAdapter.getClient().sendMessage("NickServ", idCommand);
+                } else {
+                    // A lone token is the account; no token means prompt for the account too.
+                    String idAccount = arg.isEmpty() ? null : arg.trim().split("\\s+")[0];
+                    promptForIdentify(idAccount);
                 }
                 break;
+            }
 
             case "ns":
                 if (!arg.isEmpty()) {
@@ -408,6 +411,46 @@ public class IrcPlugin extends Plugin {
         }
     }
 
+    static String identifyCommand(String account, String password) {
+        if (account != null && !account.isEmpty()) {
+            return "identify " + account + " " + password;
+        }
+        return "identify " + password;
+    }
+
+    static String identifyCommandFromArgs(String arg) {
+        String[] parts = (arg == null || arg.isEmpty()) ? new String[0] : arg.trim().split("\\s+");
+        if (parts.length >= 2) {
+            return identifyCommand(parts[0], parts[1]);
+        }
+        return null;
+    }
+
+    private void promptForIdentify(String account) {
+        if (ircAdapter == null) return;
+
+        SwingUtilities.invokeLater(() -> {
+            String acct = account;
+            if (acct == null) {
+                acct = JOptionPane.showInputDialog(panel,
+                        "Enter your NickServ account (leave blank to identify by nick):",
+                        "Account (optional)", JOptionPane.QUESTION_MESSAGE);
+                if (acct == null) return; // cancelled
+                acct = acct.trim();
+            }
+
+            JPasswordField passwordField = new JPasswordField();
+            int result = JOptionPane.showConfirmDialog(panel, passwordField,
+                    "Enter your NickServ password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (result != JOptionPane.OK_OPTION) return;
+
+            String password = new String(passwordField.getPassword());
+            if (password.isEmpty()) return;
+
+            ircAdapter.getClient().sendMessage("NickServ", identifyCommand(acct, password));
+        });
+    }
+
     private void showCommandHelp() {
         String[] helpLines = {
                 "Available commands:",
@@ -427,7 +470,7 @@ public class IrcPlugin extends Plugin {
                 "/hs <message> - Talk to HostServ",
                 "/ms <message> - Talk to MemoServ",
                 "/ns <message> - Talk to NickServ",
-                "/id <password - Log in to NickServ without logging it"
+                "/id [account] [password] - Identify to NickServ (prompts for the password if omitted)"
         };
 
         for (String line : helpLines) {
