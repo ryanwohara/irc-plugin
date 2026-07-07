@@ -522,7 +522,7 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
-        private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,\\d\\d?)?([^\u0003\u000F]+)\u000F?");
+        private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,(\\d\\d?))?([^\u0003\u000F]+)\u000F?");
         private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(?:,\\d\\d)?)?|\u001D|\u0015|\u000F");
         private final PreviewManager previewManager;
 
@@ -627,7 +627,8 @@ public class IrcPanel extends PluginPanel {
             Matcher color_matcher = COLORS.matcher(message);
             StringBuffer sb = new StringBuffer();
             while (color_matcher.find()) {
-                color_matcher.appendReplacement(sb, "<font color=\"" + htmlColorById(color_matcher.group(1)) + "\">" + Matcher.quoteReplacement(color_matcher.group(2)) + "</font>");
+                color_matcher.appendReplacement(sb, Matcher.quoteReplacement(
+                        colorSpan(color_matcher.group(1), color_matcher.group(2), color_matcher.group(3))));
             }
             color_matcher.appendTail(sb);
             return STRIP_CODES.matcher(sb.toString()).replaceAll("");
@@ -781,6 +782,32 @@ public class IrcPanel extends PluginPanel {
                 // Not a numeric code - fall through to the default below.
             }
             return "black";
+        }
+
+        /**
+         * Builds the HTML run for an IRC color code. The foreground is always applied (via the
+         * 0-98 palette, falling back to black for unknown codes). A background is applied only
+         * for a real palette code 0-98; code 99 ("default background") or anything out of range
+         * renders with no background so the panel theme shows through.
+         */
+        static String colorSpan(String fgId, String bgId, String text) {
+            StringBuilder style = new StringBuilder("color:").append(htmlColorById(fgId));
+            if (hasPaletteColor(bgId)) {
+                style.append(";background-color:").append(htmlColorById(bgId));
+            }
+            return "<span style=\"" + style + "\">" + text + "</span>";
+        }
+
+        private static boolean hasPaletteColor(String id) {
+            if (id == null) {
+                return false;
+            }
+            try {
+                int code = Integer.parseInt(id);
+                return code >= 0 && code <= 98;
+            } catch (NumberFormatException e) {
+                return false;
+            }
         }
 
         public void clear() {
