@@ -171,6 +171,32 @@ public class SimpleIrcClientUsersTest {
     }
 
     @Test
+    public void partingOurselvesDropsTheWholeRoster() {
+        RecordingClient client = new RecordingClient();
+        client.processLine(":server 001 me :Welcome"); // registers our own nick as "me"
+        loadNames(client, "#chan", "@bob me");
+        client.events.clear();
+
+        client.processLine(":me!user@host PART #chan :bye");
+
+        assertTrue("leaving drops the channel, not just us",
+                client.nicksIn("#chan").isEmpty());
+    }
+
+    @Test
+    public void beingKickedDropsTheWholeRoster() {
+        RecordingClient client = new RecordingClient();
+        client.processLine(":server 001 me :Welcome");
+        loadNames(client, "#chan", "@bob me");
+        client.events.clear();
+
+        client.processLine(":bob!user@host KICK #chan me :out");
+
+        assertTrue("being kicked drops the channel, not just us",
+                client.nicksIn("#chan").isEmpty());
+    }
+
+    @Test
     public void channelModeIsAppliedToTheRoster() {
         RecordingClient client = new RecordingClient();
         loadNames(client, "#chan", "bob");
