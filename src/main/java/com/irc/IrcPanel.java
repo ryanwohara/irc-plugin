@@ -69,7 +69,9 @@ public class IrcPanel extends PluginPanel {
      * Rosters by channel, keyed case-insensitively: IRC channel names are case-insensitive, and a
      * server that canonicalises casing differently between its JOIN echo and its 366 numeric would
      * otherwise file the roster under a key this panel never looks up - the dropdown would simply
-     * never populate. Synchronized because the roster is pushed from the IRC thread.
+     * never populate. Callers marshal to the EDT before calling {@link #setChannelUsers} - it
+     * mutates a Swing model synchronously - so the synchronized map is cheap defensive depth, not
+     * the primary thread-safety mechanism.
      */
     private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots =
             Collections.synchronizedMap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
@@ -311,11 +313,12 @@ public class IrcPanel extends PluginPanel {
 
     /** Opens (or focuses) a PM buffer for the selected nick, then returns to the header. */
     private void openQueryFromNickDropdown() {
+        List<ChannelUserList.Entry> entries = displayedEntries;
         int index = nickDropdown.getSelectedIndex();
-        if (index < 1 || index > displayedEntries.size()) {
+        if (index < 1 || index > entries.size()) {
             return;
         }
-        String nick = displayedEntries.get(index - 1).getNick();
+        String nick = entries.get(index - 1).getNick();
         nickDropdown.setSelectedIndex(0);
         addChannel(nick);
         setFocusedChannel(nick);
@@ -349,17 +352,18 @@ public class IrcPanel extends PluginPanel {
         for (ActionListener listener : listeners) {
             nickDropdown.removeActionListener(listener);
         }
-
-        nickDropdown.removeAllItems();
-        nickDropdown.addItem(USERS_HEADER_PREFIX + entries.size() + ")");
-        for (ChannelUserList.Entry entry : entries) {
-            nickDropdown.addItem(entry.getPrefix() + entry.getNick());
-        }
-        nickDropdown.setSelectedIndex(0);
-        nickDropdown.setEnabled(channel != null && channel.startsWith("#"));
-
-        for (ActionListener listener : listeners) {
-            nickDropdown.addActionListener(listener);
+        try {
+            nickDropdown.removeAllItems();
+            nickDropdown.addItem(USERS_HEADER_PREFIX + entries.size() + ")");
+            for (ChannelUserList.Entry entry : entries) {
+                nickDropdown.addItem(entry.getPrefix() + entry.getNick());
+            }
+            nickDropdown.setSelectedIndex(0);
+            nickDropdown.setEnabled(channel != null && channel.startsWith("#"));
+        } finally {
+            for (ActionListener listener : listeners) {
+                nickDropdown.addActionListener(listener);
+            }
         }
     }
 

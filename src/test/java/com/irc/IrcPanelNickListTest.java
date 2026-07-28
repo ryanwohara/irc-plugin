@@ -19,8 +19,12 @@ import static org.junit.Assert.assertTrue;
  *
  * Index 0 is a "Users (N)" header rather than a selectable user, and picking a real entry opens
  * that user's PM buffer then snaps back to the header - it is a menu, not a persistent selection.
- * Repopulation happens from inside the dropdown's own action listener (selecting a nick changes
- * the focused tab, which repopulates), so the listener detach/reattach is load-bearing.
+ * The real protection against reentrant repopulation is the {@code index < 1} guard in
+ * {@code openQueryFromNickDropdown} - every spurious action event a model mutation can fire
+ * arrives at index -1 or 0, which that guard already rejects. The listener detach/reattach in
+ * {@code repopulateNickDropdown} is defensive depth kept to match {@code renameBufferDropdownItem}'s
+ * precedent, not something this test suite can exercise: {@code initializeGui} is the only place
+ * the tab-change listener is installed, and it never runs in a headless test.
  */
 public class IrcPanelNickListTest {
 
@@ -174,10 +178,17 @@ public class IrcPanelNickListTest {
     }
 
     @Test
-    public void dropdownIsEnabledOnChannelBuffers() throws Exception {
-        IrcPanel panel = panelWith("#chan");
+    public void dropdownEnablementFollowsTheFocusedBuffer() throws Exception {
+        // A fresh JComboBox is enabled by default, so only a transition proves setEnabled runs.
+        IrcPanel panel = panelWith("System", "#chan");
+
+        panel.setFocusedChannel("System");
+        panel.setChannelUsers("System", Collections.emptyList());
+        assertFalse("System is not a channel", nickDropdown(panel).isEnabled());
+
+        panel.setFocusedChannel("#chan");
         panel.setChannelUsers("#chan", roster());
-        assertTrue(nickDropdown(panel).isEnabled());
+        assertTrue("#chan is a channel", nickDropdown(panel).isEnabled());
     }
 
     @Test
