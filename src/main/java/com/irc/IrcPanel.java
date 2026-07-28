@@ -201,18 +201,22 @@ public class IrcPanel extends PluginPanel {
         add(inputField, BorderLayout.SOUTH);
         navigationButton = generateNavigationButton();
         SwingUtilities.invokeLater(() -> addChannel("System"));
-        tabbedPane.addChangeListener(e -> {
-            String newChannel = getCurrentChannel();
-            if (newChannel != null && unreadMessages.containsKey(newChannel)) {
-                unreadMessages.put(newChannel, false);
-                int selectedIndex = tabbedPane.getSelectedIndex();
-                if (selectedIndex != -1) {
-                    tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
-                }
-            }
-            repopulateNickDropdown();
-        });
+        tabbedPane.addChangeListener(e -> onFocusedBufferChanged());
         initializeFlashTimer();
+    }
+
+    /** Runs when the focused buffer changes. Package-private so tests can drive it without the
+     *  full initializeGui() Swing setup, which cannot run headless. */
+    void onFocusedBufferChanged() {
+        String newChannel = getCurrentChannel();
+        if (newChannel != null && unreadMessages.containsKey(newChannel)) {
+            unreadMessages.put(newChannel, false);
+            int selectedIndex = tabbedPane.getSelectedIndex();
+            if (selectedIndex != -1) {
+                tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
+            }
+        }
+        repopulateNickDropdown();
     }
 
     public void cycleChannel() {
@@ -285,7 +289,7 @@ public class IrcPanel extends PluginPanel {
                 if (text.startsWith(USERS_HEADER_PREFIX)) {
                     label.setForeground(Color.GRAY);
                 } else {
-                    label.setForeground(nickColor(text));
+                    label.setForeground(nickColorAt(index, text));
                 }
                 return label;
             }
@@ -301,14 +305,28 @@ public class IrcPanel extends PluginPanel {
     private Color nickColor(String label) {
         for (ChannelUserList.Entry entry : displayedEntries) {
             if (label.equals(entry.getPrefix() + entry.getNick())) {
-                try {
-                    return Color.decode(ChannelPane.htmlColorById(ChannelPane.nickColorId(entry.getNick())));
-                } catch (NumberFormatException ignored) {
-                    return Color.WHITE;
-                }
+                return nickColorFor(entry.getNick());
             }
         }
         return Color.WHITE;
+    }
+
+    /** Colours a dropdown row. Prefers the row index the renderer already has; the label scan is
+     *  only for index -1, the collapsed button, which renders one item. */
+    private Color nickColorAt(int index, String label) {
+        List<ChannelUserList.Entry> entries = displayedEntries;
+        if (index >= 1 && index <= entries.size()) {
+            return nickColorFor(entries.get(index - 1).getNick());
+        }
+        return nickColor(label);
+    }
+
+    private Color nickColorFor(String nick) {
+        try {
+            return Color.decode(ChannelPane.htmlColorById(ChannelPane.nickColorId(nick)));
+        } catch (NumberFormatException ignored) {
+            return Color.WHITE;
+        }
     }
 
     /** Opens (or focuses) a PM buffer for the selected nick, then returns to the header. */

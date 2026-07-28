@@ -177,7 +177,11 @@ public class SimpleIrcClient {
             activeBatches.clear();
             activeBatchChannels.clear();
             connected = false;
+            List<String> joined = new ArrayList<>(channels);
             channelUserList.clear();
+            for (String joinedChannel : joined) {
+                fireUsersChanged(joinedChannel);
+            }
             fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
         }
     }
@@ -207,6 +211,7 @@ public class SimpleIrcClient {
             sendRawLine(command);
             channels.remove(channel);
             channelUserList.removeChannel(channel);
+            fireUsersChanged(channel);
         }
     }
 
@@ -367,6 +372,7 @@ public class SimpleIrcClient {
                         fireUsersChanged(channel);
                     } else {
                         channelUserList.removeChannel(channel);
+                        fireUsersChanged(channel);
                     }
                 }
                 break;
@@ -408,6 +414,7 @@ public class SimpleIrcClient {
                         fireUsersChanged(channel);
                     } else {
                         channelUserList.removeChannel(channel);
+                        fireUsersChanged(channel);
                     }
                 }
                 break;

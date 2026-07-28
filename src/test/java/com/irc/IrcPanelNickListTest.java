@@ -216,4 +216,21 @@ public class IrcPanelNickListTest {
         assertEquals(1, dropdown.getItemCount());
         assertEquals("Users (0)", dropdown.getItemAt(0));
     }
+
+    @Test
+    public void switchingToAPmBufferClearsAndDisablesTheDropdown() throws Exception {
+        // The tab-change hook is the single path every buffer switch routes through, and
+        // initializeGui (its only install site) cannot run headless - so drive it directly.
+        IrcPanel panel = panelWith("#chan", "bob");
+        panel.setFocusedChannel("#chan");
+        panel.setChannelUsers("#chan", roster());
+        assertEquals("Users (3)", nickDropdown(panel).getItemAt(0));
+
+        panel.setFocusedChannel("bob");
+        panel.onFocusedBufferChanged();
+
+        assertEquals("a PM buffer has no roster", "Users (0)", nickDropdown(panel).getItemAt(0));
+        assertEquals(1, nickDropdown(panel).getItemCount());
+        assertFalse("and the dropdown is not usable there", nickDropdown(panel).isEnabled());
+    }
 }
