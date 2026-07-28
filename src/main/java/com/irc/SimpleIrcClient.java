@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
 public class SimpleIrcClient {
     private static final Pattern MESSAGE_PATTERN =
             Pattern.compile("^(?:[:@](\\S+) )?(\\S+)(?: ((?:[^:\\s]\\S* ?)*))?(?: ?:(.*))?$");
-    private static final Pattern USER_PREFIXES = Pattern.compile("^[~&@%+].+");
     private static final Pattern NUMERIC = Pattern.compile("^[0-9]+$");
 
     private Socket socket;
@@ -47,7 +46,8 @@ public class SimpleIrcClient {
     private boolean saslEnabled = false;
     @Getter
     private final Set<String> channels = new HashSet<>();
-    private final Map<String, Set<String>> channelUsers = new HashMap<>();
+    private final ModeSpec modeSpec = ModeSpec.defaults();
+    private final ChannelUserList channelUserList = new ChannelUserList(modeSpec);
 
     private String host;
     private int port;
@@ -177,6 +177,7 @@ public class SimpleIrcClient {
             activeBatches.clear();
             activeBatchChannels.clear();
             connected = false;
+            channelUserList.clear();
             fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
         }
     }
@@ -205,7 +206,7 @@ public class SimpleIrcClient {
             }
             sendRawLine(command);
             channels.remove(channel);
-            channelUsers.remove(channel);
+            channelUserList.removeChannel(channel);
         }
     }
 
@@ -347,7 +348,8 @@ public class SimpleIrcClient {
                 if (!params.isEmpty()) {
                     String channel = params.get(0);
                     fireEvent(new IrcEvent(IrcEvent.Type.JOIN, sourceNick, channel, null, null));
-                    channelUsers.computeIfAbsent(channel, k -> new HashSet<>()).add(sourceNick);
+                    channelUserList.join(channel, sourceNick);
+                    fireUsersChanged(channel);
                     if (sourceNick.equals(nick) && capHistorySupported) {
                         sendRawLine("CHATHISTORY LATEST " + channel + " * 100");
                     }
@@ -361,11 +363,10 @@ public class SimpleIrcClient {
 
                     if (!sourceNick.equals(nick)) {
                         fireEvent(new IrcEvent(IrcEvent.Type.PART, sourceNick, channel, reason, null));
-                        if (channelUsers.containsKey(channel)) {
-                            channelUsers.get(channel).remove(sourceNick);
-                        }
+                        channelUserList.part(channel, sourceNick);
+                        fireUsersChanged(channel);
                     } else {
-                        channelUsers.remove(channel);
+                        channelUserList.removeChannel(channel);
                     }
                 }
                 break;
@@ -373,15 +374,10 @@ public class SimpleIrcClient {
             case "QUIT":
                 String quitMessage = params.isEmpty() ? "" : params.get(0);
 
-                List<String> userChannels = new ArrayList<>();
-                for (Map.Entry<String, Set<String>> entry : channelUsers.entrySet()) {
-                    if (entry.getValue().contains(sourceNick)) {
-                        userChannels.add(entry.getKey());
-                    }
-                }
+                List<String> userChannels = channelUserList.quit(sourceNick);
                 fireEvent(new IrcEvent(IrcEvent.Type.QUIT, sourceNick, null, quitMessage, String.join(",", userChannels)));
-                for (Set<String> users : channelUsers.values()) {
-                    users.remove(sourceNick);
+                for (String quitChannel : userChannels) {
+                    fireUsersChanged(quitChannel);
                 }
                 break;
 
@@ -392,17 +388,10 @@ public class SimpleIrcClient {
                         this.nick = newNick;
                     }
 
-                    userChannels = new ArrayList<>();
-                    for (Map.Entry<String, Set<String>> entry : channelUsers.entrySet()) {
-                        if (entry.getValue().contains(sourceNick)) {
-                            userChannels.add(entry.getKey());
-                        }
-                    }
+                    userChannels = channelUserList.rename(sourceNick, newNick);
                     fireEvent(new IrcEvent(IrcEvent.Type.NICK_CHANGE, sourceNick, null, newNick, String.join(",", userChannels)));
-                    for (Set<String> users : channelUsers.values()) {
-                        if (users.remove(sourceNick)) {
-                            users.add(newNick);
-                        }
+                    for (String renamedChannel : userChannels) {
+                        fireUsersChanged(renamedChannel);
                     }
                 }
                 break;
@@ -415,11 +404,10 @@ public class SimpleIrcClient {
 
                     fireEvent(new IrcEvent(IrcEvent.Type.KICK, sourceNick, channel, kickedUser + " " + kickMessage, null));
                     if (!kickedUser.equals(nick)) {
-                        if (channelUsers.containsKey(channel)) {
-                            channelUsers.get(channel).remove(kickedUser);
-                        }
+                        channelUserList.kick(channel, kickedUser);
+                        fireUsersChanged(channel);
                     } else {
-                        channelUsers.remove(channel);
+                        channelUserList.removeChannel(channel);
                     }
                 }
                 break;
@@ -446,6 +434,8 @@ public class SimpleIrcClient {
 
                     if (target.startsWith("#")) {
                         fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_MODE, "* " + sourceNick + " sets mode(s)", target, modeString.toString().trim(), null));
+                        channelUserList.applyModeChange(target, params.subList(1, params.size()));
+                        fireUsersChanged(target);
                     } else {
                         fireEvent(new IrcEvent(IrcEvent.Type.USER_MODE, sourceNick, target, modeString.toString().trim(), null));
                     }
@@ -587,6 +577,11 @@ public class SimpleIrcClient {
                 connected = true;
                 fireEvent(new IrcEvent(IrcEvent.Type.REGISTERED, null, null, null, null));
                 break;
+            case 5: // RPL_ISUPPORT
+                if (params.size() >= 2) {
+                    modeSpec.applyIsupport(params.subList(1, params.size()));
+                }
+                break;
             case 301:
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is away: %s", params.get(1), params.get(2)), null));
@@ -635,12 +630,15 @@ public class SimpleIrcClient {
                 if (params.size() >= 4) {
                     String channel = params.get(2);
                     String[] users = params.get(3).split(" ");
-                    Set<String> channelUserSet = channelUsers.computeIfAbsent(channel, k -> new HashSet<>());
-                    for (String user : users) {
-                        if (!user.isEmpty())
-                            channelUserSet.add(USER_PREFIXES.matcher(user).matches() ? user.substring(1) : user);
-                    }
+                    channelUserList.addNames(channel, java.util.Arrays.asList(users));
                     fireEvent(new IrcEvent(IrcEvent.Type.NAMES, null, channel, String.join(" ", users), null));
+                }
+                break;
+            case 366: // RPL_ENDOFNAMES
+                if (params.size() >= 2) {
+                    String channel = params.get(1);
+                    channelUserList.endNames(channel);
+                    fireUsersChanged(channel);
                 }
                 break;
             case 433:
@@ -690,6 +688,16 @@ public class SimpleIrcClient {
         listeners.remove(listener);
     }
 
+    /** Current roster for a channel, sorted by rank then nick. Empty when unknown. */
+    List<ChannelUserList.Entry> getChannelUsers(String channel) {
+        return channelUserList.snapshot(channel);
+    }
+
+    /** Fires USERS_CHANGED for a channel whose roster just changed. */
+    private void fireUsersChanged(String channel) {
+        fireEvent(new IrcEvent(IrcEvent.Type.USERS_CHANGED, null, channel, null, null));
+    }
+
     private final List<Runnable> pendingCommands = new CopyOnWriteArrayList<>();
 
     /**
@@ -726,7 +734,7 @@ public class SimpleIrcClient {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
-            HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED
+            HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED, USERS_CHANGED
         }
 
         private final Type type;
