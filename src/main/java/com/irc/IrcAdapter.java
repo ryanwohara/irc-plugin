@@ -6,10 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.swing.*;
 import java.awt.*;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -20,7 +18,6 @@ public class IrcAdapter {
     @Getter
     private SimpleIrcClient client;
     private String currentNick;
-    private final Map<String, Set<String>> channelUsers = new HashMap<>();
     private Consumer<IrcMessage> messageConsumer;
     private IrcConfig config;
     private IrcPanel panel;
@@ -314,6 +311,15 @@ public class IrcAdapter {
 
                 case NAMES:
                     processMessage(new IrcMessage(event.getTarget(), "Users", event.getMessage(), IrcMessage.MessageType.JOIN, Instant.now()));
+                    break;
+
+                case USERS_CHANGED:
+                    if (panel != null) {
+                        String usersChannel = event.getTarget();
+                        // Snapshot on the IRC thread; it is immutable, so the EDT can hold it.
+                        List<ChannelUserList.Entry> users = client.getChannelUsers(usersChannel);
+                        SwingUtilities.invokeLater(() -> panel.setChannelUsers(usersChannel, users));
+                    }
                     break;
 
                 case NICK_IN_USE:
