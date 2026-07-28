@@ -605,9 +605,7 @@ public class IrcPanel extends PluginPanel {
             }
             String sender = escapeHtml4(message.getSender());
             if (config.colorizedNicks()) {
-                String[] viableColorIds = new String[]{"02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13"};
-                String colorId = viableColorIds[Math.abs(sender.hashCode()) % viableColorIds.length];
-                String senderColor = htmlColorById(colorId);
+                String senderColor = htmlColorById(nickColorId(message.getSender()));
                 sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);
             }
             return String.format("<div style='color: %s'>%s%s: %s</div>", color, timeStamp, sender, formatMessage(message.getContent()));
@@ -683,6 +681,27 @@ public class IrcPanel extends PluginPanel {
                 default:
                     return extendedColorById(id);
             }
+        }
+
+        /**
+         * Palette nicks are colored from: the classic 02-13 plus the extended palette's vivid and
+         * pastel rows 64-87. Near-black rows (16-39) and dark grays (88-93) are excluded as
+         * unreadable on the dark panel. Shared with the nicklist dropdown so a nick looks the
+         * same in both places.
+         */
+        private static final String[] NICK_COLOR_IDS = {
+                "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13",
+                "64", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74", "75",
+                "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87"
+        };
+
+        /**
+         * Deterministic palette code for a nick. Uses floorMod rather than abs: for a nick whose
+         * hashCode is Integer.MIN_VALUE, Math.abs returns Integer.MIN_VALUE again and the index
+         * goes negative.
+         */
+        static String nickColorId(String nick) {
+            return NICK_COLOR_IDS[Math.floorMod(nick.hashCode(), NICK_COLOR_IDS.length)];
         }
 
         /**
