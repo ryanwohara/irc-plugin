@@ -186,6 +186,16 @@ public class ModeSpecTest {
         assertFalse("Z is now a known flag mode", spec.takesParameter('Z', true));
         assertTrue(spec.takesParameter('b', true));
     }
+
+    @Test
+    public void malformedChanmodesValueLeavesThePreviousTableIntact() {
+        // A truncated token must not blank out the groups it omits - that would reclassify
+        // parameter-taking modes as parameterless, the exact misalignment this class prevents.
+        ModeSpec spec = ModeSpec.defaults();
+        spec.applyIsupport(Collections.singletonList("CHANMODES=b,k"));
+        assertTrue("type C mode l still takes a parameter when adding", spec.takesParameter('l', true));
+        assertTrue("type A mode b still takes a parameter", spec.takesParameter('b', true));
+    }
 }
 ```
 
@@ -288,12 +298,20 @@ class ModeSpec {
         }
     }
 
-    /** Parses {@code A,B,C,D}. Type D is not stored - it is the "no parameter" default. */
+    /**
+     * Parses {@code A,B,C,D}. Type D is not stored - it is the "no parameter" default.
+     * Leaves the current table untouched if the value does not parse: a truncated token would
+     * otherwise blank out groups and silently reclassify parameter-taking modes as parameterless.
+     * Servers may append extra groups as extensions, so four or more are accepted.
+     */
     private void parseChanmodes(String value) {
         String[] groups = value.split(",", -1);
-        typeA = groups.length > 0 ? groups[0] : "";
-        typeB = groups.length > 1 ? groups[1] : "";
-        typeC = groups.length > 2 ? groups[2] : "";
+        if (groups.length < 4) {
+            return;
+        }
+        typeA = groups[0];
+        typeB = groups[1];
+        typeC = groups[2];
     }
 
     boolean isPrefixMode(char modeLetter) {
@@ -546,9 +564,11 @@ public class ChannelUserListTest {
 
     @Test
     public void removingATypeCModeConsumesNoParameter() {
-        // "l" (limit) takes a parameter when set but not when removed, so "bob" belongs to "o".
+        // "l" (limit) takes a parameter when set but not when removed, so the lone parameter
+        // "bob" belongs to "+o". An implementation that wrongly consumed one for "-l" would
+        // leave "+o" with nothing and fail to op anyone.
         names("#chan", "bob");
-        users.applyModeChange("#chan", Arrays.asList("-lo", "bob"));
+        users.applyModeChange("#chan", Arrays.asList("-l+o", "bob"));
         assertEquals(Collections.singletonList("@bob"), nicks("#chan"));
     }
 
