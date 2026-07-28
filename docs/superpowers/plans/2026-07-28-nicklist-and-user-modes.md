@@ -1621,7 +1621,8 @@ git commit -m "feat: Feed membership events into the channel user list"
 - **Index into the entry list, do not parse the label.** The selected index maps to `displayedEntries.get(index - 1)` (index `0` is the header), so the prefix never has to be stripped from a string and the panel stays free of prefix knowledge.
 - **Detach listeners while repopulating.** Selecting a nick focuses the new PM buffer, which fires the tab-change listener, which repopulates the dropdown — all while still inside the dropdown's own `ActionListener`. The existing `renameBufferDropdownItem` uses the same detach/reattach pattern for the same reason.
 - **`repopulateNickDropdown` must tolerate a null `tabbedPane`**, since `setChannelUsers` can arrive before `initializeGui` runs.
-- Add `import java.util.concurrent.ConcurrentHashMap;` — `IrcPanel` already imports `java.util.*` and `java.util.List`.
+- **No new imports are needed.** `IrcPanel` already imports `java.util.*` and `java.util.List`, which covers `Collections`, `Map` and `TreeMap`.
+- **Key the roster map case-insensitively.** IRC channel names are case-insensitive. The roster's channel name arrives from a server numeric while the tab title comes from a JOIN echo; a server that canonicalises those differently would file the roster under a key the panel never looks up, and the dropdown would silently never populate for that channel.
 
 **How to build a testable `IrcPanel` (verified against the real build):**
 
@@ -1805,6 +1806,15 @@ public class IrcPanelNickListTest {
     }
 
     @Test
+    public void aRosterPushedWithDifferentChannelCasingStillShows() throws Exception {
+        // The tab title comes from a JOIN echo; the roster's channel comes from a 366 numeric.
+        // A server that canonicalises those differently must not silently break the dropdown.
+        IrcPanel panel = panelWith("#chan");
+        panel.setChannelUsers("#CHAN", roster());
+        assertEquals("Users (3)", nickDropdown(panel).getItemAt(0));
+    }
+
+    @Test
     public void dropdownIsDisabledOnNonChannelBuffers() throws Exception {
         IrcPanel panel = panelWith("System");
         panel.setChannelUsers("System", Collections.emptyList());
@@ -1861,16 +1871,19 @@ In `IrcPanel.java`, next to the existing `bufferDropdown` declaration (line 63),
 
 ```java
     private static final String USERS_HEADER_PREFIX = "Users (";
-    private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots = new ConcurrentHashMap<>();
+    /**
+     * Rosters by channel, keyed case-insensitively: IRC channel names are case-insensitive, and a
+     * server that canonicalises casing differently between its JOIN echo and its 366 numeric would
+     * otherwise file the roster under a key this panel never looks up - the dropdown would simply
+     * never populate. Synchronized because the roster is pushed from the IRC thread.
+     */
+    private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots =
+            Collections.synchronizedMap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
     private List<ChannelUserList.Entry> displayedEntries = Collections.emptyList();
     private final JComboBox<String> nickDropdown = getNickComboBox();
 ```
 
-Add the import:
-
-```java
-import java.util.concurrent.ConcurrentHashMap;
-```
+No new import is needed — `IrcPanel` already imports `java.util.*`, which covers `Collections`, `Map` and `TreeMap`.
 
 - [ ] **Step 4: Add the combo box builder and its behavior**
 
@@ -1931,7 +1944,9 @@ Add these methods near `getBufferComboBox()`:
     /** Pushes a fresh roster in. Only redraws when it is for the buffer currently on screen. */
     public void setChannelUsers(String channel, List<ChannelUserList.Entry> entries) {
         channelUserSnapshots.put(channel, entries);
-        if (tabbedPane != null && channel.equals(getCurrentChannel())) {
+        // equalsIgnoreCase, not equals: the channel name here comes from a server numeric and the
+        // tab title from a JOIN echo, which need not agree on casing.
+        if (tabbedPane != null && channel.equalsIgnoreCase(getCurrentChannel())) {
             repopulateNickDropdown();
         }
     }
@@ -2007,7 +2022,7 @@ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ./gradlew test --tests 'com.irc.IrcPanelNickListTest'
 ```
 
-Expected: PASS, 12 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 7: Run the full suite**
 
