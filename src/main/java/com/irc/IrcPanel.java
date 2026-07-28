@@ -64,6 +64,18 @@ public class IrcPanel extends PluginPanel {
     private final JTextPane displayPane = new JTextPane();
     private final InputHistory inputHistory = new InputHistory(20);
 
+    private static final String USERS_HEADER_PREFIX = "Users (";
+    /**
+     * Rosters by channel, keyed case-insensitively: IRC channel names are case-insensitive, and a
+     * server that canonicalises casing differently between its JOIN echo and its 366 numeric would
+     * otherwise file the roster under a key this panel never looks up - the dropdown would simply
+     * never populate. Synchronized because the roster is pushed from the IRC thread.
+     */
+    private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots =
+            Collections.synchronizedMap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
+    private List<ChannelUserList.Entry> displayedEntries = Collections.emptyList();
+    private final JComboBox<String> nickDropdown = getNickComboBox();
+
     public ArrayList<String> getChannelNames() {
         Map<String, ChannelPane> panes = getChannelPanes();
         synchronized (panes) {
@@ -159,6 +171,7 @@ public class IrcPanel extends PluginPanel {
         row1.add(addButton);
         row1.add(removeButton);
         row1.add(fontComboBox);
+        row2.add(nickDropdown);
         row2.add(bufferDropdown);
         controlPanel.add(row1);
         controlPanel.add(row2);
@@ -195,6 +208,7 @@ public class IrcPanel extends PluginPanel {
                     tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
                 }
             }
+            repopulateNickDropdown();
         });
         initializeFlashTimer();
     }
@@ -254,6 +268,99 @@ public class IrcPanel extends PluginPanel {
         });
 
         return bufferComboBox;
+    }
+
+    private JComboBox<String> getNickComboBox() {
+        final JComboBox<String> combo = new JComboBox<>();
+        combo.setBackground(Color.DARK_GRAY);
+        combo.setForeground(Color.WHITE);
+        combo.setPreferredSize(new Dimension(90, 25));
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                String text = value == null ? "" : value.toString();
+                if (text.startsWith(USERS_HEADER_PREFIX)) {
+                    label.setForeground(Color.GRAY);
+                } else {
+                    label.setForeground(nickColor(text));
+                }
+                return label;
+            }
+        });
+        combo.addActionListener(e -> openQueryFromNickDropdown());
+        return combo;
+    }
+
+    /**
+     * Colors a dropdown label the same way the chat pane colors that nick. The label carries a
+     * prefix character, so the raw nick is taken from the backing entry rather than the text.
+     */
+    private Color nickColor(String label) {
+        for (ChannelUserList.Entry entry : displayedEntries) {
+            if (label.equals(entry.getPrefix() + entry.getNick())) {
+                try {
+                    return Color.decode(ChannelPane.htmlColorById(ChannelPane.nickColorId(entry.getNick())));
+                } catch (NumberFormatException ignored) {
+                    return Color.WHITE;
+                }
+            }
+        }
+        return Color.WHITE;
+    }
+
+    /** Opens (or focuses) a PM buffer for the selected nick, then returns to the header. */
+    private void openQueryFromNickDropdown() {
+        int index = nickDropdown.getSelectedIndex();
+        if (index < 1 || index > displayedEntries.size()) {
+            return;
+        }
+        String nick = displayedEntries.get(index - 1).getNick();
+        nickDropdown.setSelectedIndex(0);
+        addChannel(nick);
+        setFocusedChannel(nick);
+    }
+
+    /** Pushes a fresh roster in. Only redraws when it is for the buffer currently on screen. */
+    public void setChannelUsers(String channel, List<ChannelUserList.Entry> entries) {
+        channelUserSnapshots.put(channel, entries);
+        // equalsIgnoreCase, not equals: the channel name here comes from a server numeric and the
+        // tab title from a JOIN echo, which need not agree on casing.
+        if (tabbedPane != null && channel.equalsIgnoreCase(getCurrentChannel())) {
+            repopulateNickDropdown();
+        }
+    }
+
+    /**
+     * Rebuilds the dropdown for the focused buffer. Action listeners are detached for the
+     * duration: this runs from inside the dropdown's own listener whenever selecting a nick
+     * changes the focused tab.
+     */
+    private void repopulateNickDropdown() {
+        if (tabbedPane == null) {
+            return;
+        }
+        String channel = getCurrentChannel();
+        List<ChannelUserList.Entry> entries =
+                channelUserSnapshots.getOrDefault(channel, Collections.emptyList());
+        displayedEntries = entries;
+
+        ActionListener[] listeners = nickDropdown.getActionListeners();
+        for (ActionListener listener : listeners) {
+            nickDropdown.removeActionListener(listener);
+        }
+
+        nickDropdown.removeAllItems();
+        nickDropdown.addItem(USERS_HEADER_PREFIX + entries.size() + ")");
+        for (ChannelUserList.Entry entry : entries) {
+            nickDropdown.addItem(entry.getPrefix() + entry.getNick());
+        }
+        nickDropdown.setSelectedIndex(0);
+        nickDropdown.setEnabled(channel != null && channel.startsWith("#"));
+
+        for (ActionListener listener : listeners) {
+            nickDropdown.addActionListener(listener);
+        }
     }
 
     private JComboBox<String> getStringJComboBox() {
@@ -404,6 +511,7 @@ public class IrcPanel extends PluginPanel {
         channelPanes.remove(channel);
         unreadMessages.remove(channel);
         bufferDropdown.removeItem(channel);
+        channelUserSnapshots.remove(channel);
     }
 
     public void addMessage(IrcMessage message) {
