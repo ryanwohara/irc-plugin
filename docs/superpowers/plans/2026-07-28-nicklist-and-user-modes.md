@@ -2159,3 +2159,58 @@ git commit -m "feat: Push channel rosters to the nicklist"
 - `IrcConfig` has exactly two abstract methods, `username()` and `password()`; everything else is `default`. A two-method anonymous stub compiles.
 - Driving `addChannel` on a stub-configured panel keeps `channelPanes` aligned with `tabbedPane` — a scratch run produced `channelNames = [#chan, bob]` with `getCurrentChannel()` correctly reporting `bob`.
 - `config.channel()` defaults to `#rshelp`, which auto-focuses on add; fixtures avoid that name.
+
+---
+
+## Outstanding After Implementation
+
+Implemented on branch `feat/nicklist` (13 commits, `cac9737..d96c992`), 141 tests passing. Each task
+passed a scoped review; a whole-branch review returned **ready with caveats**, and its three
+Important findings were fixed in one wave (`d96c992`) and re-reviewed clean.
+
+### Not yet verified — manual GUI smoke test
+
+The plan's Task 6 smoke test was **not performed**: it needs a graphical display and a live IRC
+server. Nothing in the automated suite covers the items below.
+
+1. **Layout / width budget.** `nickDropdown` (90px preferred) sits visibly left of `bufferDropdown`
+   and both fit RuneLite's ~225px panel without `row2` wrapping to two lines. This is the design's
+   motivating constraint. If they overflow, reduce the `90` in `setPreferredSize`.
+2. **Buffer switching.** `#chan` → PM → `System` → back: the list follows, the header count is
+   right, and the combo greys out on non-channel buffers. Confirm it also fires for buffer-dropdown
+   selection and `/page` cycling, not just tab clicks.
+3. **Real popup selection.** Pick a nick by mouse (not `setSelectedIndex`): the PM buffer opens and
+   focuses, the combo snaps back to the header, no stuck popup, no duplicate action event.
+4. **Renderer colour parity.** A nick's colour in the dropdown matches the chat pane, and `@bob`
+   matches `bob` — the prefix must be stripped before hashing. Entirely untested.
+5. **Live ISUPPORT.** On a real server a halfop renders `%` and an owner `~`, ordering is
+   `~ & @ % +` then alphabetical.
+6. **Large-channel responsiveness.** Join a several-hundred-user channel and open the popup; then
+   have someone set `+b` and watch for rebuild churn.
+7. **Kick behaviour.** Get kicked with the tab focused; the list must clear to `Users (0)`.
+8. **Regression guard.** `/names` still prints the raw list to chat and channel MODE changes still
+   print, alongside the new dropdown updates.
+
+### Deliberately deferred
+
+None of these block merge; all were reviewed and triaged.
+
+| Item | Why deferred |
+|---|---|
+| A lost `366` lets the next NAMES round merge instead of replace | Self-corrects on the following round; `removeChannel`/`clear` bound it. `/names` is the stated recovery. |
+| Mid-NAMES membership events are discarded by the pending→live swap | Correct by design; the window is one round trip. |
+| `Entry.rank` uses `Integer.MAX_VALUE` as an undeclared sentinel for mode-less users | Only consumed by the comparator; no consumer does arithmetic on it. One javadoc line when convenient. |
+| `ChannelUserList.join` does not guard an empty nick although `addNames` does | Low reachability; the two entry points merely disagree. |
+| `startsWith("#")` excludes `&`, `!`, `+` channel types | Pre-existing plugin-wide convention; changing it is its own feature. |
+| MODE fires `USERS_CHANGED` for non-membership modes (`+b`, `+k`, `+l`) | Harmless redraw churn, much cheaper since the renderer became O(1) per row. |
+| `ChannelUserList` folds case with `toLowerCase(Locale.ROOT)` while the spec says ASCII | Agree for ASCII channel names; contract and implementation have drifted in wording only. |
+| `ModeSpec` is unsynchronized | Reader-thread-confined in practice, but nothing states or enforces it. |
+| Renderer colour-parity path and `removeChannel` snapshot eviction have no test | Covered by inspection; item 4 of the smoke test exercises the first. |
+
+### Known-unverifiable
+
+The dropdown's listener detach/reattach in `repopulateNickDropdown` is **not** reachable by any
+test: `initializeGui` is its only install site and cannot run headless. It is retained as defensive
+depth. The actual protection against reentrancy is the `index < 1` guard in
+`openQueryFromNickDropdown`, and the `try/finally` is what prevents a mid-rebuild throw from
+permanently dropping the listener.
