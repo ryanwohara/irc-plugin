@@ -127,7 +127,11 @@ public class IrcPanel extends PluginPanel {
         JPanel controlPanel = new JPanel();
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Two equal columns rather than FlowLayout: the panel is only ~225px wide, and a long
+        // channel name made the buffer dropdown wide enough to push the pair onto a second row.
+        // A grid splits the width evenly and clips inside a cell instead of wrapping. Fill order
+        // is still left-to-right, so the nick dropdown stays left of the buffer dropdown.
+        JPanel row2 = new JPanel(new GridLayout(1, 2, 2, 0));
 
         JButton addButton = new JButton("+");
         JButton removeButton = new JButton("-");
@@ -280,8 +284,9 @@ public class IrcPanel extends PluginPanel {
         final JComboBox<String> combo = new JComboBox<>();
         combo.setBackground(Color.DARK_GRAY);
         combo.setForeground(Color.WHITE);
-        // 90px clipped the header to "Users (...". 110 matches the font combo in row1, which is
-        // already known to fit this panel, and leaves room for a three-digit count.
+        // row2's GridLayout decides the width (~105px per column), so this mainly fixes the height.
+        // "Users (999)" measures ~89px including the combo's chrome, so the column has headroom;
+        // 90px was on the clip boundary, which is why the header read "Users (...".
         combo.setPreferredSize(new Dimension(110, 25));
         combo.setRenderer(new DefaultListCellRenderer() {
             @Override
