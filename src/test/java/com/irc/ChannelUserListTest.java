@@ -130,6 +130,26 @@ public class ChannelUserListTest {
     }
 
     @Test
+    public void quitReturnsTheChannelUsingTheServersCasing() {
+        // Callers match these against UI state that compares case-sensitively, so the server's
+        // casing must survive the lowercased internal key.
+        names("#One", "erin");
+        assertEquals(Collections.singletonList("#One"), users.quit("erin"));
+    }
+
+    @Test
+    public void renameReturnsTheChannelUsingTheServersCasing() {
+        names("#One", "bob");
+        assertEquals(Collections.singletonList("#One"), users.rename("bob", "robert"));
+    }
+
+    @Test
+    public void channelLookupIsCaseInsensitive() {
+        names("#One", "@bob");
+        assertEquals(Collections.singletonList("@bob"), nicks("#one"));
+    }
+
+    @Test
     public void modeGrantsOp() {
         names("#chan", "bob");
         users.applyModeChange("#chan", Arrays.asList("+o", "bob"));
