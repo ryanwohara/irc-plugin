@@ -1635,6 +1635,7 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -1798,9 +1799,19 @@ public class IrcPanelNickListTest {
     }
 
     @Test
-    public void setChannelUsersBeforeTheGuiExistsDoesNotThrow() {
+    @SuppressWarnings("unchecked")
+    public void aRosterArrivingBeforeTheGuiExistsIsStoredNotDropped() throws Exception {
+        // setChannelUsers can arrive from the IRC thread before initializeGui has run. It must
+        // skip the redraw without throwing, and still keep the roster for when the GUI catches up.
         IrcPanel panel = new IrcPanel(); // tabbedPane is still null
         panel.setChannelUsers("#chan", roster());
+
+        Field field = IrcPanel.class.getDeclaredField("channelUserSnapshots");
+        field.setAccessible(true);
+        Map<String, List<ChannelUserList.Entry>> snapshots =
+                (Map<String, List<ChannelUserList.Entry>>) field.get(panel);
+
+        assertEquals("roster kept despite no GUI to draw it on", 3, snapshots.get("#chan").size());
     }
 
     @Test
