@@ -120,4 +120,12 @@ public class ModeSpecTest {
         assertFalse("Z is now a known flag mode", spec.takesParameter('Z', true));
         assertTrue(spec.takesParameter('b', true));
     }
+
+    @Test
+    public void malformedChanmodesValueLeavesThePreviousTableIntact() {
+        ModeSpec spec = ModeSpec.defaults();
+        spec.applyIsupport(Collections.singletonList("CHANMODES=b,k"));
+        assertTrue("type C mode l still takes a parameter when adding", spec.takesParameter('l', true));
+        assertTrue("type A mode b still takes a parameter", spec.takesParameter('b', true));
+    }
 }

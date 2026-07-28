@@ -83,12 +83,15 @@ class ModeSpec {
         }
     }
 
-    /** Parses {@code A,B,C,D}. Type D is not stored - it is the "no parameter" default. */
+    /** Parses {@code A,B,C,D}. Type D is not stored - it is the "no parameter" default. Leaves the current table untouched if it does not parse. */
     private void parseChanmodes(String value) {
         String[] groups = value.split(",", -1);
-        typeA = groups.length > 0 ? groups[0] : "";
-        typeB = groups.length > 1 ? groups[1] : "";
-        typeC = groups.length > 2 ? groups[2] : "";
+        if (groups.length < 4) {
+            return;
+        }
+        typeA = groups[0];
+        typeB = groups[1];
+        typeC = groups[2];
     }
 
     boolean isPrefixMode(char modeLetter) {
