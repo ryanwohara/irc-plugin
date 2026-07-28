@@ -280,7 +280,9 @@ public class IrcPanel extends PluginPanel {
         final JComboBox<String> combo = new JComboBox<>();
         combo.setBackground(Color.DARK_GRAY);
         combo.setForeground(Color.WHITE);
-        combo.setPreferredSize(new Dimension(90, 25));
+        // 90px clipped the header to "Users (...". 110 matches the font combo in row1, which is
+        // already known to fit this panel, and leaves room for a three-digit count.
+        combo.setPreferredSize(new Dimension(110, 25));
         combo.setRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
