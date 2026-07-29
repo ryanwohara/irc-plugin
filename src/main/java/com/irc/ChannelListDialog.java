@@ -15,8 +15,10 @@ import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableRowSorter;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Window;
 import java.awt.event.KeyEvent;
@@ -63,6 +65,7 @@ public class ChannelListDialog extends JDialog {
         table.getColumnModel().getColumn(0).setPreferredWidth(180);
         table.getColumnModel().getColumn(1).setPreferredWidth(60);
         table.getColumnModel().getColumn(2).setPreferredWidth(440);
+        table.getColumnModel().getColumn(2).setCellRenderer(new TopicRenderer());
 
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -171,5 +174,25 @@ public class ChannelListDialog extends JDialog {
         }
         ChannelListEntry entry = model.getEntryAt(table.convertRowIndexToModel(viewRow));
         onJoin.accept(entry.getName(), "");
+    }
+
+    /**
+     * Puts the full topic in a tooltip. Most real topics are longer than the Topic column is wide
+     * and render as "Ask about quest hel...", with no other way to read the rest.
+     *
+     * Package-private rather than private so the tooltip can be asserted without constructing this
+     * dialog, which needs a {@link Window} and so throws on a headless machine.
+     */
+    static class TopicRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
+            Component rendered = super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column);
+            String text = value != null ? value.toString() : "";
+            // Null, not "": an empty tooltip still pops an empty box open on hover.
+            setToolTipText(text.isEmpty() ? null : text);
+            return rendered;
+        }
     }
 }

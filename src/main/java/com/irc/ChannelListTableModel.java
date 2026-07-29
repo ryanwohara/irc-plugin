@@ -13,19 +13,56 @@ import java.util.Locale;
  * This is deliberately separate from {@link ChannelListDialog} so it can be unit-tested without
  * constructing a Window, which throws HeadlessException on a headless machine.
  *
- * Topics are stripped of IRC formatting codes once, up front. The filter then matches the same
- * stripped text the user is looking at, rather than raw codes they cannot see.
+ * Topics are stripped of IRC formatting codes once, up front - when the entries are set, not when
+ * a cell is painted or a filter is applied. The filter then matches the same stripped text the
+ * user is looking at, rather than raw codes they cannot see, without re-running the stripper per
+ * row per keystroke: at the 20,000-row cap that would be 20,000 regex passes for every character
+ * typed into the filter box, all of it on the EDT.
  */
 public class ChannelListTableModel extends AbstractTableModel {
     private static final String[] COLUMNS = {"Channel", "Users", "Topic"};
 
-    private List<ChannelListEntry> allEntries = Collections.emptyList();
-    private List<ChannelListEntry> shownEntries = Collections.emptyList();
+    private List<Row> allRows = Collections.emptyList();
+    private List<Row> shownRows = Collections.emptyList();
     private String filter = "";
+
+    /**
+     * An entry plus everything derived from it that the table and the filter would otherwise
+     * recompute on every repaint and every keystroke.
+     *
+     * The precomputation lives here rather than on {@link ChannelListEntry} because that class is
+     * immutable and shared with the client's LIST snapshot, which has no interest in display
+     * concerns.
+     */
+    private static final class Row {
+        private final ChannelListEntry entry;
+        private final String topic;
+        private final String nameLower;
+        private final String topicLower;
+
+        private Row(ChannelListEntry entry) {
+            this.entry = entry;
+            this.topic = displayTopic(entry);
+            String name = entry.getName() != null ? entry.getName() : "";
+            this.nameLower = name.toLowerCase(Locale.ROOT);
+            this.topicLower = this.topic.toLowerCase(Locale.ROOT);
+        }
+
+        /** {@code needle} must already be trimmed, lower-cased and non-empty. */
+        private boolean matches(String needle) {
+            return nameLower.contains(needle) || topicLower.contains(needle);
+        }
+    }
 
     /** Replaces the backing data and reapplies the active filter. */
     public void setEntries(List<ChannelListEntry> entries) {
-        allEntries = entries != null ? entries : Collections.<ChannelListEntry>emptyList();
+        List<Row> rows = new ArrayList<>(entries != null ? entries.size() : 0);
+        if (entries != null) {
+            for (ChannelListEntry entry : entries) {
+                rows.add(new Row(entry));
+            }
+        }
+        allRows = rows;
         applyFilter();
     }
 
@@ -36,27 +73,35 @@ public class ChannelListTableModel extends AbstractTableModel {
     }
 
     private void applyFilter() {
-        List<ChannelListEntry> matched = new ArrayList<>();
-        for (ChannelListEntry entry : allEntries) {
-            if (matches(entry, filter)) {
-                matched.add(entry);
+        String needle = needle(filter);
+        if (needle.isEmpty()) {
+            shownRows = allRows;
+        } else {
+            List<Row> matched = new ArrayList<>();
+            for (Row row : allRows) {
+                if (row.matches(needle)) {
+                    matched.add(row);
+                }
             }
+            shownRows = matched;
         }
-        shownEntries = matched;
         fireTableDataChanged();
     }
 
-    /** Case-insensitive substring match against the channel name and the stripped topic. */
+    /** The comparable form of a filter string. Empty means "match everything". */
+    private static String needle(String filter) {
+        return filter == null ? "" : filter.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Case-insensitive substring match against the channel name and the stripped topic.
+     *
+     * Off the hot path - the model filters against precomputed rows - but kept as the single
+     * definition of the rule, and testable without a table.
+     */
     public static boolean matches(ChannelListEntry entry, String filter) {
-        if (filter == null || filter.trim().isEmpty()) {
-            return true;
-        }
-        String needle = filter.trim().toLowerCase(Locale.ROOT);
-        String name = entry.getName() != null ? entry.getName() : "";
-        if (name.toLowerCase(Locale.ROOT).contains(needle)) {
-            return true;
-        }
-        return displayTopic(entry).toLowerCase(Locale.ROOT).contains(needle);
+        String needle = needle(filter);
+        return needle.isEmpty() || new Row(entry).matches(needle);
     }
 
     /** The topic as the user sees it: formatting codes removed, never null. */
@@ -71,20 +116,20 @@ public class ChannelListTableModel extends AbstractTableModel {
 
     /** The entry behind a model row. Callers must convert view rows first. */
     public ChannelListEntry getEntryAt(int rowIndex) {
-        return shownEntries.get(rowIndex);
+        return shownRows.get(rowIndex).entry;
     }
 
     public int getTotalCount() {
-        return allEntries.size();
+        return allRows.size();
     }
 
     public int getShownCount() {
-        return shownEntries.size();
+        return shownRows.size();
     }
 
     @Override
     public int getRowCount() {
-        return shownEntries.size();
+        return shownRows.size();
     }
 
     @Override
@@ -107,14 +152,14 @@ public class ChannelListTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        ChannelListEntry entry = shownEntries.get(rowIndex);
+        Row row = shownRows.get(rowIndex);
         switch (columnIndex) {
             case 0:
-                return entry.getName();
+                return row.entry.getName();
             case 1:
-                return entry.getUserCount();
+                return row.entry.getUserCount();
             case 2:
-                return displayTopic(entry);
+                return row.topic;
             default:
                 return "";
         }

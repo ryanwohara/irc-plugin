@@ -21,7 +21,6 @@ import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.*;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -56,6 +55,7 @@ public class IrcPanel extends PluginPanel {
     private Consumer<String> onChannelLeave;
     private Consumer<Boolean> onReconnect;
     private Consumer<String> onChannelListRequest;
+    private Runnable onChannelListTimeout;
     private ChannelListDialog channelListDialog;
     private Timer channelListTimeout;
     private static final int CHANNEL_LIST_TIMEOUT_MS = 30000;
@@ -495,12 +495,13 @@ public class IrcPanel extends PluginPanel {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect, Consumer<String> channelListRequestCallback) {
+    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect, Consumer<String> channelListRequestCallback, Runnable channelListTimeoutCallback) {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
         this.onReconnect = onReconnect;
         this.onChannelListRequest = channelListRequestCallback;
+        this.onChannelListTimeout = channelListTimeoutCallback;
     }
 
     public String getCurrentChannel() {
@@ -531,15 +532,19 @@ public class IrcPanel extends PluginPanel {
     /**
      * Starts the window in which a LIST reply is expected. A server that never sends 323 would
      * otherwise leave the user with no feedback at all.
+     *
+     * <p>The expiry is reported through the plugin rather than written straight into this panel:
+     * "Requesting channel list..." and an explicit 263 refusal both reach the game chatbox as well
+     * as the panel, and a user watching game chat with the sidebar collapsed would otherwise see
+     * the request announced and never learn it failed.
      */
     public void armChannelListTimeout() {
         cancelChannelListTimeout();
-        channelListTimeout = new Timer(CHANNEL_LIST_TIMEOUT_MS, e -> addMessage(new IrcMessage(
-                "System",
-                "System",
-                "No channel list response from the server.",
-                IrcMessage.MessageType.SYSTEM,
-                Instant.now())));
+        channelListTimeout = new Timer(CHANNEL_LIST_TIMEOUT_MS, e -> {
+            if (onChannelListTimeout != null) {
+                onChannelListTimeout.run();
+            }
+        });
         channelListTimeout.setRepeats(false);
         channelListTimeout.start();
     }
@@ -548,6 +553,27 @@ public class IrcPanel extends PluginPanel {
     public void cancelChannelListTimeout() {
         if (channelListTimeout != null) {
             channelListTimeout.stop();
+        }
+    }
+
+    /**
+     * Releases what this panel owns outside its own component tree, on plugin shutdown.
+     *
+     * The channel browser is a top-level {@link java.awt.Window}: dropping the panel does not take
+     * it with it. Without this it stays on screen after the plugin is disabled, wired to a plugin
+     * that is gone - Refresh and Join both return silently, so it looks alive and does nothing.
+     * Re-enabling compounds it, because the injector hands out a fresh panel with a fresh dialog
+     * and the old one leaks along with its sorter and up to 20,000 entries.
+     *
+     * Nulling both fields makes a later {@link #showChannelList} rebuild cleanly. Safe to call
+     * repeatedly, and when nothing was ever armed or shown.
+     */
+    public void shutdown() {
+        cancelChannelListTimeout();
+        channelListTimeout = null;
+        if (channelListDialog != null) {
+            channelListDialog.dispose();
+            channelListDialog = null;
         }
     }
 
@@ -615,8 +641,28 @@ public class IrcPanel extends PluginPanel {
         pane.appendMessage(message, config);
     }
 
+    /**
+     * Gives a component the keyboard focus as soon as it is actually on screen.
+     *
+     * {@link JOptionPane#showOptionDialog} does not set the pane's {@code wantsInput} flag, so
+     * BasicOptionPaneUI's initial-value selection focuses the default button instead of the input
+     * field - unlike {@code showInputDialog}, which focuses the field. Requesting focus before the
+     * dialog is shown is a no-op (the component has no window yet), hence the hierarchy listener.
+     */
+    private static void focusWhenShown(JComponent component) {
+        component.addHierarchyListener(new HierarchyListener() {
+            @Override
+            public void hierarchyChanged(HierarchyEvent e) {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && component.isShowing()) {
+                    component.requestFocusInWindow();
+                }
+            }
+        });
+    }
+
     private void promptAddChannel() {
         JTextField channelField = new JTextField();
+        focusWhenShown(channelField);
         Object[] options = {"Join", "Browse…", "Cancel"};
         int choice = JOptionPane.showOptionDialog(
                 this,

@@ -140,7 +140,15 @@ public class IrcPlugin extends Plugin {
 
     @Override
     protected void shutDown() {
+        // Cut the adapter's path to the UI first: a LIST reply already in flight would otherwise
+        // re-open the channel browser onto a panel that is on its way out.
+        if (ircAdapter != null) {
+            ircAdapter.clearPanel();
+        }
         if (panel != null) {
+            // Before panel = null, or the browser's JDialog outlives the plugin as a live window
+            // whose buttons all no-op.
+            panel.shutdown();
             clientToolbar.removeNavigation(panel.getNavigationButton());
             panel = null;
         }
@@ -183,7 +191,8 @@ public class IrcPlugin extends Plugin {
                 this::handleChannelJoin,
                 this::handleChannelLeave,
                 this::handleReconnect,
-                this::handleChannelListRequest
+                this::handleChannelListRequest,
+                this::reportChannelListTimeout
         );
         panel.initializeGui();
     }
@@ -420,8 +429,25 @@ public class IrcPlugin extends Plugin {
         processMessage(new IrcMessage(
                 "System", "System", "Requesting channel list...",
                 IrcMessage.MessageType.SYSTEM, Instant.now()));
-        ircAdapter.requestChannelList(query);
+        // Arm before sending. sendRawLine writes and flushes synchronously, so arming afterwards
+        // leaves a window - vanishingly small, but real - in which a 323 round-trips and queues
+        // its cancel ahead of this arm, and the arm then fires "no response" over a rendered list.
         SwingUtilities.invokeLater(panel::armChannelListTimeout);
+        ircAdapter.requestChannelList(query);
+    }
+
+    /**
+     * Reports a LIST that never came back, on the panel's behalf.
+     *
+     * Routed through processMessage rather than written straight to the panel so it reaches the
+     * game chatbox too. "Requesting channel list..." above and a 263 refusal from the adapter both
+     * go to both sinks; this used to be the one channel-list message that did not, which left a
+     * user watching game chat with the sidebar collapsed seeing the request and never the outcome.
+     */
+    private void reportChannelListTimeout() {
+        processMessage(new IrcMessage(
+                "System", "System", "No channel list response from the server.",
+                IrcMessage.MessageType.SYSTEM, Instant.now()));
     }
 
     private void mode(String mode) {

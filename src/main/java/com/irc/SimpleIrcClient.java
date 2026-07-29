@@ -813,7 +813,15 @@ public class SimpleIrcClient {
         channelListTruncated = false;
     }
 
-    /** True once registration completed and the socket is still up. */
+    /**
+     * True once the socket is open and the NICK/USER/CAP handshake has been written, and until
+     * the connection drops.
+     *
+     * This is deliberately NOT "registered": the flag is set as soon as those lines go out, well
+     * before the server answers RPL_WELCOME (which only re-affirms it). A command sent in between
+     * - the gap is sub-second on a fast connection but several seconds with SASL - reaches the
+     * server and may come back as 451 ERR_NOTREGISTERED.
+     */
     public boolean isConnected() {
         return connected;
     }

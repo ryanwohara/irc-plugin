@@ -161,9 +161,23 @@ public class IrcAdapter {
         client.sendRawLine(trimmed.isEmpty() ? "LIST" : "LIST " + trimmed);
     }
 
-    /** True when the client is registered and the socket is up. */
+    /**
+     * True once the socket is up and the registration handshake has been written - NOT that the
+     * server has accepted it. A command sent in the window between the handshake and RPL_WELCOME
+     * (longer with SASL) will reach the server but may be answered with 451 ERR_NOTREGISTERED
+     * rather than doing anything. Do not read this as "ready for commands".
+     */
     public boolean isConnected() {
         return client.isConnected();
+    }
+
+    /**
+     * Drops the reference to the panel, so an in-flight reply cannot drive a UI that is being
+     * torn down. Without it a 323 arriving during shutdown still pops the channel browser for a
+     * plugin that no longer exists.
+     */
+    public void clearPanel() {
+        this.panel = null;
     }
 
     /**
