@@ -616,8 +616,28 @@ public class IrcPanel extends PluginPanel {
     }
 
     private void promptAddChannel() {
-        String channel = JOptionPane.showInputDialog(this, "Enter channel name:");
+        JTextField channelField = new JTextField();
+        Object[] options = {"Join", "Browse…", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(
+                this,
+                new Object[]{"Enter channel name:", channelField},
+                "Add channel",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                options,
+                options[0]);
+
+        if (choice == 1) {
+            // Browse: let the user pick from the server's list instead of typing a name.
+            requestChannelList("");
+            return;
+        }
+        if (choice != 0) return;
+
+        String channel = channelField.getText();
         if (channel == null || channel.trim().isEmpty()) return;
+
         String password = JOptionPane.showInputDialog(this, "Enter channel password (optional):");
         if (!channel.startsWith("#")) {
             channel = "#" + channel;
