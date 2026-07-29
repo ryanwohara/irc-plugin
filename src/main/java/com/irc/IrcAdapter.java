@@ -21,6 +21,8 @@ public class IrcAdapter {
     private Consumer<IrcMessage> messageConsumer;
     private IrcConfig config;
     private IrcPanel panel;
+    /** The query behind the in-flight LIST, replayed by the dialog's Refresh button. */
+    private String lastChannelListQuery = "";
 
     public IrcAdapter() {
         client = new SimpleIrcClient();
@@ -141,6 +143,25 @@ public class IrcAdapter {
     }
 
     /**
+     * Asks the server for its channel list. {@code query} is passed through verbatim so server
+     * filters such as ">50" or "*quest*" work as the user typed them.
+     */
+    public void requestChannelList(String query) {
+        String trimmed = query != null ? query.trim() : "";
+        lastChannelListQuery = trimmed;
+        // A run abandoned by an earlier request (server truncated its reply, no 323, connection
+        // survives) must not have this request's rows appended onto its stale leftovers.
+        client.resetChannelListRun();
+        // No trailing space on a bare LIST: some servers read "LIST " as an empty filter.
+        client.sendRawLine(trimmed.isEmpty() ? "LIST" : "LIST " + trimmed);
+    }
+
+    /** True when the client is registered and the socket is up. */
+    public boolean isConnected() {
+        return client.isConnected();
+    }
+
+    /**
      * Get the current nickname
      */
     public String getNick() {
@@ -188,6 +209,11 @@ public class IrcAdapter {
                     processMessage(new IrcMessage("System", "System", "Disconnected from IRC", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     for (String channel : client.getChannels()) {
                         processMessage(new IrcMessage(channel, "System", "Disconnected from IRC", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    }
+                    // Any outcome must cancel a pending LIST timeout, not just success - otherwise
+                    // a disconnect while one is armed fires a spurious "no response" 30s later.
+                    if (panel != null) {
+                        SwingUtilities.invokeLater(panel::cancelChannelListTimeout);
                     }
                     break;
 
@@ -319,6 +345,26 @@ public class IrcAdapter {
                         // Snapshot on the IRC thread; it is immutable, so the EDT can hold it.
                         List<ChannelUserList.Entry> users = client.getChannelUsers(usersChannel);
                         SwingUtilities.invokeLater(() -> panel.setChannelUsers(usersChannel, users));
+                    }
+                    break;
+
+                case CHANNEL_LIST:
+                    if (panel != null) {
+                        // Snapshot on the IRC thread; it is immutable, so the EDT can hold it.
+                        List<ChannelListEntry> channelList = client.getChannelListSnapshot();
+                        boolean truncated = client.isChannelListTruncated();
+                        String listQuery = lastChannelListQuery;
+                        SwingUtilities.invokeLater(
+                                () -> panel.showChannelList(channelList, listQuery, truncated));
+                    }
+                    break;
+
+                case CHANNEL_LIST_FAILED:
+                    processMessage(new IrcMessage("System", "System",
+                            "Channel list unavailable: " + event.getMessage(),
+                            IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    if (panel != null) {
+                        SwingUtilities.invokeLater(panel::cancelChannelListTimeout);
                     }
                     break;
 

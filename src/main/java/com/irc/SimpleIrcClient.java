@@ -797,6 +797,22 @@ public class SimpleIrcClient {
         return channelListTruncated;
     }
 
+    /**
+     * Clears any abandoned LIST run before a fresh request goes out. Without this, a run that
+     * lost its 323 (the server's reply is cut short, but the connection survives) leaves
+     * channelListRunActive true, so the next LIST's 322 rows would append onto the stale ones
+     * instead of starting fresh. Does not touch channelListSnapshot - the previously displayed
+     * list should survive until a new one completes, so Refresh does not blank the dialog
+     * mid-flight.
+     */
+    void resetChannelListRun() {
+        synchronized (channelListAccumulator) {
+            channelListAccumulator.clear();
+            channelListRunActive = false;
+        }
+        channelListTruncated = false;
+    }
+
     /** True once registration completed and the socket is still up. */
     public boolean isConnected() {
         return connected;
