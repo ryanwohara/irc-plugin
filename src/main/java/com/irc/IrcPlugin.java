@@ -182,7 +182,8 @@ public class IrcPlugin extends Plugin {
                 this::handleMessageSend,
                 this::handleChannelJoin,
                 this::handleChannelLeave,
-                this::handleReconnect
+                this::handleReconnect,
+                query -> { }
         );
         panel.initializeGui();
     }

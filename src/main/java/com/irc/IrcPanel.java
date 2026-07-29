@@ -21,6 +21,7 @@ import javax.swing.event.HyperlinkEvent;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.*;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -54,6 +55,10 @@ public class IrcPanel extends PluginPanel {
     private BiConsumer<String, String> onChannelJoin;
     private Consumer<String> onChannelLeave;
     private Consumer<Boolean> onReconnect;
+    private Consumer<String> onChannelListRequest;
+    private ChannelListDialog channelListDialog;
+    private Timer channelListTimeout;
+    private static final int CHANNEL_LIST_TIMEOUT_MS = 30000;
     private Font font;
 
     public final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
@@ -490,11 +495,12 @@ public class IrcPanel extends PluginPanel {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect) {
+    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect, Consumer<String> channelListRequestCallback) {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
         this.onReconnect = onReconnect;
+        this.onChannelListRequest = channelListRequestCallback;
     }
 
     public String getCurrentChannel() {
@@ -513,6 +519,56 @@ public class IrcPanel extends PluginPanel {
 
     public boolean isPane(String name) {
         return tabbedPane.indexOfTab(name) != -1;
+    }
+
+    /** Asks the plugin for a channel list. {@code query} is passed to the server verbatim. */
+    public void requestChannelList(String query) {
+        if (onChannelListRequest != null) {
+            onChannelListRequest.accept(query != null ? query : "");
+        }
+    }
+
+    /**
+     * Starts the window in which a LIST reply is expected. A server that never sends 323 would
+     * otherwise leave the user with no feedback at all.
+     */
+    public void armChannelListTimeout() {
+        cancelChannelListTimeout();
+        channelListTimeout = new Timer(CHANNEL_LIST_TIMEOUT_MS, e -> addMessage(new IrcMessage(
+                "System",
+                "System",
+                "No channel list response from the server.",
+                IrcMessage.MessageType.SYSTEM,
+                Instant.now())));
+        channelListTimeout.setRepeats(false);
+        channelListTimeout.start();
+    }
+
+    /** Stops the pending timeout. Safe to call when nothing is armed. */
+    public void cancelChannelListTimeout() {
+        if (channelListTimeout != null) {
+            channelListTimeout.stop();
+        }
+    }
+
+    /**
+     * Shows the channel browser. Reuses one dialog so a repeated /list refreshes in place.
+     * An empty result still opens - "0 channels" answers a narrow query.
+     */
+    public void showChannelList(List<ChannelListEntry> entries, String query, boolean truncated) {
+        cancelChannelListTimeout();
+        if (channelListDialog == null) {
+            channelListDialog = new ChannelListDialog(
+                    SwingUtilities.getWindowAncestor(this),
+                    (channel, password) -> {
+                        if (onChannelJoin != null) {
+                            onChannelJoin.accept(channel, password);
+                        }
+                    },
+                    this::requestChannelList);
+        }
+        channelListDialog.setEntries(entries, query, truncated);
+        channelListDialog.showDialog();
     }
 
     public void addChannel(String channel) {
