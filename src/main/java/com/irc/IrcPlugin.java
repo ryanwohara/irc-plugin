@@ -183,7 +183,7 @@ public class IrcPlugin extends Plugin {
                 this::handleChannelJoin,
                 this::handleChannelLeave,
                 this::handleReconnect,
-                query -> { }
+                this::handleChannelListRequest
         );
         panel.initializeGui();
     }
@@ -377,6 +377,10 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "list":
+                handleChannelListRequest(arg);
+                break;
+
             case "clear":
                 panel.clearCurrentPane();
                 break;
@@ -395,6 +399,29 @@ public class IrcPlugin extends Plugin {
                 ));
                 break;
         }
+    }
+
+    /**
+     * Single entry point for both /list and the panel's Browse button.
+     *
+     * sendRawLine silently no-ops when the socket is down, so an unconnected /list would look
+     * like nothing happened at all - check first and say so.
+     */
+    private void handleChannelListRequest(String query) {
+        if (ircAdapter == null || panel == null) return;
+
+        if (!ircAdapter.isConnected()) {
+            processMessage(new IrcMessage(
+                    "System", "System", "Not connected.",
+                    IrcMessage.MessageType.SYSTEM, Instant.now()));
+            return;
+        }
+
+        processMessage(new IrcMessage(
+                "System", "System", "Requesting channel list...",
+                IrcMessage.MessageType.SYSTEM, Instant.now()));
+        ircAdapter.requestChannelList(query);
+        SwingUtilities.invokeLater(panel::armChannelListTimeout);
     }
 
     private void mode(String mode) {
@@ -457,6 +484,7 @@ public class IrcPlugin extends Plugin {
                 "/away [message] - Set or remove away status",
                 "/go <channel> - Focus on this channel (uses regex)",
                 "/join <#channel> - Join a channel",
+                "/list [filter] - Browse the server's channel list (e.g. /list >50)",
                 "/part [#channel] - Leave a channel (aliased as /leave)",
                 "/me <action> - Send action message",
                 "/mode [#channel] [+modes|-modes] - Modify channel modes",
