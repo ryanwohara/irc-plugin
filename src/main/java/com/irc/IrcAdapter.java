@@ -21,8 +21,13 @@ public class IrcAdapter {
     private Consumer<IrcMessage> messageConsumer;
     private IrcConfig config;
     private IrcPanel panel;
-    /** The query behind the in-flight LIST, replayed by the dialog's Refresh button. */
-    private String lastChannelListQuery = "";
+    /**
+     * The query behind the in-flight LIST, replayed by the dialog's Refresh button. Written on
+     * the caller's thread ({@link #requestChannelList}) and read on the IRC reader thread when
+     * {@code CHANNEL_LIST} fires - volatile so that handoff doesn't depend on the incidental
+     * happens-before edge created by both sides passing through the same monitor.
+     */
+    private volatile String lastChannelListQuery = "";
 
     public IrcAdapter() {
         client = new SimpleIrcClient();
