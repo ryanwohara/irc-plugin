@@ -49,11 +49,20 @@ public class SimpleIrcClient {
     private final Set<String> channels = new HashSet<>();
     private final ModeSpec modeSpec = ModeSpec.defaults();
     private final ChannelUserList channelUserList = new ChannelUserList(modeSpec);
-    /** LIST replies in flight. Only ever touched on the reader thread. */
+    /**
+     * LIST replies in flight. Mutated only inside a block synchronized on this list itself:
+     * the reader thread appends rows on 322 and publishes on 323, while disconnect() (reachable
+     * from the EDT via /quit) can clear it concurrently.
+     */
     private final List<ChannelListEntry> channelListAccumulator = new ArrayList<>();
-    /** The last completed LIST, published at 323. Immutable, safe to hand to the EDT. */
-    private List<ChannelListEntry> channelListSnapshot = Collections.emptyList();
-    private boolean channelListTruncated = false;
+    /**
+     * True from the first row of a run (321, or the first 322 if the server skips 321) until 323
+     * or 263 closes it. Guarded by the channelListAccumulator lock.
+     */
+    private boolean channelListRunActive = false;
+    /** The last completed LIST, published at 323. Immutable, safe to read from any thread. */
+    private volatile List<ChannelListEntry> channelListSnapshot = Collections.emptyList();
+    private volatile boolean channelListTruncated = false;
     private static final int CHANNEL_LIST_CAP = 20000;
 
     private String host;
@@ -186,7 +195,10 @@ public class SimpleIrcClient {
             connected = false;
             List<String> joined = new ArrayList<>(channels);
             channelUserList.clear();
-            channelListAccumulator.clear();
+            synchronized (channelListAccumulator) {
+                channelListAccumulator.clear();
+                channelListRunActive = false;
+            }
             channelListTruncated = false;
             for (String joinedChannel : joined) {
                 fireUsersChanged(joinedChannel);
@@ -598,12 +610,17 @@ public class SimpleIrcClient {
                     modeSpec.applyIsupport(params.subList(1, params.size()));
                 }
                 break;
-            case 263: // RPL_TRYAGAIN: the server is throttling us; drop whatever we had.
-                channelListAccumulator.clear();
-                channelListTruncated = false;
-                fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST_FAILED, null, null,
-                        params.size() >= 2 ? params.get(params.size() - 1)
-                                : "Server asked us to try again later", null));
+            case 263: // RPL_TRYAGAIN: only a throttled LIST concerns us here.
+                if (params.size() >= 2 && "LIST".equalsIgnoreCase(params.get(1))) {
+                    synchronized (channelListAccumulator) {
+                        channelListAccumulator.clear();
+                        channelListRunActive = false;
+                    }
+                    channelListTruncated = false;
+                    fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST_FAILED, null, null,
+                            params.size() >= 3 ? params.get(params.size() - 1)
+                                    : "Server asked us to try again later", null));
+                }
                 break;
             case 301:
                 if (params.size() >= 3)
@@ -633,38 +650,60 @@ public class SimpleIrcClient {
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
                 break;
-            case 321: // RPL_LISTSTART
-                channelListAccumulator.clear();
+            case 321: // RPL_LISTSTART: an explicit start always resets the run.
+                synchronized (channelListAccumulator) {
+                    channelListAccumulator.clear();
+                    channelListRunActive = true;
+                }
                 channelListTruncated = false;
                 break;
             case 322: // RPL_LIST: <me> <channel> <count> :<topic>
                 if (params.size() >= 3) {
                     String listChannel = params.get(1);
                     if (listChannel != null && !listChannel.isEmpty()) {
-                        if (channelListAccumulator.size() >= CHANNEL_LIST_CAP) {
-                            channelListTruncated = true;
-                        } else {
-                            int userCount;
-                            try {
-                                userCount = Integer.parseInt(params.get(2).trim());
-                            } catch (NumberFormatException e) {
-                                // One odd row costs its count, not the rest of the list.
-                                userCount = 0;
+                        synchronized (channelListAccumulator) {
+                            if (!channelListRunActive) {
+                                // Some servers skip 321; the first row starts the run and must
+                                // not inherit a stale truncation flag from the previous one.
+                                channelListAccumulator.clear();
+                                channelListRunActive = true;
+                                channelListTruncated = false;
                             }
-                            String listTopic = params.size() >= 4 && params.get(3) != null
-                                    ? params.get(3) : "";
-                            channelListAccumulator.add(
-                                    new ChannelListEntry(listChannel, userCount, listTopic));
+                            if (channelListAccumulator.size() >= CHANNEL_LIST_CAP) {
+                                channelListTruncated = true;
+                            } else {
+                                int userCount;
+                                try {
+                                    userCount = Integer.parseInt(params.get(2).trim());
+                                } catch (NumberFormatException e) {
+                                    // One odd row costs its count, not the rest of the list.
+                                    userCount = 0;
+                                }
+                                String listTopic = params.size() >= 4 && params.get(3) != null
+                                        ? params.get(3) : "";
+                                channelListAccumulator.add(
+                                        new ChannelListEntry(listChannel, userCount, listTopic));
+                            }
                         }
                     }
                 }
                 break;
-            case 323: // RPL_LISTEND: publish one immutable snapshot for the EDT.
-                channelListSnapshot = Collections.unmodifiableList(
-                        new ArrayList<>(channelListAccumulator));
-                channelListAccumulator.clear();
-                fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST, null, null, null, null));
+            case 323: { // RPL_LISTEND: publish one immutable snapshot, but only for a real run -
+                         // an unpaired 323 must not clobber the previous snapshot.
+                List<ChannelListEntry> completedRun = null;
+                synchronized (channelListAccumulator) {
+                    if (channelListRunActive) {
+                        completedRun = new ArrayList<>(channelListAccumulator);
+                        channelListAccumulator.clear();
+                        channelListRunActive = false;
+                    }
+                }
+                if (completedRun != null) {
+                    channelListSnapshot = Collections.unmodifiableList(completedRun);
+                    fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST, null, null, null, null));
+                }
                 break;
+            }
             case 324:
                 if (params.size() >= 2) {
                     String target = params.get(1);
