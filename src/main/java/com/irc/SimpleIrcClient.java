@@ -14,6 +14,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +49,12 @@ public class SimpleIrcClient {
     private final Set<String> channels = new HashSet<>();
     private final ModeSpec modeSpec = ModeSpec.defaults();
     private final ChannelUserList channelUserList = new ChannelUserList(modeSpec);
+    /** LIST replies in flight. Only ever touched on the reader thread. */
+    private final List<ChannelListEntry> channelListAccumulator = new ArrayList<>();
+    /** The last completed LIST, published at 323. Immutable, safe to hand to the EDT. */
+    private List<ChannelListEntry> channelListSnapshot = Collections.emptyList();
+    private boolean channelListTruncated = false;
+    private static final int CHANNEL_LIST_CAP = 20000;
 
     private String host;
     private int port;
@@ -179,6 +186,8 @@ public class SimpleIrcClient {
             connected = false;
             List<String> joined = new ArrayList<>(channels);
             channelUserList.clear();
+            channelListAccumulator.clear();
+            channelListTruncated = false;
             for (String joinedChannel : joined) {
                 fireUsersChanged(joinedChannel);
             }
@@ -589,6 +598,13 @@ public class SimpleIrcClient {
                     modeSpec.applyIsupport(params.subList(1, params.size()));
                 }
                 break;
+            case 263: // RPL_TRYAGAIN: the server is throttling us; drop whatever we had.
+                channelListAccumulator.clear();
+                channelListTruncated = false;
+                fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST_FAILED, null, null,
+                        params.size() >= 2 ? params.get(params.size() - 1)
+                                : "Server asked us to try again later", null));
+                break;
             case 301:
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is away: %s", params.get(1), params.get(2)), null));
@@ -616,6 +632,38 @@ public class SimpleIrcClient {
             case 319:
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
+                break;
+            case 321: // RPL_LISTSTART
+                channelListAccumulator.clear();
+                channelListTruncated = false;
+                break;
+            case 322: // RPL_LIST: <me> <channel> <count> :<topic>
+                if (params.size() >= 3) {
+                    String listChannel = params.get(1);
+                    if (listChannel != null && !listChannel.isEmpty()) {
+                        if (channelListAccumulator.size() >= CHANNEL_LIST_CAP) {
+                            channelListTruncated = true;
+                        } else {
+                            int userCount;
+                            try {
+                                userCount = Integer.parseInt(params.get(2).trim());
+                            } catch (NumberFormatException e) {
+                                // One odd row costs its count, not the rest of the list.
+                                userCount = 0;
+                            }
+                            String listTopic = params.size() >= 4 && params.get(3) != null
+                                    ? params.get(3) : "";
+                            channelListAccumulator.add(
+                                    new ChannelListEntry(listChannel, userCount, listTopic));
+                        }
+                    }
+                }
+                break;
+            case 323: // RPL_LISTEND: publish one immutable snapshot for the EDT.
+                channelListSnapshot = Collections.unmodifiableList(
+                        new ArrayList<>(channelListAccumulator));
+                channelListAccumulator.clear();
+                fireEvent(new IrcEvent(IrcEvent.Type.CHANNEL_LIST, null, null, null, null));
                 break;
             case 324:
                 if (params.size() >= 2) {
@@ -700,6 +748,21 @@ public class SimpleIrcClient {
         return channelUserList.snapshot(channel);
     }
 
+    /** The last completed channel list. Immutable; empty until a LIST finishes. */
+    List<ChannelListEntry> getChannelListSnapshot() {
+        return channelListSnapshot;
+    }
+
+    /** True when the last LIST hit CHANNEL_LIST_CAP and rows were dropped. */
+    boolean isChannelListTruncated() {
+        return channelListTruncated;
+    }
+
+    /** True once registration completed and the socket is still up. */
+    public boolean isConnected() {
+        return connected;
+    }
+
     /** Fires USERS_CHANGED for a channel whose roster just changed. */
     private void fireUsersChanged(String channel) {
         fireEvent(new IrcEvent(IrcEvent.Type.USERS_CHANGED, null, channel, null, null));
@@ -741,7 +804,8 @@ public class SimpleIrcClient {
             CONNECT, DISCONNECT, REGISTERED, MESSAGE, ACTION, JOIN, PART, QUIT,
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
-            HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED, USERS_CHANGED
+            HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED, USERS_CHANGED,
+            CHANNEL_LIST, CHANNEL_LIST_FAILED
         }
 
         private final Type type;
