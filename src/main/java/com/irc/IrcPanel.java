@@ -554,6 +554,10 @@ public class IrcPanel extends PluginPanel {
     /**
      * Shows the channel browser. Reuses one dialog so a repeated /list refreshes in place.
      * An empty result still opens - "0 channels" answers a narrow query.
+     *
+     * <p>Does not marshal onto the EDT itself - callers on a background thread (e.g. the IRC
+     * reader thread delivering a LIST reply) must wrap the call in
+     * {@link SwingUtilities#invokeLater}.
      */
     public void showChannelList(List<ChannelListEntry> entries, String query, boolean truncated) {
         cancelChannelListTimeout();
