@@ -70,7 +70,6 @@ public class IrcPlugin extends Plugin {
     private EmojiService emojiService;
 
     private static final Pattern VALID_WINKS = Pattern.compile("^;([opdOPD)(<>]|[-_];)");
-    private static final Pattern STRIP_STYLES = Pattern.compile("\u0002|\u0003(\\d\\d?(,\\d\\d)?)?|\u001D|\u0015|\u000F");
 
     private final Map<String, String> channelPasswords = new HashMap<>();
 
@@ -587,7 +586,7 @@ public class IrcPlugin extends Plugin {
     }
 
     private String stripStyles(String message) {
-        return STRIP_STYLES.matcher(message).replaceAll("");
+        return IrcFormatting.stripCodes(message);
     }
 
     private void processMessage(IrcMessage message) {

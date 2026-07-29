@@ -662,7 +662,6 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
         private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,(\\d\\d?))?([^\u0003\u000F]+)\u000F?");
-        private static final Pattern STRIP_CODES = Pattern.compile("\u0002|\u0003(\\d\\d?(?:,\\d\\d)?)?|\u001D|\u0015|\u000F");
         private final PreviewManager previewManager;
 
         ChannelPane(Font font, IrcConfig config, OkHttpClient okHttpClient) {
@@ -768,7 +767,7 @@ public class IrcPanel extends PluginPanel {
                         colorSpan(color_matcher.group(1), color_matcher.group(2), color_matcher.group(3))));
             }
             color_matcher.appendTail(sb);
-            return STRIP_CODES.matcher(sb.toString()).replaceAll("");
+            return IrcFormatting.stripCodes(sb.toString());
         }
 
         static String htmlColorById(String id) {
