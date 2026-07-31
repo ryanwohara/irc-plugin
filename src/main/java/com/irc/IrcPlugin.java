@@ -229,7 +229,11 @@ public class IrcPlugin extends Plugin {
 
         switch (cmd) {
             case "join":
-                if (!arg.isEmpty()) {
+                if (arg.isEmpty()) {
+                    // Join with nothing to join: browse the server's channels instead of
+                    // silently doing nothing.
+                    handleChannelListRequest("");
+                } else {
                     String chan = arg.split(" ")[0];
                     String password = arg.split(" ").length > 1 ? arg.split(" ")[1] : "";
                     joinChannel(chan.startsWith("#") ? chan : "#" + chan, password);
@@ -509,7 +513,7 @@ public class IrcPlugin extends Plugin {
                 "Available commands:",
                 "/away [message] - Set or remove away status",
                 "/go <channel> - Focus on this channel (uses regex)",
-                "/join <#channel> - Join a channel",
+                "/join [#channel] - Join a channel, or browse the list if omitted",
                 "/list [filter] - Browse the server's channel list (e.g. /list >50)",
                 "/part [#channel] - Leave a channel (aliased as /leave)",
                 "/me <action> - Send action message",
