@@ -316,11 +316,15 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
-            case "nick":
-                if (!arg.isEmpty() && arg.split(" ").length == 1) {
-                    ircAdapter.setNick(arg);
+            case "nick": {
+                // A typed nick often has a space in it; underscore it rather than ignoring the
+                // command, which is what refusing multi-word input used to look like.
+                String requestedNick = sanitizeNick(arg);
+                if (!requestedNick.isEmpty()) {
+                    ircAdapter.setNick(requestedNick);
                 }
                 break;
+            }
 
             case "id": {
                 String idCommand = identifyCommandFromArgs(arg);
@@ -466,6 +470,22 @@ public class IrcPlugin extends Plugin {
         } else {
             ircAdapter.sendRawLine("MODE " + panel.getCurrentChannel());
         }
+    }
+
+    /**
+     * Makes a typed nick safe to send. Whitespace cannot reach the wire - {@code setNick} writes
+     * "NICK " + nick as one raw line, so "foo bar" would go out as NICK with two parameters and the
+     * server would take only "foo".
+     *
+     * A run of whitespace collapses to a single underscore: someone who typed three spaces did not
+     * mean three underscores, and the server caps nick length. Returns "" when nothing usable is
+     * left, so the caller can decline to send rather than sending a lone underscore.
+     */
+    static String sanitizeNick(String nick) {
+        if (nick == null) {
+            return "";
+        }
+        return nick.trim().replaceAll("\\s+", "_");
     }
 
     static String identifyCommand(String account, String password) {
