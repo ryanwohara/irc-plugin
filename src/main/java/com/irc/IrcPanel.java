@@ -90,7 +90,15 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
-    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=]*))");
+    /**
+     * Shared by the side panel and the game chatbox, so the trailing character class decides where
+     * a link ends in both. A character missing from it does not reject the URL, it truncates it -
+     * the link still renders and still clicks, it just goes somewhere else.
+     *
+     * '+' is kept last: placed mid-class it would form a range with the character after it
+     * ('+' to ';' silently sweeps in digits and punctuation).
+     */
+    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=+]*))");
 
     private void initializeFlashTimer() {
         // Change color for different flash
