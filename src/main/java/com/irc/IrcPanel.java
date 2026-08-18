@@ -95,10 +95,11 @@ public class IrcPanel extends PluginPanel {
      * a link ends in both. A character missing from it does not reject the URL, it truncates it -
      * the link still renders and still clicks, it just goes somewhere else.
      *
-     * '+' is kept last: placed mid-class it would form a range with the character after it
-     * ('+' to ';' silently sweeps in digits and punctuation).
+     * '+' and '#' are kept last: placed mid-class either would form a range with the character
+     * after it ('+' to ';' silently sweeps in digits and punctuation). Neither can start a link,
+     * so a channel name like #osrs is still not matched.
      */
-    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=+]*))");
+    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=+#]*))");
 
     private void initializeFlashTimer() {
         // Change color for different flash
