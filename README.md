@@ -108,6 +108,12 @@ will change the active channel to this target.
 
 Server notices will default to the System tab; you can optionally allow them to create their own tab.
 
+#### log raw IRC lines
+
+Writes every IRC line sent and received to the RuneLite client log. Off by default. Turn it on
+only when you are chasing a connection problem, then turn it back off - it is noisy. Passwords are
+stripped before anything is written, so the log is safe to attach to a bug report.
+
 ### Side Panel
 
 #### enabled
@@ -168,3 +174,26 @@ You can ask in `#irchelp` for IRC-specific questions.
 ```text
 /join #irchelp
 ```
+
+## Troubleshooting Connection Problems
+
+The plugin reports why a connection failed rather than leaving you to guess. When something goes
+wrong you should see one of:
+
+- **A reason from the server.** `Server closed the link: Closing Link: you[1.2.3.4] (Ping timeout:
+  240 seconds)`, `Killed by <operator>: <reason>`, or `Server error 465: You are banned from this
+  server`. This is the server's own text - it is the most useful thing to include in a report.
+- **A reason from the network.** `DNS lookup failed: irc.swiftirc.net could not be resolved`, or
+  `Failed while connecting to irc.swiftirc.net:6697 - ConnectException: Connection refused`. The
+  message names what was being attempted (connecting, the TLS handshake, registering, or reading
+  from an established connection) so a firewall problem is distinguishable from a server problem.
+- **A silent close.** `Connection closed: server closed the connection during registration,
+  without saying why` usually means the server dropped you without explanation - a ban or a
+  connection throttle.
+
+Disconnect messages carry the cause where one is known, so `Disconnected from IRC (Ping timeout:
+240 seconds)` tells you it was not your own `/quit`.
+
+If a problem is not reproducible, enable **log raw IRC lines** in the plugin settings and
+reproduce it. The full protocol exchange, with passwords removed, is written to the RuneLite
+client log. The setting takes effect immediately, so you can turn it on before reconnecting.

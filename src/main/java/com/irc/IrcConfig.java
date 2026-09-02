@@ -234,6 +234,16 @@ public interface IrcConfig extends Config
     )
     default boolean hideConnectionMessages() { return false; }
 
+    @ConfigItem(
+            keyName = "logRawLines",
+            name = "Log Raw IRC Lines",
+            description = "Writes every IRC line sent and received to the RuneLite client log, "
+                    + "with passwords removed. Only turn this on to diagnose a connection problem.",
+            position = 10,
+            section = generalSettings
+    )
+    default boolean logRawLines() { return false; }
+
     @ConfigSection(
             name = "Overlay",
             description = "In-game overlay",

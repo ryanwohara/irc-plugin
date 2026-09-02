@@ -112,7 +112,7 @@ public class PreviewManager {
             okHttpClient.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    e.printStackTrace();
+                    log.warn("Failed to fetch image preview for {}", imageUrl, e);
                 }
 
                 @Override

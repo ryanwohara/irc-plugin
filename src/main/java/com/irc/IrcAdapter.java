@@ -50,6 +50,8 @@ public class IrcAdapter {
             client.sasl(config.accountName(), config.password());
         }
 
+        client.setRawLogging(config.logRawLines());
+
         setupEventHandlers();
     }
 
@@ -167,6 +169,13 @@ public class IrcAdapter {
      * (longer with SASL) will reach the server but may be answered with 451 ERR_NOTREGISTERED
      * rather than doing anything. Do not read this as "ready for commands".
      */
+    /** Applies the raw-logging setting to a live connection, so it can be turned on mid-problem. */
+    public void setRawLogging(boolean enabled) {
+        if (client != null) {
+            client.setRawLogging(enabled);
+        }
+    }
+
     public boolean isConnected() {
         return client.isConnected();
     }
@@ -225,9 +234,14 @@ public class IrcAdapter {
                     break;
 
                 case DISCONNECT:
-                    processMessage(new IrcMessage("System", "System", "Disconnected from IRC", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    // The client records why the link went down; without it this line is
+                    // indistinguishable from the user's own /quit.
+                    String disconnectText = event.getMessage() != null && !event.getMessage().isEmpty()
+                            ? "Disconnected from IRC (" + event.getMessage() + ")"
+                            : "Disconnected from IRC";
+                    processMessage(new IrcMessage("System", "System", disconnectText, IrcMessage.MessageType.SYSTEM, Instant.now()));
                     for (String channel : client.getChannels()) {
-                        processMessage(new IrcMessage(channel, "System", "Disconnected from IRC", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                        processMessage(new IrcMessage(channel, "System", disconnectText, IrcMessage.MessageType.SYSTEM, Instant.now()));
                     }
                     // Any outcome must cancel a pending LIST timeout, not just success - otherwise
                     // a disconnect while one is armed fires a spurious "no response" 30s later.
@@ -407,6 +421,12 @@ public class IrcAdapter {
 
                 case WHOIS_REPLY:
                     processMessage(new IrcMessage("System", "WHOIS", event.getMessage(), IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    break;
+
+                case SERVER_ERROR:
+                    // Reported, but never disconnects: most error numerics (no such nick, not a
+                    // channel operator) leave a perfectly healthy connection in place.
+                    processMessage(new IrcMessage("System", "Error", event.getMessage(), IrcMessage.MessageType.SYSTEM, Instant.now()));
                     break;
 
                 case ERROR:

@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -64,12 +66,34 @@ public class SimpleIrcClient {
     private volatile List<ChannelListEntry> channelListSnapshot = Collections.emptyList();
     private volatile boolean channelListTruncated = false;
     private static final int CHANNEL_LIST_CAP = 20000;
+    /** How long a silent socket is tolerated before the read fails. Also quoted in diagnostics. */
+    private static final int READ_TIMEOUT_MS = 240000;
+
+    private static final String REDACTED = "<redacted>";
+
+    /**
+     * Commands whose remainder is a credential. Anchored, so it only ever matches lines we send -
+     * a server never prefixes its own traffic this way.
+     */
+    private static final Pattern SERVICES_SECRET = Pattern.compile(
+            "(?i)^(?:PRIVMSG|NOTICE)\\s+(?:NickServ|NS)\\s+:?\\s*"
+                    + "(?:IDENTIFY|ID|REGISTER|GHOST|RECOVER|RELEASE|SETPASS|SET\\s+PASSWORD)\\b");
 
     private String host;
     private int port;
     private boolean secure;
     private boolean connected = false;
     private volatile boolean shuttingDown = false;
+    /**
+     * Why the link went down, in the server's or the JDK's own words. Set by whichever path
+     * noticed the failure and read by the DISCONNECT event, so "Disconnected from IRC" can say
+     * what happened. Written on the reader thread, read from the EDT.
+     */
+    private volatile String disconnectReason = null;
+    /** How far the current attempt got. Drives the wording of any failure we report. */
+    private volatile ConnectPhase connectPhase = ConnectPhase.CONNECTING;
+    /** Opt-in raw protocol logging, for diagnosing a failure we cannot reproduce. */
+    private volatile boolean rawLogging = false;
 
     String currentTagTime;   // package-private: accessed by TestableIrcClient subclass
     String currentTagBatch;  // package-private: accessed by TestableIrcClient subclass
@@ -108,14 +132,22 @@ public class SimpleIrcClient {
 
     public void connect() {
         shuttingDown = false;
+        disconnectReason = null;
+        connectPhase = ConnectPhase.CONNECTING;
         executor.submit(() -> {
             try {
                 if (secure) {
-                    createSecureConnection();
+                    SSLSocket sslSocket = openSecureSocket();
+                    // Split from the socket open so a certificate failure is not reported as a
+                    // refused connection.
+                    connectPhase = ConnectPhase.TLS_HANDSHAKE;
+                    sslSocket.startHandshake();
+                    socket = sslSocket;
                 } else {
                     socket = new Socket(host, port);
                 }
 
+                connectPhase = ConnectPhase.REGISTERING;
                 writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
@@ -135,17 +167,38 @@ public class SimpleIrcClient {
                         processLine(line);
                     }
 
-                    if (!shuttingDown) disconnect();
+                    if (!shuttingDown) {
+                        // readLine() returned null: the peer closed the socket without an ERROR
+                        // line. Saying so beats a bare "Disconnected from IRC", which is
+                        // indistinguishable from the user's own /quit. A close during
+                        // registration is worth calling out separately - that is the shape of a
+                        // silent rejection (K-line, throttle, bad CAP negotiation).
+                        if (disconnectReason == null) {
+                            String reason = connectPhase == ConnectPhase.REGISTERING
+                                    ? "server closed the connection during registration, without saying why"
+                                    : "server closed the connection without sending an error";
+                            recordDisconnectReason(reason);
+                            log.warn("IRC connection to {}:{} closed by peer during {} with no ERROR line",
+                                    host, port, connectPhase);
+                            fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null,
+                                    "Connection closed: " + reason, null));
+                        }
+                        disconnect();
+                    }
                 } catch (IOException e) {
                     if (!shuttingDown) {
-                        log.error("Error reading from IRC server", e);
-                        fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, null, e.getMessage()));
+                        String described = describeFailure(connectPhase, host, port, e);
+                        recordDisconnectReason(described);
+                        log.warn("IRC read from {}:{} failed during {}", host, port, connectPhase, e);
+                        fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, described, null));
                     }
                 }
             } catch (Exception e) {
                 if (!shuttingDown) {
-                    log.error("Error in IRC connection", e);
-                    fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, null, e.getMessage()));
+                    String described = describeFailure(connectPhase, host, port, e);
+                    recordDisconnectReason(described);
+                    log.error("IRC connection to {}:{} failed during {}", host, port, connectPhase, e);
+                    fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null, described, null));
                 }
             } finally {
                 if (!shuttingDown) {
@@ -155,13 +208,13 @@ public class SimpleIrcClient {
         });
     }
 
-    private void createSecureConnection() throws IOException {
+    /** Opens the TLS socket without handshaking, so the caller can attribute each phase. */
+    private SSLSocket openSecureSocket() throws IOException {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
         sslSocket.setEnabledProtocols(sslSocket.getSupportedProtocols());
-        sslSocket.startHandshake();
-        sslSocket.setSoTimeout(240000);
-        socket = sslSocket;
+        sslSocket.setSoTimeout(READ_TIMEOUT_MS);
+        return sslSocket;
     }
 
     public void disconnect() {
@@ -203,7 +256,7 @@ public class SimpleIrcClient {
             for (String joinedChannel : joined) {
                 fireUsersChanged(joinedChannel);
             }
-            fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, null, null));
+            fireEvent(new IrcEvent(IrcEvent.Type.DISCONNECT, null, null, disconnectReason, null));
         }
     }
 
@@ -261,6 +314,7 @@ public class SimpleIrcClient {
     }
 
     public synchronized void sendRawLine(String line) {
+        if (rawLogging) log.info("IRC >> {}", redactForLog(line));
         if (writer == null) return;
         try {
             writer.write(line + "\r\n");
@@ -271,6 +325,8 @@ public class SimpleIrcClient {
     }
 
     void processLine(String line) {
+        if (rawLogging) log.info("IRC << {}", redactForLog(line));
+
         // Reset per-line tag state
         currentTagTime = null;
         currentTagBatch = null;
@@ -478,6 +534,28 @@ public class SimpleIrcClient {
                 }
                 break;
 
+            case "KILL":
+                // Only our own KILL ends our link; another user's is not our disconnect.
+                if (params.isEmpty() || !params.get(0).equals(nick)) break;
+                String killReason = params.size() >= 2 ? params.get(params.size() - 1) : "";
+                recordDisconnectReason("killed by " + sourceNick
+                        + (killReason.isEmpty() ? "" : ": " + killReason));
+                fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null,
+                        "Killed by " + sourceNick
+                                + (killReason.isEmpty() ? "" : ": " + killReason), null));
+                break;
+
+            case "ERROR":
+                // The server's last word before it drops the link - ping timeout, K-line, Killed.
+                // Dropping it left the user with a bare "Disconnected from IRC" and nothing to
+                // report, so this text is the single most valuable line the connection produces.
+                String serverError = params.isEmpty() ? "server sent ERROR without a reason"
+                        : params.get(params.size() - 1);
+                recordDisconnectReason(serverError);
+                fireEvent(new IrcEvent(IrcEvent.Type.ERROR, null, null,
+                        "Server closed the link: " + serverError, null));
+                break;
+
             case "BATCH":
                 if (params.isEmpty()) break;
                 String batchToken = params.get(0);
@@ -603,6 +681,7 @@ public class SimpleIrcClient {
                     nick = params.get(0);
                 }
                 connected = true;
+                connectPhase = ConnectPhase.ESTABLISHED;
                 fireEvent(new IrcEvent(IrcEvent.Type.REGISTERED, null, null, null, null));
                 break;
             case 5: // RPL_ISUPPORT
@@ -765,13 +844,110 @@ public class SimpleIrcClient {
                 fireEvent(new IrcEvent(IrcEvent.Type.SASL_FAILED, null, null,
                         params.size() >= 2 ? params.get(params.size() - 1) : "SASL authentication failed", null));
                 break;
+            default:
+                // Every numeric we do not name above used to be discarded, which is how a refused
+                // connection became a silent one. The error ranges always carry text the user
+                // needs - "you are banned", "reconnecting too fast", "erroneous nickname" - so
+                // report it verbatim rather than enumerating every numeric a server might send.
+                if (numeric >= 400 && numeric <= 599 && params.size() >= 2) {
+                    String errorText = params.get(params.size() - 1);
+                    if (errorText != null && !errorText.isEmpty()) {
+                        fireEvent(new IrcEvent(IrcEvent.Type.SERVER_ERROR, null, null,
+                                "Server error " + numeric + ": " + errorText, null));
+                    }
+                }
+                break;
         }
+    }
+
+    /**
+     * Records the first reason seen for a teardown. First writer wins: a server ERROR explains a
+     * drop better than the EOF that follows it a moment later.
+     */
+    private void recordDisconnectReason(String reason) {
+        if (reason == null || reason.isEmpty()) return;
+        if (disconnectReason == null) disconnectReason = reason;
+    }
+
+    /**
+     * Strips credentials from a line before it reaches the log. Raw logging exists so a user can
+     * send us the log, which makes this a correctness requirement rather than a nicety.
+     *
+     * What is kept matters as much as what is removed: the SASL mechanism and the server's
+     * "AUTHENTICATE +" continuation carry no secret and are exactly what you need to see to
+     * diagnose a stalled negotiation.
+     */
+    static String redactForLog(String line) {
+        if (line == null || line.isEmpty()) return line;
+
+        if (line.regionMatches(true, 0, "AUTHENTICATE ", 0, 13)) {
+            String payload = line.substring(13).trim();
+            boolean negotiation = payload.equals("+")
+                    || payload.equalsIgnoreCase("PLAIN")
+                    || payload.equalsIgnoreCase("EXTERNAL");
+            return negotiation ? line : "AUTHENTICATE " + REDACTED;
+        }
+
+        if (line.regionMatches(true, 0, "PASS ", 0, 5)) {
+            return "PASS " + REDACTED;
+        }
+
+        Matcher services = SERVICES_SECRET.matcher(line);
+        if (services.find()) {
+            return line.substring(0, services.end()) + " " + REDACTED;
+        }
+
+        return line;
+    }
+
+    /** Where a connection was when it failed. Shapes the message the user is shown. */
+    enum ConnectPhase {
+        CONNECTING("connecting to"),
+        TLS_HANDSHAKE("completing the TLS handshake with"),
+        REGISTERING("registering with"),
+        ESTABLISHED("reading from");
+
+        final String description;
+
+        ConnectPhase(String description) {
+            this.description = description;
+        }
+    }
+
+    /**
+     * Turns an exception into something a user can paste into a bug report. The JDK's own messages
+     * are too terse to act on: UnknownHostException says only the hostname, and SocketTimeoutException
+     * says only "Read timed out" with no hint that four minutes of silence went by.
+     */
+    static String describeFailure(ConnectPhase phase, String host, int port, Throwable e) {
+        String where = host + ":" + port;
+        String type = e.getClass().getSimpleName();
+        String detail = e.getMessage();
+
+        if (e instanceof UnknownHostException) {
+            return "DNS lookup failed: " + host + " could not be resolved (" + type + ")";
+        }
+        if (e instanceof SocketTimeoutException) {
+            return "Timed out " + phase.description + " " + where + " - no data for "
+                    + (READ_TIMEOUT_MS / 1000) + "s (" + type + ")";
+        }
+        return "Failed while " + phase.description + " " + where + " - " + type
+                + (detail == null || detail.isEmpty() ? "" : ": " + detail);
     }
 
     private String extractNick(String source) {
         if (source == null || source.isEmpty()) return "";
         int exclamation = source.indexOf('!');
         return exclamation > 0 ? source.substring(0, exclamation) : source;
+    }
+
+    /**
+     * Mirrors every protocol line to the client log, credentials stripped. Off by default and
+     * safe to flip mid-session, which matters because the failure worth capturing usually
+     * happens during connect.
+     */
+    public void setRawLogging(boolean enabled) {
+        this.rawLogging = enabled;
     }
 
     public void addEventListener(IrcEventListener listener) {
@@ -868,7 +1044,7 @@ public class SimpleIrcClient {
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
             HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED, USERS_CHANGED,
-            CHANNEL_LIST, CHANNEL_LIST_FAILED
+            CHANNEL_LIST, CHANNEL_LIST_FAILED, SERVER_ERROR
         }
 
         private final Type type;

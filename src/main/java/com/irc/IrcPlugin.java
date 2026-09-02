@@ -731,6 +731,12 @@ public class IrcPlugin extends Plugin {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());
             }
+        } else if ("logRawLines".equals(configChanged.getKey())) {
+            // Applied live: the connection failure worth capturing usually happens during
+            // connect, so requiring a reconnect to arm the log would miss it.
+            if (ircAdapter != null) {
+                ircAdapter.setRawLogging(config.logRawLines());
+            }
         } else if ("overlayDynamic".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlayManager.remove(overlay);
