@@ -3,6 +3,7 @@ package com.irc;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.BufferedReader;
@@ -208,11 +209,32 @@ public class SimpleIrcClient {
         });
     }
 
+    /**
+     * Turns on hostname verification, which SSLSocket does NOT do by default.
+     *
+     * A plain SSLSocket checks that the certificate chain is trusted, but not that the
+     * certificate was issued for the host we asked for. Without endpoint identification any
+     * CA-signed certificate - for any hostname at all - is accepted, which is exactly the
+     * opening a man-in-the-middle needs on a hostile network. The credentials this client sends
+     * during registration make that worth closing.
+     *
+     * Applied as a single SSLParameters update so the protocol list cannot be clobbered by
+     * ordering between setSSLParameters and setEnabledProtocols.
+     */
+    static void applyTlsSettings(SSLSocket sslSocket) {
+        SSLParameters params = sslSocket.getSSLParameters();
+        params.setEndpointIdentificationAlgorithm("HTTPS");
+        params.setProtocols(sslSocket.getSupportedProtocols());
+        sslSocket.setSSLParameters(params);
+    }
+
     /** Opens the TLS socket without handshaking, so the caller can attribute each phase. */
     private SSLSocket openSecureSocket() throws IOException {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        // Created with the hostname rather than an InetAddress: SNI and hostname verification
+        // both need the name we dialled, and an InetAddress would strip it.
         SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
-        sslSocket.setEnabledProtocols(sslSocket.getSupportedProtocols());
+        applyTlsSettings(sslSocket);
         sslSocket.setSoTimeout(READ_TIMEOUT_MS);
         return sslSocket;
     }

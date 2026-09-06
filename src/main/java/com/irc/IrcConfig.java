@@ -54,8 +54,11 @@ public interface IrcConfig extends Config
     @Getter
     @RequiredArgsConstructor
     enum Server {
-        USA("Fiery (West-USA)", "fiery.ca.us.swiftirc.net"),
-        UK("London (UK)", "tardis.en.uk.swiftirc.net");
+        // Single-label names under swiftirc.net: the servers' certificate covers
+        // *.swiftirc.net, and a wildcard matches exactly one label, so the older
+        // fiery.ca.us / tardis.en.uk forms fail hostname verification. Same hosts, same IPs.
+        USA("Fiery (West-USA)", "fiery.swiftirc.net"),
+        UK("London (UK)", "tardis.swiftirc.net");
 
         private final String name;
         private final String hostname;
