@@ -111,8 +111,12 @@ Server notices will default to the System tab; you can optionally allow them to 
 #### log raw IRC lines
 
 Writes every IRC line sent and received to the RuneLite client log. Off by default. Turn it on
-only when you are chasing a connection problem, then turn it back off - it is noisy. Passwords are
-stripped before anything is written, so the log is safe to attach to a bug report.
+only when you are chasing a connection problem, then turn it back off - it is noisy.
+
+Credentials are stripped before anything is written, so the log is safe to attach to a bug report:
+the SASL exchange, server passwords, NickServ and ChanServ commands that carry a password, and
+channel keys (from `JOIN`, from `MODE +k`, and from the server's own reply when you join a keyed
+channel). What remains is the protocol traffic itself.
 
 ### Side Panel
 

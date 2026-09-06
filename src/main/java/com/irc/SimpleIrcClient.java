@@ -73,12 +73,19 @@ public class SimpleIrcClient {
     private static final String REDACTED = "<redacted>";
 
     /**
-     * Commands whose remainder is a credential. Anchored, so it only ever matches lines we send -
-     * a server never prefixes its own traffic this way.
+     * Service commands whose remainder is a credential. Covers ChanServ as well as NickServ -
+     * "/cs identify #chan <password>" is a channel password in plain sight - and treats the
+     * PRIVMSG wrapper as optional so a bare "NS IDENTIFY" alias is caught too.
+     *
+     * Anchored, so it can only match a line we send: an incoming line starts with ":source",
+     * which means ordinary conversation about identifying is never touched. Everything after the
+     * verb goes, including ChanServ's channel argument - over-redacting one channel name is a
+     * better trade than reasoning about each service's argument order.
      */
     private static final Pattern SERVICES_SECRET = Pattern.compile(
-            "(?i)^(?:PRIVMSG|NOTICE)\\s+(?:NickServ|NS)\\s+:?\\s*"
-                    + "(?:IDENTIFY|ID|REGISTER|GHOST|RECOVER|RELEASE|SETPASS|SET\\s+PASSWORD)\\b");
+            "(?i)^(?:(?:PRIVMSG|NOTICE)\\s+)?(?:NickServ|ChanServ|NS|CS)\\s+:?\\s*"
+                    + "(?:IDENTIFY|ID|LOGIN|AUTH|REGISTER|GHOST|RECOVER|RELEASE|DROP"
+                    + "|SETPASS|SET(?:\\s+\\S+)?\\s+PASSWORD)\\b");
 
     private String host;
     private int port;
@@ -919,6 +926,46 @@ public class SimpleIrcClient {
             return line.substring(0, services.end()) + " " + REDACTED;
         }
 
+        if (line.regionMatches(true, 0, "JOIN ", 0, 5)) {
+            // "JOIN <channels> [keys]" - a third token is always the key list.
+            String[] tokens = line.split(" ");
+            if (tokens.length >= 3) {
+                return tokens[0] + " " + tokens[1] + " " + REDACTED;
+            }
+            return line;
+        }
+
+        return redactModeKeys(line);
+    }
+
+    /**
+     * Redacts channel keys from MODE traffic, in both directions: "MODE #chan +k secret" going
+     * out, and ":op MODE #chan -k secret" or the server's "324 me #chan +nk secret" coming back.
+     * Removing a key names it on most ircds, so -k leaks as readily as +k.
+     *
+     * Rather than track which mode letters consume a parameter - which varies by ircd and would
+     * have to stay in step with ISUPPORT - every parameter after a mode string containing 'k' is
+     * dropped. Over-redacting a mode argument costs nothing; the mode string itself, which is the
+     * part worth reading, is kept.
+     */
+    private static String redactModeKeys(String line) {
+        String[] tokens = line.split(" ");
+        int command = tokens.length > 0 && tokens[0].startsWith(":") ? 1 : 0;
+        if (command >= tokens.length) return line;
+
+        if (!tokens[command].equalsIgnoreCase("MODE") && !tokens[command].equals("324")) {
+            return line;
+        }
+
+        for (int i = command + 1; i < tokens.length; i++) {
+            boolean isModeSpec = tokens[i].startsWith("+") || tokens[i].startsWith("-");
+            // Mode letters are case sensitive: 'K' is a different mode on some ircds.
+            if (isModeSpec && tokens[i].indexOf('k') >= 0) {
+                if (i + 1 >= tokens.length) return line;
+                return String.join(" ", java.util.Arrays.copyOfRange(tokens, 0, i + 1))
+                        + " " + REDACTED;
+            }
+        }
         return line;
     }
 
