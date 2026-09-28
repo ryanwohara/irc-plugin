@@ -43,6 +43,9 @@ public class IrcPanel extends PluginPanel {
     @Getter
     private final JPanel chatContent = new JPanel(new BorderLayout());
     private IrcPanelWindow panelWindow;
+    private JPanel controlPanel;
+    private IrcDesktopLayout desktopLayout;
+    private boolean detachedLayout;
     private Timer flashTimer;
     private JTabbedPane tabbedPane;
     public JTextField inputField;
@@ -138,7 +141,7 @@ public class IrcPanel extends PluginPanel {
             }
         });
 
-        JPanel controlPanel = new JPanel();
+        controlPanel = new JPanel();
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
         // Two equal columns rather than FlowLayout: the panel is only ~225px wide, and a long
@@ -212,6 +215,7 @@ public class IrcPanel extends PluginPanel {
      *  full initializeGui() Swing setup, which cannot run headless. */
     void onFocusedBufferChanged() {
         String newChannel = getCurrentChannel();
+        focusedChannel = newChannel;
         if (newChannel != null && unreadMessages.containsKey(newChannel)) {
             unreadMessages.put(newChannel, false);
             int selectedIndex = tabbedPane.getSelectedIndex();
@@ -220,6 +224,7 @@ public class IrcPanel extends PluginPanel {
             }
         }
         repopulateNickDropdown();
+        refreshDesktopChannels();
     }
 
     public void cycleChannel() {
@@ -371,6 +376,7 @@ public class IrcPanel extends PluginPanel {
         List<ChannelUserList.Entry> entries =
                 channelUserSnapshots.getOrDefault(channel, Collections.emptyList());
         displayedEntries = entries;
+        if (desktopLayout != null) desktopLayout.updateUsers(channel, entries);
 
         ActionListener[] listeners = nickDropdown.getActionListeners();
         for (ActionListener listener : listeners) {
@@ -451,6 +457,7 @@ public class IrcPanel extends PluginPanel {
             bufferDropdown.setSelectedIndex(index);
 
             this.focusedChannel = channel;
+            refreshDesktopChannels();
         }
     }
 
@@ -580,7 +587,41 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void setDetached(boolean detached, boolean alwaysOnTop) {
+        if (detachedLayout != detached) {
+            if (detached) {
+                if (desktopLayout == null) {
+                    desktopLayout = new IrcDesktopLayout(config.server().getHostname(),
+                            name -> unreadMessages.getOrDefault(name, false), this::setFocusedChannel,
+                            nick -> {
+                                addChannel(nick);
+                                setFocusedChannel(nick);
+                                inputField.requestFocusInWindow();
+                            },
+                            nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
+                            this::promptAddChannel, this::promptRemoveChannel,
+                            () -> requestChannelList(""), () -> onReconnect.accept(true),
+                            () -> configManager.setConfiguration("irc", "popOut", false));
+                }
+                chatContent.remove(controlPanel);
+                desktopLayout.attachChat(tabbedPane, inputField);
+                chatContent.add(desktopLayout, BorderLayout.CENTER);
+                refreshDesktopChannels();
+                repopulateNickDropdown();
+            } else {
+                chatContent.remove(desktopLayout);
+                chatContent.add(controlPanel, BorderLayout.NORTH);
+                chatContent.add(tabbedPane, BorderLayout.CENTER);
+                chatContent.add(inputField, BorderLayout.SOUTH);
+            }
+            detachedLayout = detached;
+            chatContent.revalidate();
+            chatContent.repaint();
+        }
         panelWindow.setDetached(detached, alwaysOnTop);
+    }
+
+    private void refreshDesktopChannels() {
+        if (desktopLayout != null) desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
     }
 
     private void prepareForHostChange() {
@@ -631,6 +672,7 @@ public class IrcPanel extends PluginPanel {
             tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
             this.setFocusedChannel(channel);
         }
+        refreshDesktopChannels();
     }
 
     public void removeChannel(String channel) {
@@ -642,6 +684,7 @@ public class IrcPanel extends PluginPanel {
         unreadMessages.remove(channel);
         bufferDropdown.removeItem(channel);
         channelUserSnapshots.remove(channel);
+        onFocusedBufferChanged();
     }
 
     public void addMessage(IrcMessage message) {
@@ -654,6 +697,7 @@ public class IrcPanel extends PluginPanel {
             unreadMessages.put(message.getChannel(), true);
         }
         pane.appendMessage(message, config);
+        refreshDesktopChannels();
     }
 
     /**
@@ -725,6 +769,7 @@ public class IrcPanel extends PluginPanel {
         if (oldName.equals(focusedChannel)) {
             focusedChannel = newName;
         }
+        refreshDesktopChannels();
     }
 
     static <V> void renameKeyInPlace(Map<String, V> map, String oldKey, String newKey) {

@@ -71,8 +71,8 @@ final class IrcPanelWindow {
                 Window owner = SwingUtilities.getWindowAncestor(content);
                 frame = new JFrame("Global Chat (IRC)");
                 frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-                frame.setMinimumSize(new Dimension(280, 250));
-                frame.setSize(420, 560);
+                frame.setMinimumSize(new Dimension(640, 360));
+                frame.setSize(960, 620);
                 if (owner != null) {
                     frame.setIconImages(owner.getIconImages());
                 }
