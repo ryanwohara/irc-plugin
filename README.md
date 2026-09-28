@@ -122,7 +122,24 @@ channel). What remains is the protocol traffic itself.
 
 #### enabled
 
-Whether the side panel will appear.
+Whether IRC's panel will appear, either in the sidebar or in its own window.
+
+#### pop out window
+
+Turn on **Side Panel → Pop out window** to move IRC into a separate, resizable window.
+Drag its title bar to move it, including to another monitor. All chat controls remain
+interactive: type messages, switch channels, browse channels, and click links as usual.
+The same chat controls are reused, preserving scrollback, the selected channel, and unsent text
+without reconnecting to IRC.
+
+Turn the setting off, or close the window with its **X**, to return IRC to the RuneLite
+sidebar. Click the IRC sidebar icon to view it there. Window size and position are remembered
+while the plugin remains enabled. Turning **Enabled** off hides the panel in either mode;
+disabling the plugin also closes the pop-out.
+
+#### keep pop-out on top
+
+Optionally keep the pop-out above other windows. Off by default.
 
 #### timestamp
 

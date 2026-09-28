@@ -11,7 +11,6 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.LinkBrowser;
-import net.runelite.client.ui.ClientUI;
 import okhttp3.OkHttpClient;
 
 import javax.inject.Inject;
@@ -39,10 +38,12 @@ public class IrcPanel extends PluginPanel {
     @Inject
     private ConfigManager configManager;
     @Inject
-    private ClientUI clientUI;
-    @Inject
     private OkHttpClient okHttpClient;
 
+    @Getter
+    private final JPanel chatContent = new JPanel(new BorderLayout());
+    private IrcPanelWindow panelWindow;
+    private Timer flashTimer;
     private JTabbedPane tabbedPane;
     public JTextField inputField;
     @Getter
@@ -66,7 +67,6 @@ public class IrcPanel extends PluginPanel {
     private static final String SYSTEM_TAB = "System";
 
     private final JComboBox<String> bufferDropdown = getBufferComboBox();
-    private final JTextPane displayPane = new JTextPane();
     private final InputHistory inputHistory = new InputHistory(20);
 
     private static final String USERS_HEADER_PREFIX = "Users (";
@@ -103,7 +103,7 @@ public class IrcPanel extends PluginPanel {
 
     private void initializeFlashTimer() {
         // Change color for different flash
-        Timer flashTimer = new Timer(500, e -> {
+        flashTimer = new Timer(500, e -> {
             String currentTab = getCurrentChannel();
             for (int i = 0; i < tabbedPane.getTabCount(); i++) {
                 String tabTitle = tabbedPane.getTitleAt(i);
@@ -163,26 +163,7 @@ public class IrcPanel extends PluginPanel {
         final JComboBox<String> fontComboBox = getFontComboBox();
 
 
-        JFrame frame = new JFrame("Buffers");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(500, 300);
-
-        displayPane.setEditable(false);
-
-        int index = 0;
-        synchronized (channelPanes) {
-            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
-                if (index == 0) {
-                    displayPane.setDocument(channel.getValue().getStyledDocument()); // show first one
-                }
-                index++;
-            }
-        }
         bufferDropdown.addActionListener(this::actionPerformed);
-
-        frame.setLayout(new BorderLayout());
-        frame.add(bufferDropdown, BorderLayout.NORTH);
-        frame.add(new JScrollPane(displayPane), BorderLayout.CENTER);
 
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
@@ -214,9 +195,13 @@ public class IrcPanel extends PluginPanel {
                 inputField.setText("");
             }
         });
-        add(controlPanel, BorderLayout.NORTH);
-        add(tabbedPane, BorderLayout.CENTER);
-        add(inputField, BorderLayout.SOUTH);
+        chatContent.add(controlPanel, BorderLayout.NORTH);
+        chatContent.add(tabbedPane, BorderLayout.CENTER);
+        chatContent.add(inputField, BorderLayout.SOUTH);
+        add(chatContent, BorderLayout.CENTER);
+        panelWindow = new IrcPanelWindow(this, chatContent, this::prepareForHostChange,
+                this::hideAllPreviews,
+                () -> configManager.setConfiguration("irc", "popOut", false));
         navigationButton = generateNavigationButton();
         SwingUtilities.invokeLater(() -> addChannel("System"));
         tabbedPane.addChangeListener(e -> onFocusedBufferChanged());
@@ -578,8 +563,29 @@ public class IrcPanel extends PluginPanel {
      * repeatedly, and when nothing was ever armed or shown.
      */
     public void shutdown() {
+        if (panelWindow != null) {
+            panelWindow.shutdown();
+            panelWindow = null;
+        }
+        if (flashTimer != null) {
+            flashTimer.stop();
+        }
+        hideAllPreviews();
         cancelChannelListTimeout();
         channelListTimeout = null;
+        if (channelListDialog != null) {
+            channelListDialog.dispose();
+            channelListDialog = null;
+        }
+    }
+
+    public void setDetached(boolean detached, boolean alwaysOnTop) {
+        panelWindow.setDetached(detached, alwaysOnTop);
+    }
+
+    private void prepareForHostChange() {
+        hideAllPreviews();
+        // Dialog owners cannot change. Recreate the browser against the new host on next use.
         if (channelListDialog != null) {
             channelListDialog.dispose();
             channelListDialog = null;
@@ -598,7 +604,7 @@ public class IrcPanel extends PluginPanel {
         cancelChannelListTimeout();
         if (channelListDialog == null) {
             channelListDialog = new ChannelListDialog(
-                    SwingUtilities.getWindowAncestor(this),
+                    SwingUtilities.getWindowAncestor(chatContent),
                     (channel, password) -> {
                         if (onChannelJoin != null) {
                             onChannelJoin.accept(channel, password);
@@ -674,7 +680,7 @@ public class IrcPanel extends PluginPanel {
         focusWhenShown(channelField);
         Object[] options = {"Join", "Browse…", "Cancel"};
         int choice = JOptionPane.showOptionDialog(
-                this,
+                chatContent,
                 new Object[]{"Enter channel name:", channelField},
                 "Add channel",
                 JOptionPane.DEFAULT_OPTION,
@@ -693,7 +699,7 @@ public class IrcPanel extends PluginPanel {
         String channel = channelField.getText();
         if (channel == null || channel.trim().isEmpty()) return;
 
-        String password = JOptionPane.showInputDialog(this, "Enter channel password (optional):");
+        String password = JOptionPane.showInputDialog(chatContent, "Enter channel password (optional):");
         if (!channel.startsWith("#")) {
             channel = "#" + channel;
         }
@@ -765,7 +771,7 @@ public class IrcPanel extends PluginPanel {
     private void promptRemoveChannel() {
         String channel = getCurrentChannel();
         if (!channel.equals("System")) {
-            int result = JOptionPane.showConfirmDialog(this, "Close " + channel + "?", "Confirm", JOptionPane.YES_NO_OPTION);
+            int result = JOptionPane.showConfirmDialog(chatContent, "Close " + channel + "?", "Confirm", JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.YES_OPTION && onChannelLeave != null) {
                 onChannelLeave.accept(channel);
             }
@@ -778,7 +784,6 @@ public class IrcPanel extends PluginPanel {
         synchronized (channelPanes) {
             for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
                 if (i == idx) {
-                    displayPane.setDocument(channel.getValue().getStyledDocument());
                     this.setFocusedChannel(channel.getKey());
                     break;
                 }
