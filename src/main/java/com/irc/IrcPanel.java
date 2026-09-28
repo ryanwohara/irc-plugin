@@ -203,8 +203,7 @@ public class IrcPanel extends PluginPanel {
         chatContent.add(inputField, BorderLayout.SOUTH);
         add(chatContent, BorderLayout.CENTER);
         panelWindow = new IrcPanelWindow(this, chatContent, this::prepareForHostChange,
-                this::hideAllPreviews,
-                () -> configManager.setConfiguration("irc", "popOut", false));
+                this::hideAllPreviews, this::requestDock);
         navigationButton = generateNavigationButton();
         SwingUtilities.invokeLater(() -> addChannel("System"));
         tabbedPane.addChangeListener(e -> onFocusedBufferChanged());
@@ -600,7 +599,7 @@ public class IrcPanel extends PluginPanel {
                             nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
                             () -> requestChannelList(""), () -> onReconnect.accept(true),
-                            () -> configManager.setConfiguration("irc", "popOut", false));
+                            this::requestDock);
                 }
                 chatContent.remove(controlPanel);
                 desktopLayout.attachChat(tabbedPane, inputField);
@@ -622,6 +621,11 @@ public class IrcPanel extends PluginPanel {
 
     private void refreshDesktopChannels() {
         if (desktopLayout != null) desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
+    }
+
+    private void requestDock() {
+        configManager.setConfiguration("irc", "popOut", false);
+        IrcConfigUi.syncPopOutCheckbox(configManager.getConfigDescriptor(config), false);
     }
 
     private void prepareForHostChange() {
