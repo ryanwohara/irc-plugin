@@ -153,6 +153,8 @@ public class IrcPanel extends PluginPanel {
         JButton addButton = new JButton("+");
         JButton removeButton = new JButton("-");
         JButton reloadButton = new JButton();
+        JButton popOutButton = new JButton("^");
+        popOutButton.setToolTipText("Pop out window");
         try {
             Image img = ImageUtil.loadImageResource(getClass(), "reload.png");
             reloadButton.setIcon(new ImageIcon(img));
@@ -163,6 +165,7 @@ public class IrcPanel extends PluginPanel {
         addButton.setPreferredSize(standard);
         removeButton.setPreferredSize(standard);
         reloadButton.setPreferredSize(standard);
+        popOutButton.setPreferredSize(standard);
         final JComboBox<String> fontComboBox = getFontComboBox();
 
 
@@ -171,10 +174,12 @@ public class IrcPanel extends PluginPanel {
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
         reloadButton.addActionListener(e -> onReconnect.accept(true));
+        popOutButton.addActionListener(e -> configManager.setConfiguration("irc", "popOut", true));
         row1.add(reloadButton);
         row1.add(addButton);
         row1.add(removeButton);
         row1.add(fontComboBox);
+        row1.add(popOutButton);
         row2.add(nickDropdown);
         row2.add(bufferDropdown);
         controlPanel.add(row1);
@@ -625,7 +630,6 @@ public class IrcPanel extends PluginPanel {
 
     private void requestDock() {
         configManager.setConfiguration("irc", "popOut", false);
-        IrcConfigUi.syncPopOutCheckbox(configManager.getConfigDescriptor(config), false);
     }
 
     private void prepareForHostChange() {

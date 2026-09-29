@@ -126,7 +126,7 @@ Whether IRC's panel will appear, either in the sidebar or in its own window.
 
 #### pop out window
 
-Turn on **Side Panel → Pop out window** to move IRC into a separate, resizable window.
+Click the **^** button in the IRC sidebar panel to move IRC into a separate, resizable window.
 Drag its title bar to move it, including to another monitor. All chat controls remain
 interactive: type messages, switch channels, browse channels, and click links as usual.
 The expanded layout includes a channel/private-chat tree with unread markers, chat in the
@@ -137,7 +137,7 @@ compact sidebar layout.
 The same chat controls are reused, preserving scrollback, the selected channel, and unsent text
 without reconnecting to IRC.
 
-Turn the setting off, or close the window with its **X**, to return IRC to the RuneLite
+Click **Dock**, or close the window with its **X**, to return IRC to the RuneLite
 sidebar. Click the IRC sidebar icon to view it there. Window size and position are remembered
 while the plugin remains enabled. Turning **Enabled** off hides the panel in either mode;
 disabling the plugin also closes the pop-out.

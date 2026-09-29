@@ -302,6 +302,7 @@ public interface IrcConfig extends Config
             name = "Pop out window",
             description = "Move IRC into a resizable, interactive window. Closing it returns IRC to the sidebar.",
             position = 8,
+            hidden = true,
             section = sidePanelSettings
     )
     default boolean popOut() { return false; }
