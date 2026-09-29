@@ -1,5 +1,7 @@
 package com.irc;
 
+import net.runelite.client.util.ImageUtil;
+
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -113,7 +115,13 @@ final class IrcDesktopLayout extends JPanel {
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
         toolbar.setBackground(HEADER);
-        toolbar.add(button("Connect", "Reconnect to IRC", reconnect));
+        JButton reconnectButton = button("", "Reconnect to IRC", reconnect);
+        try {
+            reconnectButton.setIcon(new ImageIcon(ImageUtil.loadImageResource(IrcDesktopLayout.class, "reload.png")));
+        } catch (Exception ignored) {
+            reconnectButton.setText("Reconnect");
+        }
+        toolbar.add(reconnectButton);
         toolbar.add(button("Join…", "Join a channel", join));
         toolbar.add(button("Leave", "Close the selected conversation", leave));
         toolbar.add(button("Channels…", "Browse the server's channel list", browse));

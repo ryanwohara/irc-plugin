@@ -291,7 +291,7 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "sidePanel",
             name = "Enabled",
-            description = "Show IRC in the sidebar or pop-out window",
+            description = "Show IRC in the sidebar",
             position = 0,
             section = sidePanelSettings
     )

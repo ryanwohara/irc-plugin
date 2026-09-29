@@ -5,6 +5,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.Frame;
 import java.awt.Rectangle;
 import java.awt.Window;
 import java.awt.event.ComponentAdapter;
@@ -109,6 +110,16 @@ final class IrcPanelWindow {
             dockHost.revalidate();
             dockHost.repaint();
         }
+    }
+
+    void toFront() {
+        assert SwingUtilities.isEventDispatchThread();
+        if (frame == null) return;
+        if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
+            frame.setExtendedState(frame.getExtendedState() & ~Frame.ICONIFIED);
+        }
+        frame.toFront();
+        frame.requestFocus();
     }
 
     private void observeWindow(Window window) {

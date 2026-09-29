@@ -51,6 +51,8 @@ NickServ Identification: ;;id
 
 Clear the side panel: `;;clear`
 
+Open IRC in its own window: `;;popout`
+
 Change channel modes: `;;mode #rshelp -s`
 
 View the topic: `;;topic`
@@ -122,25 +124,27 @@ channel). What remains is the protocol traffic itself.
 
 #### enabled
 
-Whether IRC's panel will appear, either in the sidebar or in its own window.
+Whether IRC's panel will appear in the sidebar. The pop-out window works either way.
 
 #### pop out window
 
-Click the **^** button in the IRC sidebar panel to move IRC into a separate, resizable window.
+Click the **^** button in the IRC sidebar panel, or type `;;popout` in the chat box, to move IRC
+into a separate, resizable window. `;;popout` works even when **Enabled** is off, and brings the
+window to the front if it is already open.
 Drag its title bar to move it, including to another monitor. All chat controls remain
 interactive: type messages, switch channels, browse channels, and click links as usual.
 The expanded layout includes a channel/private-chat tree with unread markers, chat in the
 center, and a user list on the right. Drag the dividers to adjust column widths. Double-click
 a nick (or press Enter on it) to open a private conversation; right-click for Message and WHOIS.
-The toolbar provides Connect, Join, Leave, Channels, and Dock actions. Docking restores the
+The toolbar provides Reconnect, Join, Leave, Channels, and Dock actions. Docking restores the
 compact sidebar layout.
 The same chat controls are reused, preserving scrollback, the selected channel, and unsent text
 without reconnecting to IRC.
 
 Click **Dock**, or close the window with its **X**, to return IRC to the RuneLite
-sidebar. Click the IRC sidebar icon to view it there. Window size and position are remembered
-while the plugin remains enabled. Turning **Enabled** off hides the panel in either mode;
-disabling the plugin also closes the pop-out.
+sidebar. Click the IRC sidebar icon to view it there. If **Enabled** is off, docking just closes
+the window. Window size and position are remembered while the plugin remains enabled.
+Disabling the plugin also closes the pop-out.
 
 #### keep pop-out on top
 

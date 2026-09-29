@@ -55,6 +55,8 @@ public class IrcPlugin extends Plugin {
     private ClientToolbar clientToolbar;
     @Inject
     private KeyManager keyManager;
+    @Inject
+    private ConfigManager configManager;
     private IrcOverlay overlay;
     @Nullable
     private IrcAdapter ircAdapter;
@@ -345,6 +347,17 @@ public class IrcPlugin extends Plugin {
                 panel.clearCurrentPane();
                 break;
 
+            case "popout":
+                // Reachable from the chat box, so this works even when the sidebar is hidden.
+                if (config.popOut()) {
+                    SwingUtilities.invokeLater(() -> {
+                        if (panel != null) panel.bringPopOutToFront();
+                    });
+                } else {
+                    configManager.setConfiguration("irc", "popOut", true);
+                }
+                break;
+
             case "help":
                 showCommandHelp();
                 break;
@@ -479,6 +492,7 @@ public class IrcPlugin extends Plugin {
                 "/join [#channel] - Join a channel, or browse the list if omitted",
                 "/list [filter] - Browse the server's channel list (e.g. /list >50)",
                 "/part [#channel] - Leave a channel (aliased as /leave)",
+                "/popout - Open IRC in its own window",
                 "/me <action> - Send action message",
                 "/mode [#channel] [+modes|-modes] - Modify channel modes",
                 "/msg <nick> <message> - Send private message",
@@ -657,7 +671,7 @@ public class IrcPlugin extends Plugin {
             if (panel == null) return;
             clientToolbar.removeNavigation(panel.getNavigationButton());
             if (rebuildNavigation) panel.generateNavigationButton();
-            panel.setDetached(config.sidePanel() && config.popOut(), config.popOutAlwaysOnTop());
+            panel.setDetached(config.popOut(), config.popOutAlwaysOnTop());
             if (config.sidePanel() && !config.popOut()) {
                 clientToolbar.addNavigation(panel.getNavigationButton());
             }
@@ -677,7 +691,7 @@ public class IrcPlugin extends Plugin {
         } else if ("popOutAlwaysOnTop".equals(configChanged.getKey())) {
             SwingUtilities.invokeLater(() -> {
                 if (panel != null) {
-                    panel.setDetached(config.sidePanel() && config.popOut(), config.popOutAlwaysOnTop());
+                    panel.setDetached(config.popOut(), config.popOutAlwaysOnTop());
                 }
             });
         } else if ("overlayEnabled".equals(configChanged.getKey())) {

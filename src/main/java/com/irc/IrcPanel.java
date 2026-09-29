@@ -639,6 +639,10 @@ public class IrcPanel extends PluginPanel {
         if (desktopLayout != null) desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
     }
 
+    public void bringPopOutToFront() {
+        panelWindow.toFront();
+    }
+
     private void requestDock() {
         configManager.setConfiguration("irc", "popOut", false);
     }
