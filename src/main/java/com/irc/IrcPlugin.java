@@ -618,14 +618,16 @@ public class IrcPlugin extends Plugin {
             if (!panel.getChannelNames().contains(message.getChannel())) {
                 for (String channel : panel.getChannelNames()) {
                     if (channel.equalsIgnoreCase(message.getChannel())) {
-                        panel.renameChannel(channel, message.getChannel());
+                        SwingUtilities.invokeLater(() -> {
+                            if (panel != null) panel.renameChannel(channel, message.getChannel());
+                        });
                     }
                 }
             }
         }
 
         if (client.getGameState() == GameState.LOGGED_IN) {
-            boolean activeChannelCondition = panel == null || panel.getCurrentChannel().equals(message.getChannel());
+            boolean activeChannelCondition = panel == null || panel.getCurrentChannel().equalsIgnoreCase(message.getChannel());
             boolean isSystemEvent = message.getChannel().equals("System") && Arrays.binarySearch(chatBoxEvents, message.getType()) > -1;
 
             if (!config.activeChannelOnly() || (config.activeChannelOnly() && (activeChannelCondition || isSystemEvent))) {

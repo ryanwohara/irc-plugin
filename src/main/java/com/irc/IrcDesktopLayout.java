@@ -186,7 +186,13 @@ final class IrcDesktopLayout extends JPanel {
                 }
             }
             channelHeading.setText(selected);
-            channels.repaint();
+            // nodeChanged, not repaint: unread rows render wider (bold + marker), and the tree
+            // caches row widths, so a plain repaint clips them.
+            java.util.Enumeration<?> leaves = root.depthFirstEnumeration();
+            while (leaves.hasMoreElements()) {
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) leaves.nextElement();
+                if (!node.getAllowsChildren()) treeModel.nodeChanged(node);
+            }
         } finally {
             synchronizing = false;
         }
