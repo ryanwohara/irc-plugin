@@ -143,7 +143,11 @@ public class IrcPanel extends PluginPanel {
 
         controlPanel = new JPanel();
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
-        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // Buttons at their fixed size on the left; the font dropdown takes whatever width is left.
+        // A single FlowLayout wrapped overflow onto a second line that the row's height hid.
+        JPanel row1 = new JPanel(new BorderLayout());
+        JPanel row1Buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel fontCell = new JPanel(new GridBagLayout());
         // Two equal columns rather than FlowLayout: the panel is only ~225px wide, and a long
         // channel name made the buffer dropdown wide enough to push the pair onto a second row.
         // A grid splits the width evenly and clips inside a cell instead of wrapping. Fill order
@@ -175,11 +179,18 @@ public class IrcPanel extends PluginPanel {
         removeButton.addActionListener(e -> promptRemoveChannel());
         reloadButton.addActionListener(e -> onReconnect.accept(true));
         popOutButton.addActionListener(e -> configManager.setConfiguration("irc", "popOut", true));
-        row1.add(reloadButton);
-        row1.add(addButton);
-        row1.add(removeButton);
-        row1.add(fontComboBox);
-        row1.add(popOutButton);
+        row1Buttons.add(reloadButton);
+        row1Buttons.add(addButton);
+        row1Buttons.add(removeButton);
+        row1Buttons.add(popOutButton);
+        fontComboBox.setMinimumSize(new Dimension(0, fontComboBox.getPreferredSize().height));
+        GridBagConstraints fontFill = new GridBagConstraints();
+        fontFill.fill = GridBagConstraints.HORIZONTAL;
+        fontFill.weightx = 1;
+        fontFill.insets = new Insets(0, 0, 0, 5);
+        fontCell.add(fontComboBox, fontFill);
+        row1.add(row1Buttons, BorderLayout.WEST);
+        row1.add(fontCell, BorderLayout.CENTER);
         row2.add(nickDropdown);
         row2.add(bufferDropdown);
         controlPanel.add(row1);
