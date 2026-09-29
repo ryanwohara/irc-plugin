@@ -291,11 +291,30 @@ public interface IrcConfig extends Config
     @ConfigItem(
             keyName = "sidePanel",
             name = "Enabled",
-            description = "Enable the side panel",
+            description = "Show IRC in the sidebar or pop-out window",
             position = 0,
             section = sidePanelSettings
     )
     default boolean sidePanel() { return true;}
+
+    @ConfigItem(
+            keyName = "popOut",
+            name = "Pop out window",
+            description = "Move IRC into a resizable, interactive window. Closing it returns IRC to the sidebar.",
+            position = 8,
+            hidden = true,
+            section = sidePanelSettings
+    )
+    default boolean popOut() { return false; }
+
+    @ConfigItem(
+            keyName = "popOutAlwaysOnTop",
+            name = "Keep pop-out on top",
+            description = "Keep the IRC pop-out above other windows",
+            position = 9,
+            section = sidePanelSettings
+    )
+    default boolean popOutAlwaysOnTop() { return false; }
 
     @ConfigItem(
             keyName = "timestamp",

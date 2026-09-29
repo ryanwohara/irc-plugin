@@ -32,13 +32,6 @@ import net.runelite.client.util.Text;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
-import java.awt.Window;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.time.Instant;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -74,63 +67,13 @@ public class IrcPlugin extends Plugin {
     private final Map<String, String> channelPasswords = new HashMap<>();
 
     @Override
-    protected void startUp() {
-        setupPanel();
-        if (config.sidePanel()) {
-            clientToolbar.addNavigation(panel.getNavigationButton());
+    protected void startUp() throws Exception {
+        if (SwingUtilities.isEventDispatchThread()) {
+            setupPanel();
+        } else {
+            SwingUtilities.invokeAndWait(this::setupPanel);
         }
-
-        SwingUtilities.invokeLater(() -> {
-            Window window = SwingUtilities.getWindowAncestor(panel);
-            if (window != null) {
-                window.addWindowFocusListener(new WindowAdapter() {
-                    @Override
-                    public void windowLostFocus(WindowEvent e) {
-                        if (panel != null) {
-                            panel.hideAllPreviews();
-                        }
-                    }
-                });
-                window.addWindowListener(new WindowAdapter() {
-                    @Override
-                    public void windowDeactivated(WindowEvent e) {
-                        if (panel != null) {
-                            panel.hideAllPreviews();
-                        }
-                    }
-
-                    @Override
-                    public void windowIconified(WindowEvent e) {
-                        if (panel != null) {
-                            panel.hideAllPreviews();
-                        }
-                    }
-                });
-                window.addComponentListener(new ComponentAdapter() {
-                    @Override
-                    public void componentMoved(ComponentEvent e) {
-                        if (panel != null) {
-                            panel.hideAllPreviews();
-                        }
-                    }
-                });
-                window.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseExited(MouseEvent e) {
-                        if (panel != null) {
-                            if (!window.getBounds().contains(e.getLocationOnScreen())) {
-                                panel.hideAllPreviews();
-                            }
-                        }
-                    }
-                });
-                window.addMouseWheelListener(e -> {
-                    if (panel != null) {
-                        panel.hideAllPreviews();
-                    }
-                });
-            }
-        });
+        updatePanelHost(false);
         overlay = new IrcOverlay(client, panel, config, keyManager);
         overlayManager.add(overlay);
         emojiService.initialize();
@@ -146,11 +89,11 @@ public class IrcPlugin extends Plugin {
             ircAdapter.clearPanel();
         }
         if (panel != null) {
-            // Before panel = null, or the browser's JDialog outlives the plugin as a live window
-            // whose buttons all no-op.
-            panel.shutdown();
-            clientToolbar.removeNavigation(panel.getNavigationButton());
+            // Capture the old panel so deferred cleanup cannot dispose a newly enabled panel.
+            IrcPanel closingPanel = panel;
             panel = null;
+            clientToolbar.removeNavigation(closingPanel.getNavigationButton());
+            SwingUtilities.invokeLater(closingPanel::shutdown);
         }
         if (ircAdapter != null) {
             ircAdapter.disconnect("Plugin shutting down");
@@ -509,7 +452,7 @@ public class IrcPlugin extends Plugin {
         SwingUtilities.invokeLater(() -> {
             String acct = account;
             if (acct == null) {
-                acct = JOptionPane.showInputDialog(panel,
+                acct = JOptionPane.showInputDialog(panel.getChatContent(),
                         "Enter your NickServ account (leave blank to identify by nick):",
                         "Account (optional)", JOptionPane.QUESTION_MESSAGE);
                 if (acct == null) return; // cancelled
@@ -517,7 +460,7 @@ public class IrcPlugin extends Plugin {
             }
 
             JPasswordField passwordField = new JPasswordField();
-            int result = JOptionPane.showConfirmDialog(panel, passwordField,
+            int result = JOptionPane.showConfirmDialog(panel.getChatContent(), passwordField,
                     "Enter your NickServ password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             if (result != JOptionPane.OK_OPTION) return;
 
@@ -675,14 +618,16 @@ public class IrcPlugin extends Plugin {
             if (!panel.getChannelNames().contains(message.getChannel())) {
                 for (String channel : panel.getChannelNames()) {
                     if (channel.equalsIgnoreCase(message.getChannel())) {
-                        panel.renameChannel(channel, message.getChannel());
+                        SwingUtilities.invokeLater(() -> {
+                            if (panel != null) panel.renameChannel(channel, message.getChannel());
+                        });
                     }
                 }
             }
         }
 
         if (client.getGameState() == GameState.LOGGED_IN) {
-            boolean activeChannelCondition = panel == null || panel.getCurrentChannel().equals(message.getChannel());
+            boolean activeChannelCondition = panel == null || panel.getCurrentChannel().equalsIgnoreCase(message.getChannel());
             boolean isSystemEvent = message.getChannel().equals("System") && Arrays.binarySearch(chatBoxEvents, message.getType()) > -1;
 
             if (!config.activeChannelOnly() || (config.activeChannelOnly() && (activeChannelCondition || isSystemEvent))) {
@@ -707,26 +652,34 @@ public class IrcPlugin extends Plugin {
         }
     }
 
+    private void updatePanelHost(boolean rebuildNavigation) {
+        SwingUtilities.invokeLater(() -> {
+            if (panel == null) return;
+            clientToolbar.removeNavigation(panel.getNavigationButton());
+            if (rebuildNavigation) panel.generateNavigationButton();
+            panel.setDetached(config.sidePanel() && config.popOut(), config.popOutAlwaysOnTop());
+            if (config.sidePanel() && !config.popOut()) {
+                clientToolbar.addNavigation(panel.getNavigationButton());
+            }
+        });
+    }
+
     @Subscribe
     public void onConfigChanged(ConfigChanged configChanged) {
         if (!configChanged.getGroup().equals("irc")) {
             return;
         }
 
-        if ("sidePanel".equals(configChanged.getKey())) {
-            if (panel != null) {
-                clientToolbar.removeNavigation(panel.getNavigationButton());
-                if (config.sidePanel()) {
-                    clientToolbar.addNavigation(panel.getNavigationButton());
+        if ("sidePanel".equals(configChanged.getKey())
+                || "popOut".equals(configChanged.getKey())
+                || "panelPriority".equals(configChanged.getKey())) {
+            updatePanelHost("panelPriority".equals(configChanged.getKey()));
+        } else if ("popOutAlwaysOnTop".equals(configChanged.getKey())) {
+            SwingUtilities.invokeLater(() -> {
+                if (panel != null) {
+                    panel.setDetached(config.sidePanel() && config.popOut(), config.popOutAlwaysOnTop());
                 }
-            }
-        } else if ("panelPriority".equals(configChanged.getKey())) {
-            if (panel != null) {
-                clientToolbar.removeNavigation(panel.getNavigationButton());
-                if (config.sidePanel()) {
-                    clientToolbar.addNavigation(panel.generateNavigationButton());
-                }
-            }
+            });
         } else if ("overlayEnabled".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());
