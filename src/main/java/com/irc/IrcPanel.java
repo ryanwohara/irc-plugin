@@ -73,6 +73,7 @@ public class IrcPanel extends PluginPanel {
     private final List<JComboBox<String>> fontSelectors = new ArrayList<>();
     private final JComboBox<String> bufferDropdown = getBufferComboBox();
     private final InputHistory inputHistory = new InputHistory(20);
+    private final TabCompleter tabCompleter = new TabCompleter();
 
     private static final String USERS_HEADER_PREFIX = "Users (";
     /**
@@ -1301,6 +1302,23 @@ public class IrcPanel extends PluginPanel {
             actionMap.put(shortcut.actionKey, new TextInsertAction(shortcut.insertText));
         }
 
+        // Tab would otherwise move focus out of the input box.
+        inputField.setFocusTraversalKeysEnabled(false);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0), "completeNext");
+        actionMap.put("completeNext", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                completeInput(true);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK), "completePrevious");
+        actionMap.put("completePrevious", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                completeInput(false);
+            }
+        });
+
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "historyPrevious");
         actionMap.put("historyPrevious", new AbstractAction() {
             @Override
@@ -1315,6 +1333,28 @@ public class IrcPanel extends PluginPanel {
                 recallHistory(inputHistory.next());
             }
         });
+    }
+
+    private void completeInput(boolean forward) {
+        String channel = getCurrentChannel();
+        List<String> nicks = new ArrayList<>();
+        for (ChannelUserList.Entry entry : channelUserSnapshots.getOrDefault(channel, Collections.emptyList())) {
+            nicks.add(entry.getNick());
+        }
+        // A PM buffer has no roster; the one other person is the buffer itself.
+        if (!channel.startsWith("#") && !SYSTEM_TAB.equals(channel)) {
+            nicks.add(channel);
+        }
+        List<String> channels = new ArrayList<>();
+        for (String name : getChannelNames()) {
+            if (name.startsWith("#")) channels.add(name);
+        }
+        TabCompleter.Result result = tabCompleter.complete(
+                inputField.getText(), inputField.getCaretPosition(), nicks, channels, forward);
+        if (result != null) {
+            inputField.setText(result.text);
+            inputField.setCaretPosition(result.caret);
+        }
     }
 
     private void recallHistory(String text) {
