@@ -103,7 +103,8 @@ public class IrcAdapter {
                 currentNick,
                 message,
                 IrcMessage.MessageType.PRIVATE,
-                Instant.now()
+                Instant.now(),
+                client.getChannelPrefix(target, currentNick)
         ));
     }
 
@@ -117,7 +118,8 @@ public class IrcAdapter {
                 "* " + currentNick,
                 action,
                 IrcMessage.MessageType.PRIVATE,
-                Instant.now()
+                Instant.now(),
+                client.getChannelPrefix(target, currentNick)
         ));
     }
 
@@ -266,11 +268,14 @@ public class IrcAdapter {
                                 break;
                         }
                     }
-                    processMessage(new IrcMessage(target, source, event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now()));
+                    // Looked up by the original target: PMs have no channel, so they get no prefix.
+                    processMessage(new IrcMessage(target, source, event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now(),
+                            client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
 
                 case ACTION:
-                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now()));
+                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now(),
+                            client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
 
                 case JOIN:

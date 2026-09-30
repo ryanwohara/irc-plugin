@@ -984,7 +984,7 @@ public class IrcPanel extends PluginPanel {
                 default:
                     color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
             }
-            String sender = escapeHtml4(message.getSender());
+            String sender = escapeHtml4(message.getDisplaySender());
             if (config.colorizedNicks()) {
                 String senderColor = htmlColorById(nickColorId(message.getSender()));
                 sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);

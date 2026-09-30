@@ -1032,6 +1032,11 @@ public class SimpleIrcClient {
         return channelUserList.snapshot(channel);
     }
 
+    /** The nick's highest channel prefix ("@", "+", ...), or "" when it has none. */
+    String getChannelPrefix(String channel, String nick) {
+        return channelUserList.prefixOf(channel, nick);
+    }
+
     /** The last completed channel list. Immutable; empty until a LIST finishes. */
     List<ChannelListEntry> getChannelListSnapshot() {
         return channelListSnapshot;

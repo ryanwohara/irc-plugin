@@ -648,7 +648,7 @@ public class IrcPlugin extends Plugin {
                 chatMessageManager.queue(QueuedMessage.builder()
                         .type(config.getChatboxType().getType())
                         .sender(message.getChannel())
-                        .name(message.getSender())
+                        .name(message.getDisplaySender())
                         .runeLiteFormattedMessage(
                                 new ChatMessageBuilder()
                                         .append(ChatColorType.NORMAL)

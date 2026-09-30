@@ -218,22 +218,33 @@ class ChannelUserList {
 
         List<Entry> entries = new ArrayList<>(ch.users.size());
         for (User user : ch.users.values()) {
-            char bestMode = '\0';
-            int bestRank = Integer.MAX_VALUE;
-            for (char mode : user.modes) {
-                int rank = spec.rankOf(mode);
-                if (rank < bestRank) {
-                    bestRank = rank;
-                    bestMode = mode;
-                }
-            }
-            char prefixChar = bestMode == '\0' ? '\0' : spec.prefixFor(bestMode);
-            String prefix = prefixChar == '\0' ? "" : String.valueOf(prefixChar);
-            entries.add(new Entry(user.displayNick, prefix, bestRank));
+            entries.add(entryFor(user));
         }
 
         entries.sort(Comparator.comparingInt(Entry::getRank)
                 .thenComparing(Entry::getNick, String.CASE_INSENSITIVE_ORDER));
         return Collections.unmodifiableList(entries);
+    }
+
+    /** The nick's highest prefix in the channel ("@", "+", ...), or "" when it has none or is unknown. */
+    synchronized String prefixOf(String channel, String nick) {
+        Channel ch = live.get(key(channel));
+        User user = ch == null ? null : ch.users.get(key(nick));
+        return user == null ? "" : entryFor(user).getPrefix();
+    }
+
+    private Entry entryFor(User user) {
+        char bestMode = '\0';
+        int bestRank = Integer.MAX_VALUE;
+        for (char mode : user.modes) {
+            int rank = spec.rankOf(mode);
+            if (rank < bestRank) {
+                bestRank = rank;
+                bestMode = mode;
+            }
+        }
+        char prefixChar = bestMode == '\0' ? '\0' : spec.prefixFor(bestMode);
+        String prefix = prefixChar == '\0' ? "" : String.valueOf(prefixChar);
+        return new Entry(user.displayNick, prefix, bestRank);
     }
 }
