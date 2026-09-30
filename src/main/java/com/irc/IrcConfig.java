@@ -377,13 +377,16 @@ public interface IrcConfig extends Config
     )
     default String fontFamily() { return "SansSerif"; }
 
+    @Range(
+            min = 8,
+            max = 32
+    )
     @ConfigItem(
             keyName = "fontSize",
             name = "Font Size",
-            description = "Font size to use everywhere.",
+            description = "Font size for the side panel and pop-out window.",
             position = 7,
-            hidden = true,
             section = sidePanelSettings
     )
-    default Integer fontSize() { return 12; }
+    default int fontSize() { return 12; }
 }

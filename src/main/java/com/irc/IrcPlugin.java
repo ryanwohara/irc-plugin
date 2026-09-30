@@ -694,6 +694,12 @@ public class IrcPlugin extends Plugin {
                     panel.setDetached(config.popOut(), config.popOutAlwaysOnTop());
                 }
             });
+        } else if ("fontSize".equals(configChanged.getKey())) {
+            SwingUtilities.invokeLater(() -> {
+                if (panel != null) {
+                    panel.updateFont();
+                }
+            });
         } else if ("overlayEnabled".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());

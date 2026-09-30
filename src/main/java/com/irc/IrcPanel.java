@@ -496,12 +496,12 @@ public class IrcPanel extends PluginPanel {
         return fontComboBox;
     }
 
-    private void updateFont() {
+    void updateFont() {
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         inputField.setFont(font);
         synchronized (channelPanes) {
             for (ChannelPane channelPane : channelPanes.values()) {
-                channelPane.setFont(font);
+                channelPane.applyFont(font);
             }
         }
     }
@@ -911,13 +911,27 @@ public class IrcPanel extends PluginPanel {
             if (messageLog.size() > config.getMaxScrollback()) {
                 messageLog.remove(0);
             }
-            SwingUtilities.invokeLater(() -> {
-                setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";'>" + String.join("", messageLog) + "</body></html>");
-                setCaretPosition(getDocument().getLength());
-                // The caret sits at the end of the last line, so a long unbreakable link would
-                // leave the view scrolled right; snap back to the left edge once it has scrolled.
-                SwingUtilities.invokeLater(this::scrollToLeftEdge);
-            });
+            SwingUtilities.invokeLater(this::render);
+        }
+
+        void applyFont(Font font) {
+            setFont(font);
+            render();
+        }
+
+        private void render() {
+            setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";" + fontStyle() + "'>" + String.join("", messageLog) + "</body></html>");
+            setCaretPosition(getDocument().getLength());
+            // The caret sits at the end of the last line, so a long unbreakable link would
+            // leave the view scrolled right; snap back to the left edge once it has scrolled.
+            SwingUtilities.invokeLater(this::scrollToLeftEdge);
+        }
+
+        // The HTML document ignores the component font, so carry it into the body style.
+        private String fontStyle() {
+            Font font = getFont();
+            if (font == null) return "";
+            return " font-family:" + font.getFamily() + "; font-size:" + font.getSize() + "pt;";
         }
 
         private void scrollToLeftEdge() {
