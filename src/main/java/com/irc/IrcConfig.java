@@ -250,6 +250,35 @@ public interface IrcConfig extends Config
     )
     default boolean logRawLines() { return false; }
 
+    @ConfigItem(
+            keyName = "inGameTextColorEnabled",
+            name = "Custom In-Game Text Colour",
+            description = "Colour IRC messages in the in-game chat box with the colour below. "
+                    + "Off, they follow RuneLite's Chat Colour settings.",
+            position = 11,
+            section = generalSettings
+    )
+    default boolean inGameTextColorEnabled() { return false; }
+
+    @ConfigItem(
+            keyName = "inGameTextColor",
+            name = "In-Game Text Colour",
+            description = "Colour of IRC messages in the in-game chat box, when Custom In-Game Text Colour is on.",
+            position = 12,
+            section = generalSettings
+    )
+    default Color inGameTextColor() { return ColorScheme.BRAND_ORANGE; }
+
+    @ConfigItem(
+            keyName = "ircColorsInGame",
+            name = "IRC Colours In-Game",
+            description = "Show IRC colour codes in the in-game chat box instead of stripping them. "
+                    + "Background colours are not shown; the chat box cannot draw them.",
+            position = 13,
+            section = generalSettings
+    )
+    default boolean ircColorsInGame() { return true; }
+
     @ConfigSection(
             name = "Overlay",
             description = "In-game overlay",

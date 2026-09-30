@@ -32,6 +32,7 @@ import net.runelite.client.util.Text;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.swing.*;
+import java.awt.Color;
 import java.time.Instant;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -621,8 +622,73 @@ public class IrcPlugin extends Plugin {
         ircAdapter.sendAction(target, message);
     }
 
-    private String stripStyles(String message) {
-        return IrcFormatting.stripCodes(message);
+    /** A colour code (the background, if any, is matched only to be dropped) or any other formatting code. */
+    private static final Pattern CHATBOX_CODES =
+            Pattern.compile("\\x03(?:(\\d\\d?)(?:,\\d\\d?)?)?|[\\x02\\x0F\\x11\\x15\\x16\\x1D\\x1E\\x1F]");
+
+    /**
+     * Builds the in-game chat box form of {@code text}. Uncoloured text uses the base colour: the
+     * custom in-game colour if set, otherwise RuneLite's NORMAL chat colour. With IRC colours on,
+     * colour codes become col tags; every other formatting code is stripped either way.
+     */
+    static String chatboxMessage(String text, IrcConfig config) {
+        Color base = config.inGameTextColorEnabled() ? config.inGameTextColor() : null;
+        ChatMessageBuilder builder = new ChatMessageBuilder();
+        if (!config.ircColorsInGame()) {
+            appendChatboxRun(builder, IrcFormatting.stripCodes(text), null, base);
+            return builder.build();
+        }
+
+        Matcher matcher = CHATBOX_CODES.matcher(text);
+        StringBuilder run = new StringBuilder();
+        Color runColor = null;
+        int last = 0;
+        while (matcher.find()) {
+            run.append(text, last, matcher.start());
+            last = matcher.end();
+            char code = matcher.group().charAt(0);
+            if (code != '\u0003' && code != '\u000F') {
+                continue;
+            }
+            // A reset, a bare colour code, or code 99 all mean "back to the default colour".
+            Color next = code == '\u0003' ? chatboxColorById(matcher.group(1)) : null;
+            if (!Objects.equals(next, runColor)) {
+                appendChatboxRun(builder, run.toString(), runColor, base);
+                run.setLength(0);
+                runColor = next;
+            }
+        }
+        run.append(text, last, text.length());
+        appendChatboxRun(builder, run.toString(), runColor, base);
+        return builder.build();
+    }
+
+    private static void appendChatboxRun(ChatMessageBuilder builder, String run, Color color, Color base) {
+        if (run.isEmpty()) {
+            return;
+        }
+        Color effective = color != null ? color : base;
+        if (effective != null) {
+            builder.append(effective, run);
+        } else {
+            builder.append(ChatColorType.NORMAL).append(run);
+        }
+    }
+
+    /** The palette colour for an IRC colour code, or null for 99, no code, or an unknown code. */
+    private static Color chatboxColorById(String id) {
+        if (id == null || Integer.parseInt(id) > 98) {
+            return null;
+        }
+        String html = IrcPanel.ChannelPane.htmlColorById(id);
+        switch (html) {
+            case "white":
+                return Color.WHITE;
+            case "black":
+                return Color.BLACK;
+            default:
+                return Color.decode(html);
+        }
     }
 
     private void processMessage(IrcMessage message) {
@@ -649,13 +715,8 @@ public class IrcPlugin extends Plugin {
                         .type(config.getChatboxType().getType())
                         .sender(message.getChannel())
                         .name(message.getDisplaySender())
-                        .runeLiteFormattedMessage(
-                                new ChatMessageBuilder()
-                                        .append(ChatColorType.NORMAL)
-                                        .append(EmojiParser.parseToAliases(
-                                                stripStyles(message.getContent())
-                                        ))
-                                        .build())
+                        .runeLiteFormattedMessage(chatboxMessage(
+                                EmojiParser.parseToAliases(message.getContent()), config))
                         .timestamp((int) (message.getTimestamp().getEpochSecond()))
                         .build());
             }
