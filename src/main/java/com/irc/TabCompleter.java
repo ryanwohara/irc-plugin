@@ -28,6 +28,8 @@ class TabCompleter {
 
     private List<String> matches = new ArrayList<>();
     private int index;
+    /** The word the user typed before the first Tab. */
+    private String word = "";
     private String head = "";
     private String tail = "";
     private boolean lineStart;
@@ -41,13 +43,25 @@ class TabCompleter {
      */
     Result complete(String text, int caret, Collection<String> nicks, Collection<String> channels, boolean forward) {
         if (text.equals(lastText) && caret == lastCaret && !matches.isEmpty()) {
-            index = Math.floorMod(index + (forward ? 1 : -1), matches.size());
+            // The input box is shared across buffers, so the candidates may have changed since the
+            // last Tab. If the matches for the original word differ, start over with the new ones.
+            List<String> current = findMatches(word, word.startsWith("#") ? channels : nicks);
+            if (current.equals(matches)) {
+                index = Math.floorMod(index + (forward ? 1 : -1), matches.size());
+            } else if (current.isEmpty()) {
+                matches = current;
+                lastText = null;
+                return null;
+            } else {
+                matches = current;
+                index = forward ? 0 : matches.size() - 1;
+            }
         } else {
             int wordStart = caret;
             while (wordStart > 0 && !Character.isWhitespace(text.charAt(wordStart - 1))) {
                 wordStart--;
             }
-            String word = text.substring(wordStart, caret);
+            word = text.substring(wordStart, caret);
             if (word.isEmpty()) {
                 return null;
             }
