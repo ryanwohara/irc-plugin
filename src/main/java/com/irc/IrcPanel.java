@@ -69,6 +69,8 @@ public class IrcPanel extends PluginPanel {
     private String focusedChannel;
     private static final String SYSTEM_TAB = "System";
 
+    // One per layout (side panel and pop-out); a Swing component can only have one parent.
+    private final List<JComboBox<String>> fontSelectors = new ArrayList<>();
     private final JComboBox<String> bufferDropdown = getBufferComboBox();
     private final InputHistory inputHistory = new InputHistory(20);
 
@@ -489,16 +491,24 @@ public class IrcPanel extends PluginPanel {
         fontComboBox.addActionListener(e -> {
             if (fontComboBox.getSelectedItem() != null) {
                 String selected = fontComboBox.getSelectedItem().toString();
+                // Syncing the other selectors fires this listener too; skip when nothing changed.
+                if (selected.equals(config.fontFamily())) return;
                 configManager.setConfiguration("irc", "fontFamily", selected);
                 updateFont();
             }
         });
+        fontSelectors.add(fontComboBox);
         return fontComboBox;
     }
 
     void updateFont() {
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         inputField.setFont(font);
+        for (JComboBox<String> fontSelector : fontSelectors) {
+            if (!config.fontFamily().equals(fontSelector.getSelectedItem())) {
+                fontSelector.setSelectedItem(config.fontFamily());
+            }
+        }
         synchronized (channelPanes) {
             for (ChannelPane channelPane : channelPanes.values()) {
                 channelPane.applyFont(font);
@@ -615,7 +625,7 @@ public class IrcPanel extends PluginPanel {
                             nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
                             () -> requestChannelList(""), () -> onReconnect.accept(true),
-                            this::requestDock);
+                            this::requestDock, getFontComboBox());
                 }
                 chatContent.remove(controlPanel);
                 desktopLayout.attachChat(tabbedPane, inputField);
