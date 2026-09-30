@@ -914,7 +914,19 @@ public class IrcPanel extends PluginPanel {
             SwingUtilities.invokeLater(() -> {
                 setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";'>" + String.join("", messageLog) + "</body></html>");
                 setCaretPosition(getDocument().getLength());
+                // The caret sits at the end of the last line, so a long unbreakable link would
+                // leave the view scrolled right; snap back to the left edge once it has scrolled.
+                SwingUtilities.invokeLater(this::scrollToLeftEdge);
             });
+        }
+
+        private void scrollToLeftEdge() {
+            JViewport viewport = (JViewport) SwingUtilities.getAncestorOfClass(JViewport.class, this);
+            if (viewport == null) return;
+            Point position = viewport.getViewPosition();
+            if (position.x != 0) {
+                viewport.setViewPosition(new Point(0, position.y));
+            }
         }
 
         private String formatPanelMessage(IrcMessage message, IrcConfig config) {
