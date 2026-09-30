@@ -2,6 +2,7 @@ package com.irc;
 
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.util.Text;
 import org.junit.Test;
 
 import java.awt.Color;
@@ -133,5 +134,26 @@ public class IrcPluginChatboxColorTest {
         String expected = new ChatMessageBuilder().append(new Color(0xFF0000), "red")
                 .append(custom, " plain").build();
         assertEquals(expected, IrcPlugin.chatboxMessage("\u00034red\u000F plain", config(true, custom, true)));
+    }
+
+    /** Game tags from IRC text must be escaped on every path, or anyone can draw a mod crown in chat. */
+    @Test
+    public void tagsInAnIrcColouredRunAreEscaped() {
+        String built = IrcPlugin.chatboxMessage("\u00034<img=1>Jagex <col=00ff00>x", IRC_COLORS);
+        assertFalse(built, built.contains("<img=1>"));
+        assertFalse(built, built.contains("<col=00ff00>"));
+    }
+
+    @Test
+    public void tagsWithACustomInGameColourAreEscaped() {
+        String built = IrcPlugin.chatboxMessage("<img=1>Jagex", config(true, Color.RED));
+        assertFalse(built, built.contains("<img=1>"));
+    }
+
+    @Test
+    public void escapedTextMatchesTheUncolouredPath() {
+        String escaped = Text.escapeJagex("use <b> tags");
+        assertEquals(new ChatMessageBuilder().append(new Color(0xFF0000), escaped).build(),
+                IrcPlugin.chatboxMessage("\u00034use <b> tags", IRC_COLORS));
     }
 }

@@ -669,7 +669,8 @@ public class IrcPlugin extends Plugin {
         }
         Color effective = color != null ? color : base;
         if (effective != null) {
-            builder.append(effective, run);
+            // Unlike append(String), append(Color, String) doesn't escape game tags like <img=1>.
+            builder.append(effective, Text.escapeJagex(run));
         } else {
             builder.append(ChatColorType.NORMAL).append(run);
         }
