@@ -625,7 +625,8 @@ public class IrcPanel extends PluginPanel {
                             nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
                             () -> requestChannelList(""), () -> onReconnect.accept(true),
-                            this::requestDock, getFontComboBox());
+                            this::requestDock, getFontComboBox(),
+                            nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
                 }
                 chatContent.remove(controlPanel);
                 desktopLayout.attachChat(tabbedPane, inputField);

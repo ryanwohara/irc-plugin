@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /** Expanded navigation around the existing chat components, with no separate IRC state. */
@@ -41,7 +42,7 @@ final class IrcDesktopLayout extends JPanel {
     IrcDesktopLayout(String server, Predicate<String> unread, Consumer<String> select,
                      Consumer<String> query, Consumer<String> whois, Runnable join,
                      Runnable leave, Runnable browse, Runnable reconnect, Runnable dock,
-                     JComboBox<String> fontSelector) {
+                     JComboBox<String> fontSelector, Function<String, Color> nickColor) {
         super(new BorderLayout(0, 1));
         this.query = query;
         this.whois = whois;
@@ -93,7 +94,9 @@ final class IrcDesktopLayout extends JPanel {
                 super.getListCellRendererComponent(list, value, index, selected, focused);
                 ChannelUserList.Entry entry = (ChannelUserList.Entry) value;
                 setText(entry.getPrefix() + entry.getNick());
-                setForeground(entry.getPrefix().isEmpty() ? TEXT : ACCENT);
+                // Match the nick's colour in chat; null when colourised nicks are turned off.
+                Color color = nickColor.apply(entry.getNick());
+                setForeground(color != null ? color : entry.getPrefix().isEmpty() ? TEXT : ACCENT);
                 return this;
             }
         });
