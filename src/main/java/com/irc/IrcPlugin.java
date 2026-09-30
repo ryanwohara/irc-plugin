@@ -700,6 +700,13 @@ public class IrcPlugin extends Plugin {
                     panel.updateFont();
                 }
             });
+        } else if ("chatBackgroundColor".equals(configChanged.getKey())
+                || "chatTextColor".equals(configChanged.getKey())) {
+            SwingUtilities.invokeLater(() -> {
+                if (panel != null) {
+                    panel.updateColors();
+                }
+            });
         } else if ("overlayEnabled".equals(configChanged.getKey())) {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());

@@ -28,6 +28,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.client.config.*;
+import net.runelite.client.ui.ColorScheme;
+
+import java.awt.Color;
 
 
 @ConfigGroup("irc")
@@ -389,4 +392,22 @@ public interface IrcConfig extends Config
             section = sidePanelSettings
     )
     default int fontSize() { return 12; }
+
+    @ConfigItem(
+            keyName = "chatBackgroundColor",
+            name = "Chat Background",
+            description = "Background colour of the chat area in the side panel and pop-out window.",
+            position = 10,
+            section = sidePanelSettings
+    )
+    default Color chatBackgroundColor() { return ColorScheme.DARKER_GRAY_COLOR; }
+
+    @ConfigItem(
+            keyName = "chatTextColor",
+            name = "Chat Text Colour",
+            description = "Colour of regular chat messages. Joins, parts, notices and IRC colour codes keep their own colours.",
+            position = 11,
+            section = sidePanelSettings
+    )
+    default Color chatTextColor() { return ColorScheme.LIGHT_GRAY_COLOR; }
 }

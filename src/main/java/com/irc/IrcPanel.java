@@ -517,6 +517,14 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
+    void updateColors() {
+        synchronized (channelPanes) {
+            for (ChannelPane channelPane : channelPanes.values()) {
+                channelPane.applyColors();
+            }
+        }
+    }
+
     @Provides
     IrcConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(IrcConfig.class);
@@ -931,8 +939,17 @@ public class IrcPanel extends PluginPanel {
             render();
         }
 
+        void applyColors() {
+            render();
+        }
+
         private void render() {
-            setText("<html><body style='color:" + ColorUtil.toHexColor(ColorScheme.TEXT_COLOR) + ";" + fontStyle() + "'>" + String.join("", messageLog) + "</body></html>");
+            Color background = config.chatBackgroundColor() != null ? config.chatBackgroundColor() : ColorScheme.DARKER_GRAY_COLOR;
+            Color text = config.chatTextColor() != null ? config.chatTextColor() : ColorScheme.LIGHT_GRAY_COLOR;
+            setBackground(background);
+            setText("<html><body style='color:" + ColorUtil.toHexColor(text)
+                    + "; background-color:" + ColorUtil.toHexColor(background) + ";"
+                    + fontStyle() + "'>" + String.join("", messageLog) + "</body></html>");
             setCaretPosition(getDocument().getLength());
             // The caret sits at the end of the last line, so a long unbreakable link would
             // leave the view scrolled right; snap back to the left edge once it has scrolled.
@@ -983,14 +1000,16 @@ public class IrcPanel extends PluginPanel {
                     color = ColorUtil.toHexColor(ColorScheme.TEXT_COLOR);
                     break;
                 default:
-                    color = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
+                    // Inherit the body's configured text colour so a settings change recolours scrollback.
+                    color = null;
             }
             String sender = escapeHtml4(message.getDisplaySender());
             if (config.colorizedNicks()) {
                 String senderColor = htmlColorById(nickColorId(message.getSender()));
                 sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);
             }
-            return String.format("<div style='color: %s'>%s%s: %s</div>", color, timeStamp, sender, formatMessage(message.getContent()));
+            String open = color == null ? "<div>" : String.format("<div style='color: %s'>", color);
+            return String.format("%s%s%s: %s</div>", open, timeStamp, sender, formatMessage(message.getContent()));
         }
 
         private String formatMessage(String message) {
