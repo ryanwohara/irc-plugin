@@ -909,6 +909,8 @@ public class IrcPanel extends PluginPanel {
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
         private static final Pattern COLORS = Pattern.compile("(?:\u0003\\d\\d?(?:,\\d\\d?)?\\s*)?\u000F?\u0003(\\d\\d?)(?:,(\\d\\d?))?([^\u0003\u000F]+)\u000F?");
         private final PreviewManager previewManager;
+        /** Set when a render couldn't scroll because the pane was off screen. */
+        private boolean scrollPending;
 
         ChannelPane(Font font, IrcConfig config, OkHttpClient okHttpClient) {
             this.config = config;
@@ -917,6 +919,13 @@ public class IrcPanel extends PluginPanel {
             setFont(font);
             setEditable(false);
             messageLog = new ArrayList<>();
+            // A pane rendered while hidden (background tab, closed sidebar) has no layout to
+            // scroll, so catch up the first time it is shown.
+            addHierarchyListener(e -> {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing() && scrollPending) {
+                    SwingUtilities.invokeLater(this::scrollToBottom);
+                }
+            });
 
             addHyperlinkListener(e -> {
                 if (e.getURL() != null) {
@@ -969,9 +978,8 @@ public class IrcPanel extends PluginPanel {
                     + "; background-color:" + ColorUtil.toHexColor(background) + ";"
                     + fontStyle() + "'>" + String.join("", messageLog) + "</body></html>");
             setCaretPosition(getDocument().getLength());
-            // The caret sits at the end of the last line, so a long unbreakable link would
-            // leave the view scrolled right; snap back to the left edge once it has scrolled.
-            SwingUtilities.invokeLater(this::scrollToLeftEdge);
+            scrollPending = true;
+            SwingUtilities.invokeLater(this::scrollToBottom);
         }
 
         // The HTML document ignores the component font, so carry it into the body style.
@@ -981,13 +989,16 @@ public class IrcPanel extends PluginPanel {
             return " font-family:" + font.getFamily() + "; font-size:" + font.getSize() + "pt;";
         }
 
-        private void scrollToLeftEdge() {
+        /**
+         * Shows the newest line at the left edge. The caret alone isn't enough: it sits at the
+         * end of the last line, so a long unbreakable link would leave the view scrolled right.
+         */
+        private void scrollToBottom() {
             JViewport viewport = (JViewport) SwingUtilities.getAncestorOfClass(JViewport.class, this);
-            if (viewport == null) return;
-            Point position = viewport.getViewPosition();
-            if (position.x != 0) {
-                viewport.setViewPosition(new Point(0, position.y));
-            }
+            if (viewport == null || !isShowing()) return;
+            scrollPending = false;
+            int bottom = Math.max(0, viewport.getViewSize().height - viewport.getExtentSize().height);
+            viewport.setViewPosition(new Point(0, bottom));
         }
 
         private String formatPanelMessage(IrcMessage message, IrcConfig config) {
