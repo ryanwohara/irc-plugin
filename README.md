@@ -260,6 +260,7 @@ notices, and IRC colour codes keep their own colours.
 
 ![sidepanel.png](sidepanel.png)
 ![chatbox.png](chatbox.png)
+![popout.png](popout.png)
 
 
 ## Guide
