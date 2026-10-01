@@ -161,6 +161,43 @@ public class IrcDesktopLayoutTest {
         });
     }
 
+    @Test
+    public void toggleButtonsHideAndRestoreChannelAndUserLists() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            IrcDesktopLayout layout = new IrcDesktopLayout("irc.example", name -> false, name -> {},
+                    nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
+                    new JComboBox<>(), nick -> null);
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            layout.setSize(960, 600);
+            layout.validate();
+            JToggleButton channelsToggle = (JToggleButton) find(layout, "ircToggleChannels");
+            JToggleButton usersToggle = (JToggleButton) find(layout, "ircToggleUsers");
+            JSplitPane all = (JSplitPane) SwingUtilities.getAncestorOfClass(JSplitPane.class,
+                    SwingUtilities.getAncestorOfClass(JSplitPane.class, find(layout, "ircUsers")));
+            Component channelSide = all.getLeftComponent();
+            Component userSide = ((JSplitPane) all.getRightComponent()).getRightComponent();
+            assertTrue(channelsToggle.isSelected());
+            assertTrue(usersToggle.isSelected());
+            assertTrue(channelSide.isVisible());
+            assertTrue(userSide.isVisible());
+
+            all.setDividerLocation(220);
+            channelsToggle.doClick();
+            usersToggle.doClick();
+            layout.validate();
+            assertFalse(channelSide.isVisible());
+            assertFalse(userSide.isVisible());
+
+            channelsToggle.doClick();
+            usersToggle.doClick();
+            layout.validate();
+            assertTrue(channelSide.isVisible());
+            assertTrue(userSide.isVisible());
+            assertEquals(220, all.getDividerLocation());
+        });
+    }
+
     private static String rowText(JTree tree, String name) {
         TreePath path = path(tree, name);
         JLabel label = (JLabel) tree.getCellRenderer().getTreeCellRendererComponent(

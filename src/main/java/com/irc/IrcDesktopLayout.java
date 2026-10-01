@@ -39,6 +39,8 @@ final class IrcDesktopLayout extends JPanel {
     private List<String> channelNames = Collections.emptyList();
     /** Buffer names as the tree shows them; the numbers Alt+digit and Alt+J jump to. */
     private List<String> channelOrder = Collections.emptyList();
+    private final JToggleButton channelsToggle = new JToggleButton("Channel list", true);
+    private final JToggleButton usersToggle = new JToggleButton("User list", true);
     private JTextField input;
     private boolean synchronizing;
 
@@ -154,6 +156,8 @@ final class IrcDesktopLayout extends JPanel {
         JButton dockButton = button("Dock ↗", "Return to the RuneLite sidebar", dock);
         JPanel dockArea = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
         dockArea.setBackground(HEADER);
+        dockArea.add(channelsToggle);
+        dockArea.add(usersToggle);
         dockArea.add(dockButton);
         top.add(dockArea, BorderLayout.EAST);
         add(top, BorderLayout.NORTH);
@@ -174,6 +178,8 @@ final class IrcDesktopLayout extends JPanel {
         JSplitPane chatAndUsers = split(chat, right, 1.0);
         JSplitPane all = split(left, chatAndUsers, 0.0);
         add(all, BorderLayout.CENTER);
+        configureToggle(channelsToggle, "ircToggleChannels", "Show or hide the channel list", all, left);
+        configureToggle(usersToggle, "ircToggleUsers", "Show or hide the user list", chatAndUsers, right);
         JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Alt+1–0 or Alt+J ## switch channel  ·  Double-click a nick to message");
         hint.setFont(hint.getFont().deriveFont(11f));
         hint.setForeground(MUTED);
@@ -272,6 +278,27 @@ final class IrcDesktopLayout extends JPanel {
         info.addActionListener(event -> whois.accept(nick));
         menu.add(info);
         menu.show(users, e.getX(), e.getY());
+    }
+
+    /**
+     * Wires a toggle that hides one side of a split pane. A hidden side collapses the divider
+     * and gives its room to the chat; showing it again restores the divider where it was.
+     */
+    private static void configureToggle(JToggleButton toggle, String name, String tooltip,
+                                        JSplitPane split, JComponent side) {
+        toggle.setName(name);
+        toggle.setToolTipText(tooltip);
+        toggle.setFocusable(false);
+        int[] divider = {-1};
+        toggle.addItemListener(e -> {
+            boolean show = toggle.isSelected();
+            if (show == side.isVisible()) return;
+            if (!show) divider[0] = split.getDividerLocation();
+            side.setVisible(show);
+            if (show && divider[0] >= 0) split.setDividerLocation(divider[0]);
+            split.revalidate();
+            split.repaint();
+        });
     }
 
     private static JSplitPane split(Component left, Component right, double weight) {
