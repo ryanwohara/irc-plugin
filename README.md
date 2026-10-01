@@ -49,17 +49,39 @@ NickServ Identification: ;;id
 
 ### Miscellaneous Commands
 
+Commands work from the chat box with the prefix doubled (`;;join`), or from the side panel's
+input box with a slash (`/join`). `;;help` lists them all.
+
+Join a channel: `;;join #cooking [key]` (with no channel, opens the channel browser)
+
+Leave a channel: `;;part #cooking` (also `;;leave`; the current channel if omitted)
+
+Browse the server's channel list: `;;list` (filter it, e.g. `;;list >50` for channels with more
+than 50 users)
+
+Change the focused channel: `;;go rsh`
+
+Send an action: `;;me waves`
+
+Look up a user: `;;whois foobar`
+
+Set or clear your away status: `;;away brb` / `;;away`
+
+Change your nick: `;;nick foo bar` (spaces become underscores: `foo_bar`)
+
+List the users in the current channel: `;;names`
+
+View or set the topic: `;;topic` / `;;topic #rshelp New topic`
+
+Change channel modes: `;;mode #rshelp -s`
+
+Change user modes: `;;umode +R`
+
 Clear the side panel: `;;clear`
 
 Open IRC in its own window: `;;popout`
 
-Change channel modes: `;;mode #rshelp -s`
-
-View the topic: `;;topic`
-
-Change user modes: `;;umode +R`
-
-Change the focused channel: `;;go rsh`
+Disconnect: `;;quit [message]`
 
 ## Configuration
 
@@ -67,7 +89,7 @@ Change the focused channel: `;;go rsh`
 
 #### server
 
-USA or UK.
+Fiery (West-USA) or London (UK).
 
 More details are available at SwiftIRC.net:
 https://swiftirc.net/info/
@@ -76,15 +98,22 @@ https://swiftirc.net/info/
 
 The username used to connect to SwiftIRC.
 
+#### account name (optional)
+
+The NickServ account to identify against, if it differs from your nick. Leave blank to identify
+by nick.
+
 #### password (optional)
 
-The password to identify with NickServ.
+The password to identify with NickServ. Never your RuneScape password.
 
-#### channel (optional)
+#### channel(s) (optional)
 
-The channel you intend to join. Leaving this blank will default to #rshelp.
+The channel(s) you intend to join, comma separated. Leaving this blank will default to #rshelp.
 
 #### channel password (optional)
+
+The key for a channel that requires one.
 
 ### General
 
@@ -96,10 +125,15 @@ Defaults to `;`. Prefixed to messages destined for IRC.
 
 Only show the active channel messages in the OSRS chat box. The "active channel" is the active tab in the side panel.
 
-#### hover-preview image links
+#### backtick channel navigation
 
-Enable to preview image links by hovering your mouse over them. WARNING: this will make it easier to share your IP with
-an image host.
+In game, press `` ` `` to switch to the next channel and `` shift+` `` for the previous one. On by
+default.
+
+#### page up/down channel navigation
+
+In game, press Page Down to switch to the next channel and Page Up for the previous one. On by
+default.
 
 #### autofocus on new tab
 
@@ -110,6 +144,19 @@ will change the active channel to this target.
 
 Server notices will default to the System tab; you can optionally allow them to create their own tab.
 
+#### chatbox type
+
+Which in-game chat box IRC messages appear in: Friends Chat (default) or Clan Chat.
+
+#### notice window / PM window
+
+Where notices and private messages are shown: in the current window (default), in the System
+tab, or in a private window with the sender.
+
+#### hide join/part/quit/kick
+
+Hide joins, parts, quits, and kicks from channel windows.
+
 #### log raw IRC lines
 
 Writes every IRC line sent and received to the RuneLite client log. Off by default. Turn it on
@@ -119,6 +166,31 @@ Credentials are stripped before anything is written, so the log is safe to attac
 the SASL exchange, server passwords, NickServ and ChanServ commands that carry a password, and
 channel keys (from `JOIN`, from `MODE +k`, and from the server's own reply when you join a keyed
 channel). What remains is the protocol traffic itself.
+
+#### custom in-game text colour / in-game text colour
+
+Colour IRC messages in the in-game chat box with a colour of your choice. Off by default, in
+which case they follow RuneLite's Chat Colour settings.
+
+#### IRC colours in-game
+
+Show IRC colour codes in the in-game chat box instead of stripping them. On by default.
+Background colours are not shown, as the chat box cannot draw them.
+
+### Overlay
+
+#### enable in-game overlay
+
+Show the IRC overlay inside the game. On by default.
+
+#### overlay the chat box
+
+Place the overlay over the chat box (default), or turn this off for an overlay you can move with
+alt+click & drag.
+
+#### overlay max width
+
+Maximum width of the overlay, in pixels. Defaults to 500.
 
 ### Side Panel
 
@@ -136,10 +208,8 @@ interactive: type messages, switch channels, browse channels, and click links as
 The expanded layout includes a channel/private-chat tree with unread markers, chat in the
 center, and a user list on the right. Drag the dividers to adjust column widths. Clicking a
 channel in the tree moves the cursor to the input box so you can type straight away.
-Channels are numbered in the tree: press **Alt+1** to **Alt+9** to jump to the first nine and
-**Alt+0** for the tenth. For the eleventh onwards, press **Alt+J** followed by two digits (e.g.
-**Alt+J 1 1**). These shortcuts also work in the sidebar panel, where they follow the order of
-the channel tabs. Double-click
+Channels are numbered in the tree, matching the **Alt+number** shortcuts (see
+[Keyboard Shortcuts](#keyboard-shortcuts)). Double-click
 a nick (or press Enter on it) to open a private conversation; right-click for Message and WHOIS.
 The toolbar provides Reconnect, Join, Leave, Channels, and Dock actions. Docking restores the
 compact sidebar layout.
@@ -159,13 +229,32 @@ Optionally keep the pop-out above other windows. Off by default.
 
 Prefix messages with a timestamp in the format of `[hour:minute:second]`.
 
+#### hover-preview image links
+
+Enable to preview image links by hovering your mouse over them. WARNING: this will make it easier to share your IP with
+an image host.
+
 #### colorized nicks
 
 Add a color to nicks appearing in the side panel.
 
-#### priority
+#### position in sidebar
 
 Specifically where the side panel appears on the right, from top to bottom.
+
+#### maximum scrollback per channel
+
+How many messages each channel keeps, to avoid lag. Defaults to 100.
+
+#### font family / font size
+
+The font IRC uses, and its size in the side panel and pop-out window. The pop-out also has a font
+selector in its toolbar.
+
+#### chat background / chat text colour
+
+The background colour of the chat area, and the colour of regular chat messages. Joins, parts,
+notices, and IRC colour codes keep their own colours.
 
 ## Screenshots
 
@@ -174,6 +263,31 @@ Specifically where the side panel appears on the right, from top to bottom.
 
 
 ## Guide
+
+### Keyboard Shortcuts
+
+In the side panel or pop-out window:
+
+| Keys | Action |
+| --- | --- |
+| **Alt+1** … **Alt+9** | Jump to channels 1–9 |
+| **Alt+0** | Jump to channel 10 |
+| **Alt+J**, then two digits | Jump to any channel, e.g. **Alt+J 1 1** for the eleventh |
+| **Tab** / **Shift+Tab** | Complete a nick or channel name |
+| **↑** / **↓** | Recall previously sent messages |
+| **Ctrl+B** / **Ctrl+I** / **Ctrl+U** | Insert bold / italic / underline formatting |
+| **Ctrl+K** | Insert a colour code |
+
+On macOS, use **Option** for **Alt** and **Cmd** for **Ctrl**. Channel numbers follow the
+pop-out's channel tree, or the tab order in the side panel.
+
+In game, `` ` `` / `` shift+` `` and Page Up / Page Down switch channels (see the settings above).
+
+### Browsing Channels
+
+Run `;;list`, or `;;join` with no channel, to open the channel browser. Filter it by name or
+topic, sort by any column, and double-click a channel (or select it and press Enter or **Join**) to
+join it. The **Channels** button in the pop-out opens the same browser.
 
 ### Multiple Channels
 
