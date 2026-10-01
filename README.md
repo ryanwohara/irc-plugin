@@ -134,7 +134,12 @@ window to the front if it is already open.
 Drag its title bar to move it, including to another monitor. All chat controls remain
 interactive: type messages, switch channels, browse channels, and click links as usual.
 The expanded layout includes a channel/private-chat tree with unread markers, chat in the
-center, and a user list on the right. Drag the dividers to adjust column widths. Double-click
+center, and a user list on the right. Drag the dividers to adjust column widths. Clicking a
+channel in the tree moves the cursor to the input box so you can type straight away.
+Channels are numbered in the tree: press **Alt+1** to **Alt+9** to jump to the first nine and
+**Alt+0** for the tenth. For the eleventh onwards, press **Alt+J** followed by two digits (e.g.
+**Alt+J 1 1**). These shortcuts also work in the sidebar panel, where they follow the order of
+the channel tabs. Double-click
 a nick (or press Enter on it) to open a private conversation; right-click for Message and WHOIS.
 The toolbar provides Reconnect, Join, Leave, Channels, and Dock actions. Docking restores the
 compact sidebar layout.

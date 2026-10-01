@@ -37,6 +37,9 @@ final class IrcDesktopLayout extends JPanel {
     private final Consumer<String> query;
     private final Consumer<String> whois;
     private List<String> channelNames = Collections.emptyList();
+    /** Buffer names as the tree shows them; the numbers Alt+digit and Alt+J jump to. */
+    private List<String> channelOrder = Collections.emptyList();
+    private JTextField input;
     private boolean synchronizing;
 
     IrcDesktopLayout(String server, Predicate<String> unread, Consumer<String> select,
@@ -66,10 +69,11 @@ final class IrcDesktopLayout extends JPanel {
                 setIcon(null);
                 setBackgroundNonSelectionColor(BACKGROUND);
                 setBackgroundSelectionColor(new Color(49, 68, 86));
-                boolean hasUnread = node.getAllowsChildren() == false && unread.test(name);
+                boolean channel = !node.getAllowsChildren();
+                boolean hasUnread = channel && unread.test(name);
                 setForeground(hasUnread ? ACCENT : TEXT);
                 setFont(tree.getFont().deriveFont(hasUnread ? Font.BOLD : Font.PLAIN));
-                if (hasUnread) setText(name + "  •");
+                if (channel) setText((channelOrder.indexOf(name) + 1) + ". " + name + (hasUnread ? "  •" : ""));
                 return this;
             }
         });
@@ -77,6 +81,18 @@ final class IrcDesktopLayout extends JPanel {
             DefaultMutableTreeNode node = (DefaultMutableTreeNode) channels.getLastSelectedPathComponent();
             if (!synchronizing && node != null && !node.getAllowsChildren()) {
                 select.accept(node.getUserObject().toString());
+            }
+        });
+        // Clicking a channel moves focus to the input so the user can type straight away;
+        // keyboard selection leaves focus on the tree so arrowing through channels still works.
+        channels.addMouseListener(new MouseAdapter() {
+            @Override public void mouseReleased(MouseEvent e) {
+                if (!SwingUtilities.isLeftMouseButton(e) || input == null) return;
+                int row = channels.getClosestRowForLocation(e.getX(), e.getY());
+                Rectangle bounds = channels.getRowBounds(row);
+                if (bounds == null || e.getY() < bounds.y || e.getY() >= bounds.y + bounds.height) return;
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) channels.getPathForRow(row).getLastPathComponent();
+                if (!node.getAllowsChildren()) input.requestFocusInWindow();
             }
         });
 
@@ -158,7 +174,7 @@ final class IrcDesktopLayout extends JPanel {
         JSplitPane chatAndUsers = split(chat, right, 1.0);
         JSplitPane all = split(left, chatAndUsers, 0.0);
         add(all, BorderLayout.CENTER);
-        JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Double-click a nick to message");
+        JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Alt+1–0 or Alt+J ## switch channel  ·  Double-click a nick to message");
         hint.setFont(hint.getFont().deriveFont(11f));
         hint.setForeground(MUTED);
         add(hint, BorderLayout.SOUTH);
@@ -166,7 +182,12 @@ final class IrcDesktopLayout extends JPanel {
 
     void attachChat(JTabbedPane chat, JTextField input) {
         conversation.add(chat, BorderLayout.CENTER);
+        this.input = input;
         composer.add(input, BorderLayout.CENTER);
+    }
+
+    List<String> channelOrder() {
+        return new ArrayList<>(channelOrder);
     }
 
     void updateChannels(List<String> names, String selected) {
@@ -185,6 +206,13 @@ final class IrcDesktopLayout extends JPanel {
                 }
                 root.add(rooms);
                 root.add(privateChats);
+                List<String> order = new ArrayList<>();
+                java.util.Enumeration<?> nodes = root.preorderEnumeration();
+                while (nodes.hasMoreElements()) {
+                    DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
+                    if (!node.getAllowsChildren()) order.add(node.getUserObject().toString());
+                }
+                channelOrder = order;
                 treeModel.reload();
                 for (int row = 0; row < channels.getRowCount(); row++) channels.expandRow(row);
             }

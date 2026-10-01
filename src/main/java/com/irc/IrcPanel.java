@@ -61,6 +61,7 @@ public class IrcPanel extends PluginPanel {
     private Consumer<String> onChannelListRequest;
     private Runnable onChannelListTimeout;
     private ChannelListDialog channelListDialog;
+    private ChannelNumberKeys channelNumberKeys;
     private Timer channelListTimeout;
     private static final int CHANNEL_LIST_TIMEOUT_MS = 30000;
     private Font font;
@@ -209,6 +210,8 @@ public class IrcPanel extends PluginPanel {
         };
         inputField.getActionMap().put("paste", customPasteAction);
         setupShortcuts();
+        channelNumberKeys = new ChannelNumberKeys(chatContent, this::jumpToChannel);
+        channelNumberKeys.install();
         inputField.addActionListener(e -> {
             String message = inputField.getText();
             if (!message.isEmpty() && onMessageSend != null) {
@@ -263,6 +266,17 @@ public class IrcPanel extends PluginPanel {
         int index = channels.indexOf(current);
         index = (index - 1 < 0 ? channels.size() - 1 : (index - 1) % channels.size());
         this.setFocusedChannel(channels.get(index));
+    }
+
+    /**
+     * Focuses the buffer at a 1-based position in the order the user sees: the pop-out's channel
+     * tree groups buffers, so its order can differ from the side panel's tabs.
+     */
+    void jumpToChannel(int number) {
+        List<String> channels = detachedLayout ? desktopLayout.channelOrder() : getChannelNames();
+        if (number < 1 || number > channels.size()) return;
+        setFocusedChannel(channels.get(number - 1));
+        inputField.requestFocusInWindow();
     }
 
     private JComboBox<String> getFontComboBox() {
@@ -604,6 +618,10 @@ public class IrcPanel extends PluginPanel {
      * repeatedly, and when nothing was ever armed or shown.
      */
     public void shutdown() {
+        if (channelNumberKeys != null) {
+            channelNumberKeys.uninstall();
+            channelNumberKeys = null;
+        }
         if (panelWindow != null) {
             panelWindow.shutdown();
             panelWindow = null;
