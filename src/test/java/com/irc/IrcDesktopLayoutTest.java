@@ -83,6 +83,10 @@ public class IrcDesktopLayoutTest {
                 JTree tree = (JTree) find(panel.getChatContent(), "ircChannels");
                 JList<?> users = (JList<?>) find(panel.getChatContent(), "ircUsers");
                 assertNotNull(tree);
+                JComboBox<?> fontSize = (JComboBox<?>) find(panel.getChatContent(), "ircFontSize");
+                assertEquals(12, fontSize.getSelectedItem());
+                assertEquals(8, fontSize.getItemAt(0));
+                assertEquals(32, fontSize.getItemAt(fontSize.getItemCount() - 1));
                 assertEquals(5, users.getModel().getSize());
                 assertEquals("#runelite", panel.getCurrentChannel());
                 assertTrue(panel.unreadMessages.get("#rshelp"));
@@ -140,7 +144,7 @@ public class IrcDesktopLayoutTest {
             };
             IrcDesktopLayout layout = new IrcDesktopLayout("irc.example", name -> false, name -> {},
                     nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                    new JComboBox<>(), nick -> null);
+                    new JComboBox<>(), new JComboBox<>(), nick -> null);
             layout.attachChat(new JTabbedPane(), input);
             JTree tree = (JTree) find(layout, "ircChannels");
             layout.updateChannels(Arrays.asList("System", "Luna", "#runelite", "#rshelp"), "System");
@@ -167,7 +171,7 @@ public class IrcDesktopLayoutTest {
         SwingUtilities.invokeAndWait(() -> {
             IrcDesktopLayout layout = new IrcDesktopLayout("irc.example", name -> false, name -> {},
                     nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                    new JComboBox<>(), nick -> null);
+                    new JComboBox<>(), new JComboBox<>(), nick -> null);
             layout.attachChat(new JTabbedPane(), new JTextField());
             layout.setSize(960, 600);
             layout.validate();

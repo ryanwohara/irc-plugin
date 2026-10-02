@@ -72,6 +72,7 @@ public class IrcPanel extends PluginPanel {
 
     // One per layout (side panel and pop-out); a Swing component can only have one parent.
     private final List<JComboBox<String>> fontSelectors = new ArrayList<>();
+    private JComboBox<Integer> fontSizeSelector;
     private final JComboBox<String> bufferDropdown = getBufferComboBox();
     private final InputHistory inputHistory = new InputHistory(20);
     private final TabCompleter tabCompleter = new TabCompleter();
@@ -516,6 +517,24 @@ public class IrcPanel extends PluginPanel {
         return fontComboBox;
     }
 
+    /** Sizes match the Font Size config's range (8–32). */
+    private JComboBox<Integer> getFontSizeComboBox() {
+        Integer[] sizes = new Integer[32 - 8 + 1];
+        for (int i = 0; i < sizes.length; i++) sizes[i] = 8 + i;
+        final JComboBox<Integer> sizeComboBox = new JComboBox<>(sizes);
+        sizeComboBox.setName("ircFontSize");
+        sizeComboBox.setSelectedItem(config.fontSize());
+        sizeComboBox.addActionListener(e -> {
+            Integer selected = (Integer) sizeComboBox.getSelectedItem();
+            // Syncing from the config fires this listener too; skip when nothing changed.
+            if (selected == null || selected == config.fontSize()) return;
+            configManager.setConfiguration("irc", "fontSize", selected);
+            updateFont();
+        });
+        fontSizeSelector = sizeComboBox;
+        return sizeComboBox;
+    }
+
     void updateFont() {
         font = new Font(config.fontFamily(), Font.PLAIN, config.fontSize());
         inputField.setFont(font);
@@ -523,6 +542,9 @@ public class IrcPanel extends PluginPanel {
             if (!config.fontFamily().equals(fontSelector.getSelectedItem())) {
                 fontSelector.setSelectedItem(config.fontFamily());
             }
+        }
+        if (fontSizeSelector != null && !Integer.valueOf(config.fontSize()).equals(fontSizeSelector.getSelectedItem())) {
+            fontSizeSelector.setSelectedItem(config.fontSize());
         }
         synchronized (channelPanes) {
             for (ChannelPane channelPane : channelPanes.values()) {
@@ -652,7 +674,7 @@ public class IrcPanel extends PluginPanel {
                             nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
                             () -> requestChannelList(""), () -> onReconnect.accept(true),
-                            this::requestDock, getFontComboBox(),
+                            this::requestDock, getFontComboBox(), getFontSizeComboBox(),
                             nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
                 }
                 chatContent.remove(controlPanel);

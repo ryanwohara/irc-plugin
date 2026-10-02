@@ -47,7 +47,8 @@ final class IrcDesktopLayout extends JPanel {
     IrcDesktopLayout(String server, Predicate<String> unread, Consumer<String> select,
                      Consumer<String> query, Consumer<String> whois, Runnable join,
                      Runnable leave, Runnable browse, Runnable reconnect, Runnable dock,
-                     JComboBox<String> fontSelector, Function<String, Color> nickColor) {
+                     JComboBox<String> fontSelector, JComboBox<Integer> fontSizeSelector,
+                     Function<String, Color> nickColor) {
         super(new BorderLayout(0, 1));
         this.query = query;
         this.whois = whois;
@@ -150,6 +151,9 @@ final class IrcDesktopLayout extends JPanel {
         fontSelector.setToolTipText("Chat font");
         fontSelector.setFocusable(false);
         toolbar.add(fontSelector);
+        fontSizeSelector.setToolTipText("Chat font size");
+        fontSizeSelector.setFocusable(false);
+        toolbar.add(fontSizeSelector);
         JPanel top = new JPanel(new BorderLayout());
         top.setBackground(HEADER);
         top.add(toolbar, BorderLayout.WEST);
