@@ -68,6 +68,11 @@ public class IrcDesktopLayoutTest {
                     panel.addMessage(new IrcMessage("#runelite", nicks[i], messages[i],
                             IrcMessage.MessageType.CHAT, Instant.parse("2026-09-28T18:32:00Z").plusSeconds(i * 18)));
                 }
+                panel.addMessage(new IrcMessage("#runelite", IrcMessage.TOPIC_SENDER,
+                        "\u0002Welcome\u0002 to #runelite | Be nice | <html><b>not bold</b>",
+                        IrcMessage.MessageType.TOPIC, Instant.parse("2026-09-28T18:31:00Z")));
+                panel.addMessage(new IrcMessage("#runelite", "* Topic set by", "Ash",
+                        IrcMessage.MessageType.TOPIC, Instant.parse("2026-09-28T18:31:00Z")));
                 panel.addMessage(new IrcMessage("#rshelp", "Ash", "Anyone need a hand?",
                         IrcMessage.MessageType.CHAT, Instant.now()));
                 panel.addMessage(new IrcMessage("Luna", "Luna", "See you in chat!",
@@ -90,9 +95,18 @@ public class IrcDesktopLayoutTest {
                 assertEquals(5, users.getModel().getSize());
                 assertEquals("#runelite", panel.getCurrentChannel());
                 assertTrue(panel.unreadMessages.get("#rshelp"));
+                JLabel topic = (JLabel) find(panel.getChatContent(), "ircTopic");
+                String runeliteTopic = "Welcome to #runelite | Be nice | <html><b>not bold</b>";
+                assertEquals("—  " + runeliteTopic, topic.getText());
+                assertEquals(runeliteTopic, topic.getToolTipText());
                 render(panel.getChatContent());
 
                 tree.setSelectionPath(path(tree, "#rshelp"));
+                assertEquals("", topic.getText());
+                assertNull(topic.getToolTipText());
+                panel.addMessage(new IrcMessage("#rshelp", IrcMessage.TOPIC_SENDER, "Questions welcome",
+                        IrcMessage.MessageType.TOPIC, Instant.now()));
+                assertEquals("—  Questions welcome", topic.getText());
                 assertEquals("#rshelp", panel.getCurrentChannel());
                 assertFalse(panel.unreadMessages.get("#rshelp"));
                 assertEquals(0, users.getModel().getSize());

@@ -370,7 +370,7 @@ public class IrcAdapter {
                     break;
 
                 case TOPIC:
-                    processMessage(new IrcMessage(event.getTarget(), "* Topic", event.getMessage(), IrcMessage.MessageType.TOPIC, Instant.now()));
+                    processMessage(new IrcMessage(event.getTarget(), IrcMessage.TOPIC_SENDER, event.getMessage(), IrcMessage.MessageType.TOPIC, Instant.now()));
                     break;
 
                 case NAMES:

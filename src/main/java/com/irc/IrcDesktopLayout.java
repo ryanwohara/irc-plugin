@@ -32,6 +32,7 @@ final class IrcDesktopLayout extends JPanel {
     private final JList<ChannelUserList.Entry> users = new JList<>(userModel);
     private final JLabel usersHeading = heading("USERS");
     private final JLabel channelHeading = heading("System");
+    private final JLabel topic = heading("");
     private final JPanel conversation = new JPanel(new BorderLayout());
     private final JPanel composer = new JPanel(new BorderLayout());
     private final Consumer<String> query;
@@ -171,7 +172,18 @@ final class IrcDesktopLayout extends JPanel {
         composer.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         conversation.add(composer, BorderLayout.SOUTH);
         JPanel chat = new JPanel(new BorderLayout());
-        chat.add(channelHeading, BorderLayout.NORTH);
+        JPanel chatHeader = new JPanel(new BorderLayout());
+        chatHeader.setBackground(HEADER);
+        chatHeader.add(channelHeading, BorderLayout.WEST);
+        // Fills the rest of the row; a long topic is cut short with "…" and shown whole on hover.
+        topic.setName("ircTopic");
+        topic.setForeground(MUTED);
+        topic.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 12));
+        topic.setMinimumSize(new Dimension(0, 0));
+        // Topics are set by other users: show any markup as text rather than rendering it.
+        topic.putClientProperty("html.disable", Boolean.TRUE);
+        chatHeader.add(topic, BorderLayout.CENTER);
+        chat.add(chatHeader, BorderLayout.NORTH);
         chat.add(conversation, BorderLayout.CENTER);
         JPanel left = section(heading("NETWORK"), channels);
         JPanel right = section(usersHeading, users);
@@ -249,6 +261,14 @@ final class IrcDesktopLayout extends JPanel {
         } finally {
             synchronizing = false;
         }
+    }
+
+    /** Shows the selected channel's topic beside its name; "" hides it. */
+    void showTopic(String text) {
+        topic.setText(text.isEmpty() ? "" : "—  " + text);
+        // A tooltip is HTML when it starts with <html>; the leading space keeps it plain text.
+        topic.setToolTipText(text.isEmpty() ? null
+                : javax.swing.plaf.basic.BasicHTML.isHTMLString(text) ? " " + text : text);
     }
 
     void updateUsers(String channel, List<ChannelUserList.Entry> entries) {

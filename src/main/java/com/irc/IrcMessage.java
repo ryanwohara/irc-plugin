@@ -7,6 +7,9 @@ import java.time.Instant;
 @Value
 @AllArgsConstructor
 public class IrcMessage {
+    /** Sender of a channel's topic text, both on join (RPL_TOPIC) and when someone changes it. */
+    static final String TOPIC_SENDER = "* Topic";
+
     String channel;
     String sender;
     String content;

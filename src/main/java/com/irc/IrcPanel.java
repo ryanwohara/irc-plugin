@@ -89,6 +89,8 @@ public class IrcPanel extends PluginPanel {
     private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots =
             Collections.synchronizedMap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
     private List<ChannelUserList.Entry> displayedEntries = Collections.emptyList();
+    /** Each channel's current topic, for the pop-out header. Only touched on the EDT. */
+    private final Map<String, String> channelTopics = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final JComboBox<String> nickDropdown = getNickComboBox();
 
     public ArrayList<String> getChannelNames() {
@@ -696,7 +698,9 @@ public class IrcPanel extends PluginPanel {
     }
 
     private void refreshDesktopChannels() {
-        if (desktopLayout != null) desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
+        if (desktopLayout == null) return;
+        desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
+        desktopLayout.showTopic(channelTopics.getOrDefault(getCurrentChannel(), ""));
     }
 
     public void bringPopOutToFront() {
@@ -767,6 +771,7 @@ public class IrcPanel extends PluginPanel {
         unreadMessages.remove(channel);
         bufferDropdown.removeItem(channel);
         channelUserSnapshots.remove(channel);
+        channelTopics.remove(channel);
         onFocusedBufferChanged();
     }
 
@@ -778,6 +783,11 @@ public class IrcPanel extends PluginPanel {
         }
         if (!message.getChannel().equals(focusedChannel)) {
             unreadMessages.put(message.getChannel(), true);
+        }
+        if (message.getType() == IrcMessage.MessageType.TOPIC
+                && IrcMessage.TOPIC_SENDER.equals(message.getSender())) {
+            String topic = IrcFormatting.stripCodes(message.getContent());
+            channelTopics.put(message.getChannel(), topic == null ? "" : topic.trim());
         }
         pane.appendMessage(message, config);
         refreshDesktopChannels();
@@ -847,6 +857,7 @@ public class IrcPanel extends PluginPanel {
             renameKeyInPlace(channelPanes, oldName, newName);
         }
         renameKeyInPlace(unreadMessages, oldName, newName);
+        renameKeyInPlace(channelTopics, oldName, newName);
         tabbedPane.setTitleAt(index, newName);
         renameBufferDropdownItem(oldName, newName);
         if (oldName.equals(focusedChannel)) {
