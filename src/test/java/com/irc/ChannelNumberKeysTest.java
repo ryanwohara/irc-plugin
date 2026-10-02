@@ -4,7 +4,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import javax.swing.*;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -22,6 +24,7 @@ public class ChannelNumberKeysTest {
     public void setUp() {
         root.add(input);
         keys = new ChannelNumberKeys(root, jumps::add);
+        keys.install();
     }
 
     @Test
@@ -86,18 +89,52 @@ public class ChannelNumberKeysTest {
         assertFalse(press(input, KeyEvent.VK_1, KeyEvent.ALT_DOWN_MASK | KeyEvent.CTRL_DOWN_MASK));
         assertFalse(press(input, KeyEvent.VK_1, KeyEvent.ALT_GRAPH_DOWN_MASK));
         assertTrue(jumps.isEmpty());
+    }
 
+    @Test
+    public void losingFocusCancelsAPendingJump() {
         press(input, KeyEvent.VK_J, KeyEvent.ALT_DOWN_MASK);
-        assertFalse(press(outside, KeyEvent.VK_1, 0));
+        for (java.awt.event.FocusListener listener : input.getFocusListeners()) {
+            listener.focusLost(new FocusEvent(input, FocusEvent.FOCUS_LOST, false, outside));
+        }
+        assertFalse(press(input, KeyEvent.VK_1, 0));
         assertFalse(press(input, KeyEvent.VK_2, 0));
         assertTrue(jumps.isEmpty());
     }
 
+    @Test
+    public void followsComponentsAddedAndRemovedAfterInstall() {
+        JPanel tab = new JPanel();
+        JTextField later = new JTextField();
+        tab.add(later);
+        root.add(tab);
+        assertTrue(press(later, KeyEvent.VK_2, KeyEvent.ALT_DOWN_MASK));
+        assertEquals(Collections.singletonList(2), jumps);
+
+        root.remove(tab);
+        assertFalse(press(later, KeyEvent.VK_2, KeyEvent.ALT_DOWN_MASK));
+        root.add(tab);
+        assertEquals(1, later.getKeyListeners().length);
+
+        keys.uninstall();
+        assertFalse(press(input, KeyEvent.VK_3, KeyEvent.ALT_DOWN_MASK));
+        assertEquals(Collections.singletonList(2), jumps);
+    }
+
     private boolean press(JComponent source, int code, int mods) {
-        return keys.dispatchKeyEvent(new KeyEvent(source, KeyEvent.KEY_PRESSED, 0, mods, code, KeyEvent.CHAR_UNDEFINED));
+        return fire(source, new KeyEvent(source, KeyEvent.KEY_PRESSED, 0, mods, code, KeyEvent.CHAR_UNDEFINED));
     }
 
     private boolean type(JComponent source, char c, int mods) {
-        return keys.dispatchKeyEvent(new KeyEvent(source, KeyEvent.KEY_TYPED, 0, mods, KeyEvent.VK_UNDEFINED, c));
+        return fire(source, new KeyEvent(source, KeyEvent.KEY_TYPED, 0, mods, KeyEvent.VK_UNDEFINED, c));
+    }
+
+    /** Delivers the event to the component's listeners, as Swing would; true when one consumed it. */
+    private static boolean fire(JComponent source, KeyEvent e) {
+        for (KeyListener listener : source.getKeyListeners()) {
+            if (e.getID() == KeyEvent.KEY_PRESSED) listener.keyPressed(e);
+            else if (e.getID() == KeyEvent.KEY_TYPED) listener.keyTyped(e);
+        }
+        return e.isConsumed();
     }
 }
