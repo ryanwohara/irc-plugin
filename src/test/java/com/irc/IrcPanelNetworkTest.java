@@ -60,6 +60,37 @@ public class IrcPanelNetworkTest {
     }
 
     @Test
+    public void channelNamesDifferingOnlyInCaseShareOneBuffer() throws Exception {
+        IrcPanel panel = panel();
+        panel.addMessage(new IrcMessage("#losthq", "Ash", "one", CHAT, Instant.now()).withNetworkId(RIZON));
+        panel.addMessage(new IrcMessage("#LostHQ", "Ash", "two", CHAT, Instant.now()).withNetworkId(RIZON));
+        panel.addChannel(BufferKey.of(RIZON, "#LOSTHQ"));
+        assertEquals("one buffer, upgraded to the server's casing",
+                Arrays.asList(BufferKey.swiftIrc("System"), BufferKey.of(RIZON, "#LostHQ")), panel.getBuffers());
+    }
+
+    @Test
+    public void aProperlyCasedNameIsNeverDowngraded() throws Exception {
+        IrcPanel panel = panel();
+        panel.addMessage(new IrcMessage("#LostHQ", "Ash", "one", CHAT, Instant.now()).withNetworkId(RIZON));
+        panel.addMessage(new IrcMessage("#losthq", "Ash", "two", CHAT, Instant.now()).withNetworkId(RIZON));
+        assertEquals(Arrays.asList(BufferKey.swiftIrc("System"), BufferKey.of(RIZON, "#LostHQ")), panel.getBuffers());
+    }
+
+    @Test
+    public void buffersAreFoundWhateverTheCasing() throws Exception {
+        IrcPanel panel = panel();
+        panel.addChannel(BufferKey.of(RIZON, "#LostHQ"));
+        panel.addChannel(BufferKey.of(RIZON, "Luna"));
+        assertTrue(panel.isPane(BufferKey.of(RIZON, "#losthq")));
+        panel.setFocusedChannel(BufferKey.of(RIZON, "luna"));
+        assertEquals(BufferKey.of(RIZON, "Luna"), panel.getCurrentBuffer());
+        panel.removeChannel(BufferKey.of(RIZON, "#LOSTHQ"));
+        assertFalse(panel.isPane(BufferKey.of(RIZON, "#LostHQ")));
+        assertTrue("other networks are unaffected", !panel.isPane(BufferKey.swiftIrc("#losthq")));
+    }
+
+    @Test
     public void sameChannelNameOnTwoNetworksMakesTwoBuffers() throws Exception {
         IrcPanel panel = panel();
         panel.addMessage(new IrcMessage("#rshelp", "Ash", "on swift", CHAT, Instant.now()));

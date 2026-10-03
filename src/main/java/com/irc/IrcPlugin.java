@@ -945,20 +945,6 @@ public class IrcPlugin extends Plugin {
         IrcMessage.MessageType[] chatBoxEvents = {IrcMessage.MessageType.QUIT, IrcMessage.MessageType.NICK_CHANGE};
         BufferKey target = message.getBuffer();
 
-        if (panel != null) {
-            List<BufferKey> buffers = panel.getBuffers();
-            if (!buffers.contains(target)) {
-                for (BufferKey key : buffers) {
-                    if (key.getNetworkId().equals(target.getNetworkId())
-                            && key.getName().equalsIgnoreCase(target.getName())) {
-                        SwingUtilities.invokeLater(() -> {
-                            if (panel != null) panel.renameChannel(key, target.getName());
-                        });
-                    }
-                }
-            }
-        }
-
         if (echoesInGame(message, inGameNetwork()) && client.getGameState() == GameState.LOGGED_IN) {
             BufferKey focused = panel != null ? panel.getCurrentBuffer() : null;
             boolean activeChannelCondition = focused == null

@@ -533,6 +533,7 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void setFocusedChannel(BufferKey channel) {
+        if (channel != null) channel = resolve(channel);
         if (channel == null || !unreadMessages.containsKey(channel)) return;
         int index = getBuffers().indexOf(channel);
         if (index < 0) return;
@@ -666,7 +667,34 @@ public class IrcPanel extends PluginPanel {
     }
 
     public boolean isPane(BufferKey key) {
-        return channelPanes.containsKey(key);
+        return resolve(key) != null;
+    }
+
+    /**
+     * The open buffer IRC considers the same as {@code key}. Channel names and nicks compare
+     * case-insensitively, and the same channel turns up as #losthq and #LostHQ (a lowercased
+     * autojoin, a ZNC's configured name, the server's own). Null when none is open.
+     */
+    private BufferKey resolve(BufferKey key) {
+        if (channelPanes.containsKey(key)) return key;
+        for (BufferKey open : getBuffers()) {
+            if (open.getNetworkId().equals(key.getNetworkId()) && open.getName().equalsIgnoreCase(key.getName())) {
+                return open;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Folds a differently-cased name into its open buffer. An all-lowercase name (usually our own,
+     * lowercased on join) takes the incoming casing; a cased one is never downgraded, so a ZNC and
+     * a server that disagree can't flip the title back and forth.
+     */
+    private BufferKey adoptCasing(BufferKey open, BufferKey incoming) {
+        String name = open.getName();
+        if (name.equals(incoming.getName()) || !name.equals(name.toLowerCase(Locale.ROOT))) return open;
+        renameChannel(open, incoming.getName());
+        return BufferKey.of(open.getNetworkId(), incoming.getName());
     }
 
     public boolean isPane(String name) {
@@ -875,7 +903,11 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void addChannel(BufferKey channel) {
-        if (channelPanes.containsKey(channel)) return;
+        BufferKey open = resolve(channel);
+        if (open != null) {
+            adoptCasing(open, channel);
+            return;
+        }
         ChannelPane pane = new ChannelPane(font, config, okHttpClient);
         int index = insertionIndex(channel);
         if (index < 0) {
@@ -1132,7 +1164,8 @@ public class IrcPanel extends PluginPanel {
     }
 
     private void removeBuffer(BufferKey channel, boolean includingSystem) {
-        if (!channelPanes.containsKey(channel)) return;
+        channel = resolve(channel);
+        if (channel == null) return;
         if (!includingSystem && SYSTEM_TAB.equals(channel.getName())) return;
         int index = getBuffers().indexOf(channel);
         if (index == -1 || index >= tabbedPane.getTabCount()) return;
@@ -1152,11 +1185,10 @@ public class IrcPanel extends PluginPanel {
                 && !networkNames.containsKey(key.getNetworkId())) {
             return;
         }
+        BufferKey open = resolve(key);
+        if (open == null) addChannel(key);
+        else key = adoptCasing(open, key);
         ChannelPane pane = channelPanes.get(key);
-        if (pane == null) {
-            addChannel(key);
-            pane = channelPanes.get(key);
-        }
         boolean history = message.getType() == IrcMessage.MessageType.HISTORY
                 || message.getType() == IrcMessage.MessageType.HISTORY_SEPARATOR;
         if (!key.equals(focusedChannel) && !history) {
@@ -1224,6 +1256,8 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void renameChannel(BufferKey oldKey, String newName) {
+        oldKey = resolve(oldKey);
+        if (oldKey == null) return;
         BufferKey newKey = BufferKey.of(oldKey.getNetworkId(), newName);
         if (!channelPanes.containsKey(oldKey) || channelPanes.containsKey(newKey)) {
             return;
