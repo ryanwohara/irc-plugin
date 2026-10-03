@@ -94,6 +94,48 @@ public class NetworkManagerTest {
     }
 
     @Test
+    public void reconnectWithAFreshConfigOpensWithIt() {
+        List<NetworkConfig> opened = new ArrayList<>();
+        NetworkManager recording = new NetworkManager(new NetworkManager.Connector() {
+            @Override public IrcAdapter open(NetworkConfig network) {
+                opened.add(network);
+                return new IrcAdapter();
+            }
+            @Override public void close(IrcAdapter adapter, NetworkConfig network, boolean removed, String reason) {
+            }
+        });
+        recording.apply(Collections.singletonList(net("a")));
+        opened.clear();
+        NetworkConfig fresh = net("a").toBuilder().host("new.example").build();
+        recording.reconnect(fresh);
+        assertEquals(Collections.singletonList(fresh), opened);
+        assertSame(fresh, recording.config("a"));
+    }
+
+    @Test
+    public void reconnectWithAFreshConfigSkipsDisabledAndUnknownNetworks() {
+        manager.apply(Collections.singletonList(net("a")));
+        calls.clear();
+        manager.reconnect(net("a").toBuilder().enabled(false).build());
+        manager.reconnect(net("missing"));
+        assertFalse(manager.isKnown("missing"));
+        assertTrue(calls.isEmpty());
+    }
+
+    @Test
+    public void updateReplacesTheKnownConfigWithoutReconnecting() {
+        manager.apply(Collections.singletonList(net("a")));
+        IrcAdapter first = manager.get("a");
+        calls.clear();
+        manager.update(net("a").toBuilder().host("new.example").build());
+        manager.update(net("missing"));
+        assertTrue(calls.isEmpty());
+        assertSame(first, manager.get("a"));
+        assertEquals("new.example", manager.config("a").getHost());
+        assertFalse(manager.isKnown("missing"));
+    }
+
+    @Test
     public void pausedNetworksStayDownUntilConnectedAgain() {
         manager.apply(Collections.singletonList(net("a")));
         manager.setConnected("a", false);

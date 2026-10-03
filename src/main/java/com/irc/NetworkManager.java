@@ -93,6 +93,22 @@ final class NetworkManager {
         start(config);
     }
 
+    /**
+     * Reconnects with {@code fresh} (live settings, e.g. the SwiftIRC Connection config) in place of
+     * the stored config. Ignored for a network that is not known.
+     */
+    synchronized void reconnect(NetworkConfig fresh) {
+        String id = fresh.getId();
+        if (!known.containsKey(id)) return;
+        known.put(id, fresh);
+        reconnect(id);
+    }
+
+    /** Replaces the stored config of a known network without touching its connection. */
+    synchronized void update(NetworkConfig fresh) {
+        if (known.containsKey(fresh.getId())) known.put(fresh.getId(), fresh);
+    }
+
     /** Connects or disconnects for this session without touching the saved enabled flag. */
     synchronized void setConnected(String id, boolean connected) {
         NetworkConfig config = known.get(id);

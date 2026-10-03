@@ -218,7 +218,7 @@ public class IrcPlugin extends Plugin {
     private class PanelNetworkActions implements IrcDesktopLayout.NetworkActions {
         @Override
         public void reconnect(String networkId) {
-            if (networks != null) networks.reconnect(networkId);
+            reconnectNetwork(networkId);
         }
 
         @Override
@@ -710,7 +710,19 @@ public class IrcPlugin extends Plugin {
     }
 
     private void handleReconnect(String networkId) {
-        if (networks != null) networks.reconnect(networkId);
+        reconnectNetwork(networkId);
+    }
+
+    /** Reconnects with the live settings for {@code networkId}, as main rebuilt from config. */
+    private void reconnectNetwork(String networkId) {
+        if (networks == null) return;
+        for (NetworkConfig network : networkConfigs()) {
+            if (network.getId().equals(networkId)) {
+                networks.reconnect(network);
+                return;
+            }
+        }
+        networks.reconnect(networkId);
     }
 
     /** A colour code (the background, if any, is matched only to be dropped) or any other formatting code. */
@@ -885,6 +897,12 @@ public class IrcPlugin extends Plugin {
             }
         } else if (NetworkStore.CONFIG_KEY.equals(configChanged.getKey())) {
             applyNetworks();
+        } else if ("server".equals(configChanged.getKey())
+                || "accountName".equals(configChanged.getKey())
+                || "password".equals(configChanged.getKey())
+                || "channel".equals(configChanged.getKey())) {
+            // Like main: picked up on the next Reconnect, not applied live.
+            if (networks != null) networks.update(NetworkConfig.swiftIrc(config));
         } else if ("logRawLines".equals(configChanged.getKey())) {
             // Applied live: the connection failure worth capturing usually happens during
             // connect, so requiring a reconnect to arm the log would miss it.
