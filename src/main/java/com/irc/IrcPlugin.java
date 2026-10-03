@@ -198,6 +198,11 @@ public class IrcPlugin extends Plugin {
             // can block (the reader thread holds the stream lock inside readLine), which would
             // freeze the EDT and every other network. Disconnect off the caller's thread.
             if (adapter != null) {
+                // Cut it off from the UI first: a stalled disconnect that completes after the
+                // replacement session is up would otherwise report "Disconnected" and empty the
+                // user lists of that live session. Say it here instead, once.
+                adapter.detach();
+                systemMessage(network.getId(), "Disconnected (" + reason + ")");
                 Thread disconnecter = new Thread(() -> adapter.disconnect(reason), "irc-disconnect");
                 disconnecter.setDaemon(true);
                 disconnecter.start();

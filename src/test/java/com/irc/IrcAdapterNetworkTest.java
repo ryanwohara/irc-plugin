@@ -144,6 +144,42 @@ public class IrcAdapterNetworkTest {
         assertEquals(RIZON, pm.getNetworkId());
     }
 
+    @Test
+    public void detachedAdapterEmitsNothing() throws Exception {
+        List<String> panelCalls = new ArrayList<>();
+        IrcPanel panel = new IrcPanel() {
+            @Override public void setNetworkConnected(String networkId, boolean connected) {
+                panelCalls.add("connected " + connected);
+            }
+            @Override public void setChannelUsers(BufferKey channel, List<ChannelUserList.Entry> entries) {
+                panelCalls.add("users " + channel.getName());
+            }
+        };
+        List<IrcMessage> messages = new ArrayList<>();
+        IrcAdapter adapter = new IrcAdapter();
+        adapter.initialize(stubConfig(), rizon(), messages::add, panel, "me");
+        adapter.getClient().processLine(":server 001 me :Welcome");
+        adapter.getClient().processLine(":me!u@h JOIN #chan");
+        markConnected(adapter.getClient());
+        SwingUtilities.invokeAndWait(() -> { });
+        messages.clear();
+        panelCalls.clear();
+
+        adapter.detach();
+        adapter.getClient().processLine(":Ash!u@h PRIVMSG #chan :late");
+        adapter.disconnect("Reloading, brb");
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertTrue(messages.toString(), messages.isEmpty());
+        assertTrue(panelCalls.toString(), panelCalls.isEmpty());
+    }
+
+    private static void markConnected(SimpleIrcClient client) throws Exception {
+        Field connected = SimpleIrcClient.class.getDeclaredField("connected");
+        connected.setAccessible(true);
+        connected.set(client, true);
+    }
+
     private static IrcPanel headlessPanel() throws Exception {
         IrcPanel panel = new IrcPanel();
         Field config = IrcPanel.class.getDeclaredField("config");
