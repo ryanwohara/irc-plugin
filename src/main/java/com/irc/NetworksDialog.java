@@ -332,13 +332,23 @@ final class NetworksDialog extends JDialog {
         private void updateTlsControls() {
             verifyTls.setEnabled(tls.isSelected());
             tlsWarning.setVisible(tls.isSelected() && !verifyTls.isSelected());
+            refit();
+        }
+
+        /**
+         * Resizes the dialog showing this form. It is sized once when it opens, so a row revealed
+         * afterwards would otherwise push its OK/Cancel buttons out of view.
+         */
+        private void refit() {
             revalidate();
+            Window window = SwingUtilities.getWindowAncestor(this);
+            if (window != null) window.pack();
         }
 
         void applyZncPreset() {
             tls.setSelected(true);
             zncHint.setVisible(true);
-            revalidate();
+            refit();
         }
 
         NetworkConfig toConfig() {

@@ -91,6 +91,52 @@ public class NetworksDialogTest {
         assertTrue(form.zncHint.isVisible());
     }
 
+    /**
+     * The form is shown in a JOptionPane dialog sized when it opens. Rows that appear later (the
+     * ZNC hint, the unverified-TLS warning) must grow the dialog, or they push OK/Cancel out of it.
+     */
+    @Test
+    public void revealedRowsKeepTheDialogButtonsOnScreen() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            NetworksDialog.NetworkForm form = new NetworksDialog.NetworkForm(rizon().toBuilder().tls(false).build());
+            JDialog dialog = new JOptionPane(form, JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION)
+                    .createDialog(null, "Edit");
+            try {
+                dialog.pack();
+                assertButtonsFit(dialog);
+                form.applyZncPreset();
+                assertButtonsFit(dialog);
+                form.verifyTls.doClick();
+                assertTrue(form.tlsWarning.isVisible());
+                assertButtonsFit(dialog);
+            } finally {
+                dialog.dispose();
+            }
+        });
+    }
+
+    private static void assertButtonsFit(JDialog dialog) {
+        dialog.validate();
+        Container content = dialog.getContentPane();
+        JButton ok = findButton(content, "OK");
+        assertNotNull(ok);
+        Rectangle bounds = SwingUtilities.convertRectangle(ok.getParent(), ok.getBounds(), content);
+        assertTrue("OK button is cut off: " + bounds + " in " + content.getSize(),
+                bounds.y + bounds.height <= content.getHeight() && bounds.x + bounds.width <= content.getWidth());
+    }
+
+    private static JButton findButton(Container parent, String text) {
+        for (Component child : parent.getComponents()) {
+            if (child instanceof JButton && text.equals(((JButton) child).getText())) return (JButton) child;
+            if (child instanceof Container) {
+                JButton found = findButton((Container) child, text);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     @Test
     public void duplicateGetsANewIdAndACopyName() {
         NetworkConfig copy = NetworksDialog.duplicateOf(rizon());
