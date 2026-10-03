@@ -279,6 +279,51 @@ public class IrcDesktopLayoutTest {
         });
     }
 
+    @Test
+    public void aLongTopicScrollsSideways() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        AtomicReference<JFrame> frame = new AtomicReference<>();
+        AtomicReference<IrcDesktopLayout> layoutRef = new AtomicReference<>();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                IrcDesktopLayout layout = layout(new java.util.ArrayList<>());
+                layout.attachChat(new JTabbedPane(), new JTextField());
+                StringBuilder longTopic = new StringBuilder("Start");
+                for (int i = 0; i < 40; i++) longTopic.append(" lots of words");
+                layout.showTopic(longTopic + " https://example.com/end");
+                JFrame f = new JFrame();
+                f.add(layout);
+                f.setSize(700, 400);
+                f.setVisible(true);
+                frame.set(f);
+                layoutRef.set(layout);
+            });
+            SwingUtilities.invokeAndWait(() -> { });
+            SwingUtilities.invokeAndWait(() -> {
+                IrcDesktopLayout layout = layoutRef.get();
+                JScrollPane scroll = (JScrollPane) find(layout, "ircTopicScroll");
+                assertNotNull("the topic sits in a scroll pane", scroll);
+                assertEquals(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER, scroll.getVerticalScrollBarPolicy());
+                JViewport viewport = scroll.getViewport();
+                assertTrue("the whole topic is laid out, wider than the view",
+                        viewport.getViewSize().width > viewport.getExtentSize().width);
+                assertTrue("the scrollbar shows when the topic overflows", scroll.getHorizontalScrollBar().isVisible());
+
+                JLabel topic = (JLabel) find(layout, "ircTopic");
+                topic.dispatchEvent(new java.awt.event.MouseWheelEvent(topic, java.awt.event.MouseEvent.MOUSE_WHEEL,
+                        System.currentTimeMillis(), 0, 10, 10, 0, false,
+                        java.awt.event.MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 2));
+                assertTrue("the wheel scrolls the topic sideways", viewport.getViewPosition().x > 0);
+
+                layout.showTopic("Short");
+                scroll.validate();
+                assertEquals("a new topic starts at the left", 0, viewport.getViewPosition().x);
+            });
+        } finally {
+            SwingUtilities.invokeAndWait(() -> { if (frame.get() != null) frame.get().dispose(); });
+        }
+    }
+
     /** The centre of the first occurrence of {@code word} as the label's HTML view lays it out. */
     private static Point centreOf(javax.swing.text.View view, Rectangle text, String word) {
         try {

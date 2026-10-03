@@ -101,6 +101,9 @@ final class IrcDesktopLayout extends JPanel {
     private final JLabel usersHeading = heading("USERS");
     private final JLabel channelHeading = heading("System");
     private final JLabel topic = heading("");
+    /** Holds the topic at its full width; a long one scrolls sideways instead of being cut off. */
+    private final JScrollPane topicScroll = new JScrollPane(topic,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
     private final JPanel conversation = new JPanel(new BorderLayout());
     private final JPanel composer = new JPanel(new BorderLayout());
     private final Consumer<String> query;
@@ -273,11 +276,25 @@ final class IrcDesktopLayout extends JPanel {
         JPanel chatHeader = new JPanel(new BorderLayout());
         chatHeader.setBackground(HEADER);
         chatHeader.add(channelHeading, BorderLayout.WEST);
-        // Fills the rest of the row; a long topic is cut short with "…" and shown whole on hover.
+        // Fills the rest of the row. A long topic scrolls sideways (the wheel scrolls it too, as there
+        // is no vertical bar) and is shown whole on hover.
         topic.setName("ircTopic");
         topic.setForeground(MUTED);
         topic.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 12));
-        topic.setMinimumSize(new Dimension(0, 0));
+        topicScroll.setName("ircTopicScroll");
+        topicScroll.setBorder(BorderFactory.createEmptyBorder());
+        topicScroll.setViewportBorder(null);
+        topicScroll.getViewport().setBackground(HEADER);
+        topicScroll.setBackground(HEADER);
+        topicScroll.setMinimumSize(new Dimension(0, 0));
+        JScrollBar topicBar = topicScroll.getHorizontalScrollBar();
+        topicBar.setPreferredSize(new Dimension(0, 6));
+        topicBar.setUnitIncrement(16);
+        // There is nothing to scroll vertically here, so the wheel always scrolls sideways. Done
+        // explicitly: the default handler only goes sideways once the vertical bar is hidden.
+        topicScroll.setWheelScrollingEnabled(false);
+        topicScroll.addMouseWheelListener(e ->
+                topicBar.setValue(topicBar.getValue() + e.getUnitsToScroll() * topicBar.getUnitIncrement()));
         // Topics are set by other users: show any markup as text rather than rendering it. A topic
         // with links is shown as HTML we build ourselves from the escaped text (see topicHtml).
         topic.putClientProperty("html.disable", Boolean.TRUE);
@@ -294,7 +311,7 @@ final class IrcDesktopLayout extends JPanel {
                 if (url != null) LinkBrowser.browse(url);
             }
         });
-        chatHeader.add(topic, BorderLayout.CENTER);
+        chatHeader.add(topicScroll, BorderLayout.CENTER);
         chat.add(chatHeader, BorderLayout.NORTH);
         chat.add(conversation, BorderLayout.CENTER);
         JPanel left = section(heading("NETWORK"), channels);
@@ -521,6 +538,8 @@ final class IrcDesktopLayout extends JPanel {
         topic.putClientProperty("html.disable", html == null ? Boolean.TRUE : null);
         topic.setText(html != null ? html : text.isEmpty() ? "" : "—  " + text);
         topic.setCursor(Cursor.getDefaultCursor());
+        topicScroll.revalidate();
+        topicScroll.getViewport().setViewPosition(new Point(0, 0));
         // A tooltip is HTML when it starts with <html>; the leading space keeps it plain text.
         topic.setToolTipText(text.isEmpty() ? null
                 : javax.swing.plaf.basic.BasicHTML.isHTMLString(text) ? " " + text : text);
@@ -528,8 +547,8 @@ final class IrcDesktopLayout extends JPanel {
 
     /**
      * The topic as label HTML with its links clickable, or null when it has no links (it is then
-     * shown as plain text, which keeps the "…" truncation). Everything but the links is escaped,
-     * so markup in a topic still shows as text. Never wraps: an overlong topic is clipped.
+     * shown as plain text). Everything but the links is escaped, so markup in a topic still shows
+     * as text. Never wraps: an overlong topic scrolls sideways.
      */
     static String topicHtml(String text) {
         java.util.regex.Matcher links = IrcPanel.VALID_LINK.matcher(text);
