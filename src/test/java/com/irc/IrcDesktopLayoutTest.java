@@ -42,6 +42,7 @@ public class IrcDesktopLayoutTest {
                 panel.init((channel, text) -> sent.set(text), (network, channel, password) -> {},
                         channel -> {}, reconnect -> {}, (network, query) -> {}, () -> {});
                 panel.initializeGui();
+                panel.setNetworkConnected(NetworkConfig.SWIFTIRC_ID, true);
             });
             SwingUtilities.invokeAndWait(() -> {
                 IrcPanel panel = ref.get();
@@ -156,13 +157,13 @@ public class IrcDesktopLayoutTest {
                     return super.requestFocusInWindow();
                 }
             };
-            IrcDesktopLayout layout = new IrcDesktopLayout("irc.example", name -> false, name -> {},
-                    nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                    new JComboBox<>(), new JComboBox<>(), nick -> null);
+            IrcDesktopLayout layout = new IrcDesktopLayout(name -> false, name -> {}, nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, IrcDesktopLayout.NetworkActions.NONE, () -> {}, new JComboBox<>(), new JComboBox<>(), nick -> null);
             layout.attachChat(new JTabbedPane(), input);
             JTree tree = (JTree) find(layout, "ircChannels");
-            layout.updateChannels(Arrays.asList("System", "Luna", "#runelite", "#rshelp"), "System");
-            assertEquals(Arrays.asList("System", "#runelite", "#rshelp", "Luna"), layout.channelOrder());
+            layout.updateChannels(Collections.singletonList(swift(true, "System", "Luna", "#runelite", "#rshelp")),
+                    BufferKey.swiftIrc("System"));
+            assertEquals(Arrays.asList(BufferKey.swiftIrc("System"), BufferKey.swiftIrc("#runelite"),
+                    BufferKey.swiftIrc("#rshelp"), BufferKey.swiftIrc("Luna")), layout.channelOrder());
             assertEquals("4. Luna", rowText(tree, "Luna"));
             tree.setSize(200, 400);
 
@@ -183,9 +184,7 @@ public class IrcDesktopLayoutTest {
     public void toggleButtonsHideAndRestoreChannelAndUserLists() throws Exception {
         org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
         SwingUtilities.invokeAndWait(() -> {
-            IrcDesktopLayout layout = new IrcDesktopLayout("irc.example", name -> false, name -> {},
-                    nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                    new JComboBox<>(), new JComboBox<>(), nick -> null);
+            IrcDesktopLayout layout = new IrcDesktopLayout(name -> false, name -> {}, nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {}, IrcDesktopLayout.NetworkActions.NONE, () -> {}, new JComboBox<>(), new JComboBox<>(), nick -> null);
             layout.attachChat(new JTabbedPane(), new JTextField());
             layout.setSize(960, 600);
             layout.validate();
@@ -216,11 +215,103 @@ public class IrcDesktopLayoutTest {
         });
     }
 
-    private static String rowText(JTree tree, String name) {
-        TreePath path = path(tree, name);
+    @Test
+    public void eachNetworkIsARootAndNumberingRunsAcrossThem() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            java.util.List<String> calls = new java.util.ArrayList<>();
+            IrcDesktopLayout layout = layout(calls);
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            JTree tree = (JTree) find(layout, "ircChannels");
+            layout.updateChannels(Arrays.asList(swift(true, "System", "#rshelp", "Luna"), rizon(false, "System", "#rshelp")),
+                    BufferKey.swiftIrc("#rshelp"));
+            assertFalse(tree.isRootVisible());
+            assertEquals(2, ((DefaultMutableTreeNode) tree.getModel().getRoot()).getChildCount());
+            assertEquals(Arrays.asList(BufferKey.swiftIrc("System"), BufferKey.swiftIrc("#rshelp"),
+                    BufferKey.swiftIrc("Luna"), BufferKey.of("rizon-id", "System"), BufferKey.of("rizon-id", "#rshelp")),
+                    layout.channelOrder());
+            assertEquals("5. #rshelp", rowText(tree, path(tree, (Object) BufferKey.of("rizon-id", "#rshelp"))));
+            assertEquals("\u25cf SwiftIRC", rowText(tree, path(tree, (Object) swift(true, "System", "#rshelp", "Luna"))));
+            assertEquals("\u25cb Rizon  (disconnected)", rowText(tree, path(tree, (Object) rizon(false, "System", "#rshelp"))));
+
+            tree.setSelectionPath(path(tree, (Object) BufferKey.of("rizon-id", "#rshelp")));
+            assertEquals("select rizon-id #rshelp", calls.get(calls.size() - 1));
+        });
+    }
+
+    @Test
+    public void headerNamesTheNetworkOnlyWhenTwoAreConnected() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            IrcDesktopLayout layout = layout(new java.util.ArrayList<>());
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            JLabel heading = (JLabel) find(layout, "ircChannelHeading");
+            BufferKey foo = BufferKey.of("rizon-id", "#foo");
+            layout.updateChannels(Arrays.asList(swift(true, "System"), rizon(false, "#foo")), foo);
+            assertEquals("#foo", heading.getText());
+            layout.updateChannels(Arrays.asList(swift(true, "System"), rizon(true, "#foo")), foo);
+            assertEquals("#foo \u00b7 Rizon", heading.getText());
+        });
+    }
+
+    @Test
+    public void reconnectAndNetworksButtonsTargetTheSelectedNetwork() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            java.util.List<String> calls = new java.util.ArrayList<>();
+            IrcDesktopLayout layout = layout(calls);
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            layout.updateChannels(Arrays.asList(swift(true, "System"), rizon(true, "#foo")), BufferKey.of("rizon-id", "#foo"));
+            ((JButton) find(layout, "ircReconnect")).doClick();
+            ((JButton) find(layout, "ircNetworks")).doClick();
+            assertEquals(Arrays.asList("reconnect rizon-id", "edit null"), calls.subList(calls.size() - 2, calls.size()));
+        });
+    }
+
+    @Test
+    public void networkMenuReconnectsTogglesAndEdits() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            java.util.List<String> calls = new java.util.ArrayList<>();
+            IrcDesktopLayout layout = layout(calls);
+            JPopupMenu menu = layout.networkMenu(rizon(true, "#foo"));
+            assertEquals(3, menu.getComponentCount());
+            assertEquals("Reconnect", ((JMenuItem) menu.getComponent(0)).getText());
+            assertEquals("Disconnect", ((JMenuItem) menu.getComponent(1)).getText());
+            assertEquals("Edit\u2026", ((JMenuItem) menu.getComponent(2)).getText());
+            for (int i = 0; i < 3; i++) ((JMenuItem) menu.getComponent(i)).doClick();
+            assertEquals(Arrays.asList("reconnect rizon-id", "connected rizon-id false", "edit rizon-id"), calls);
+            assertEquals("Connect", ((JMenuItem) layout.networkMenu(rizon(false)).getComponent(1)).getText());
+        });
+    }
+
+    private static String rowText(JTree tree, TreePath path) {
         JLabel label = (JLabel) tree.getCellRenderer().getTreeCellRendererComponent(
                 tree, path.getLastPathComponent(), false, false, true, tree.getRowForPath(path), false);
         return label.getText();
+    }
+
+    private static String rowText(JTree tree, String name) {
+        return rowText(tree, path(tree, name));
+    }
+
+    private static IrcDesktopLayout layout(java.util.List<String> calls) {
+        return new IrcDesktopLayout(key -> false, key -> calls.add("select " + key.getNetworkId() + " " + key),
+                nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {},
+                new IrcDesktopLayout.NetworkActions() {
+                    @Override public void reconnect(String id) { calls.add("reconnect " + id); }
+                    @Override public void setConnected(String id, boolean c) { calls.add("connected " + id + " " + c); }
+                    @Override public void edit(String id) { calls.add("edit " + id); }
+                },
+                () -> {}, new JComboBox<>(), new JComboBox<>(), nick -> null);
+    }
+
+    private static IrcDesktopLayout.NetworkNode swift(boolean connected, String... buffers) {
+        return new IrcDesktopLayout.NetworkNode("swiftirc", "SwiftIRC", connected, Arrays.asList(buffers));
+    }
+
+    private static IrcDesktopLayout.NetworkNode rizon(boolean connected, String... buffers) {
+        return new IrcDesktopLayout.NetworkNode("rizon-id", "Rizon", connected, Arrays.asList(buffers));
     }
 
     private static void release(JTree tree, int x, int y) {
@@ -245,7 +336,17 @@ public class IrcDesktopLayoutTest {
         java.util.Enumeration<?> nodes = root.depthFirstEnumeration();
         while (nodes.hasMoreElements()) {
             DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
-            if (name.equals(node.getUserObject())) return new TreePath(node.getPath());
+            if (name.equals(String.valueOf(node.getUserObject()))) return new TreePath(node.getPath());
+        }
+        return null;
+    }
+
+    private static TreePath path(JTree tree, Object userObject) {
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+        java.util.Enumeration<?> nodes = root.depthFirstEnumeration();
+        while (nodes.hasMoreElements()) {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
+            if (userObject.equals(node.getUserObject())) return new TreePath(node.getPath());
         }
         return null;
     }

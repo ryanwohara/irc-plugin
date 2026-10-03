@@ -313,17 +313,10 @@ public class IrcPanel extends PluginPanel {
      * tree groups buffers, so its order can differ from the side panel's tabs.
      */
     void jumpToChannel(int number) {
-        List<BufferKey> buffers = detachedLayout ? desktopOrder() : getBuffers();
+        List<BufferKey> buffers = detachedLayout ? desktopLayout.channelOrder() : getBuffers();
         if (number < 1 || number > buffers.size()) return;
         setFocusedChannel(buffers.get(number - 1));
         inputField.requestFocusInWindow();
-    }
-
-    /** Interim (replaced in Task 5): the pop-out still lists SwiftIRC names only. */
-    private List<BufferKey> desktopOrder() {
-        List<BufferKey> keys = new ArrayList<>();
-        for (String name : desktopLayout.channelOrder()) keys.add(BufferKey.swiftIrc(name));
-        return keys;
     }
 
     private JComboBox<String> getFontComboBox() {
@@ -737,13 +730,19 @@ public class IrcPanel extends PluginPanel {
         }
     }
 
+    private IrcDesktopLayout.NetworkActions networkActions = IrcDesktopLayout.NetworkActions.NONE;
+
+    /** Set by the plugin; the pop-out asks it to reconnect, pause or edit networks. */
+    public void setNetworkActions(IrcDesktopLayout.NetworkActions actions) {
+        this.networkActions = actions != null ? actions : IrcDesktopLayout.NetworkActions.NONE;
+    }
+
     public void setDetached(boolean detached, boolean alwaysOnTop) {
         if (detachedLayout != detached) {
             if (detached) {
                 if (desktopLayout == null) {
-                    desktopLayout = new IrcDesktopLayout(config.server().getHostname(),
-                            name -> unreadMessages.getOrDefault(BufferKey.swiftIrc(name), false),
-                            name -> setFocusedChannel(BufferKey.swiftIrc(name)),
+                    desktopLayout = new IrcDesktopLayout(
+                            key -> unreadMessages.getOrDefault(key, false), this::setFocusedChannel,
                             nick -> {
                                 BufferKey query = BufferKey.of(getCurrentBuffer().getNetworkId(), nick);
                                 addChannel(query);
@@ -753,7 +752,11 @@ public class IrcPanel extends PluginPanel {
                             nick -> onMessageSend.accept(getCurrentBuffer(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
                             () -> requestChannelList(""),
-                            () -> onReconnect.accept(getCurrentBuffer().getNetworkId()),
+                            new IrcDesktopLayout.NetworkActions() {
+                                @Override public void reconnect(String id) { networkActions.reconnect(id); }
+                                @Override public void setConnected(String id, boolean c) { networkActions.setConnected(id, c); }
+                                @Override public void edit(String id) { networkActions.edit(id); }
+                            },
                             this::requestDock, getFontComboBox(), getFontSizeComboBox(),
                             nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
                 }
@@ -777,8 +780,24 @@ public class IrcPanel extends PluginPanel {
 
     private void refreshDesktopChannels() {
         if (desktopLayout == null) return;
-        desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
+        desktopLayout.updateChannels(networkNodes(), getCurrentBuffer());
         desktopLayout.showTopic(channelTopics.getOrDefault(getCurrentBuffer().folded(), ""));
+    }
+
+    /** Networks in announcement order, each with its buffers in tab order. */
+    private List<IrcDesktopLayout.NetworkNode> networkNodes() {
+        Map<String, List<String>> buffersByNetwork = new LinkedHashMap<>();
+        for (String id : networkNames.keySet()) buffersByNetwork.put(id, new ArrayList<>());
+        for (BufferKey key : getBuffers()) {
+            buffersByNetwork.computeIfAbsent(key.getNetworkId(), id -> new ArrayList<>()).add(key.getName());
+        }
+        List<IrcDesktopLayout.NetworkNode> nodes = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : buffersByNetwork.entrySet()) {
+            String id = entry.getKey();
+            nodes.add(new IrcDesktopLayout.NetworkNode(id, networkNames.getOrDefault(id, id),
+                    networkConnected.getOrDefault(id, false), entry.getValue()));
+        }
+        return nodes;
     }
 
     public void bringPopOutToFront() {

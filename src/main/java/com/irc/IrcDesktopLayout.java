@@ -20,6 +20,52 @@ import java.util.function.Predicate;
 
 /** Expanded navigation around the existing chat components, with no separate IRC state. */
 final class IrcDesktopLayout extends JPanel {
+    /** One network as the tree shows it. */
+    static final class NetworkNode {
+        final String id;
+        final String name;
+        final boolean connected;
+        final List<String> buffers;
+
+        NetworkNode(String id, String name, boolean connected, List<String> buffers) {
+            this.id = id;
+            this.name = name;
+            this.connected = connected;
+            this.buffers = Collections.unmodifiableList(new ArrayList<>(buffers));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof NetworkNode)) return false;
+            NetworkNode other = (NetworkNode) o;
+            return id.equals(other.id) && name.equals(other.name) && connected == other.connected
+                    && buffers.equals(other.buffers);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(id, name, connected, buffers);
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    /** What the pop-out can ask of a network. {@code edit(null)} opens the network list. */
+    interface NetworkActions {
+        void reconnect(String networkId);
+        void setConnected(String networkId, boolean connected);
+        void edit(String networkId);
+
+        NetworkActions NONE = new NetworkActions() {
+            @Override public void reconnect(String networkId) { }
+            @Override public void setConnected(String networkId, boolean connected) { }
+            @Override public void edit(String networkId) { }
+        };
+    }
+
     private static final Color BACKGROUND = new Color(30, 33, 38);
     private static final Color HEADER = new Color(40, 44, 50);
     private static final Color TEXT = new Color(218, 222, 229);
@@ -37,27 +83,33 @@ final class IrcDesktopLayout extends JPanel {
     private final JPanel composer = new JPanel(new BorderLayout());
     private final Consumer<String> query;
     private final Consumer<String> whois;
-    private List<String> channelNames = Collections.emptyList();
-    /** Buffer names as the tree shows them; the numbers Alt+digit and Alt+J jump to. */
-    private List<String> channelOrder = Collections.emptyList();
+    private List<NetworkNode> networks = Collections.emptyList();
+    /** Buffers as the tree shows them; the numbers Alt+digit and Alt+J jump to. */
+    private List<BufferKey> channelOrder = Collections.emptyList();
+    private BufferKey selectedKey = BufferKey.swiftIrc("System");
+    private final NetworkActions networkActions;
     private final JToggleButton channelsToggle = new JToggleButton("Channel list", true);
     private final JToggleButton usersToggle = new JToggleButton("User list", true);
     private JTextField input;
     private boolean synchronizing;
 
-    IrcDesktopLayout(String server, Predicate<String> unread, Consumer<String> select,
+    IrcDesktopLayout(Predicate<BufferKey> unread, Consumer<BufferKey> select,
                      Consumer<String> query, Consumer<String> whois, Runnable join,
-                     Runnable leave, Runnable browse, Runnable reconnect, Runnable dock,
+                     Runnable leave, Runnable browse, NetworkActions networkActions, Runnable dock,
                      JComboBox<String> fontSelector, JComboBox<Integer> fontSizeSelector,
                      Function<String, Color> nickColor) {
         super(new BorderLayout(0, 1));
+        channelHeading.setName("ircChannelHeading");
+        this.networkActions = networkActions;
         this.query = query;
         this.whois = whois;
         setBackground(HEADER);
-        root = new DefaultMutableTreeNode(server);
+        root = new DefaultMutableTreeNode("Networks");
         treeModel = new DefaultTreeModel(root);
         channels = new JTree(treeModel);
         channels.setName("ircChannels");
+        channels.setRootVisible(false);
+        channels.setShowsRootHandles(true);
         channels.setRowHeight(27);
         channels.setBackground(BACKGROUND);
         channels.setForeground(TEXT);
@@ -69,34 +121,49 @@ final class IrcDesktopLayout extends JPanel {
                     boolean expanded, boolean leaf, int row, boolean focused) {
                 super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, focused);
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) value;
-                String name = node.getUserObject().toString();
+                Object user = node.getUserObject();
                 setIcon(null);
                 setBackgroundNonSelectionColor(BACKGROUND);
                 setBackgroundSelectionColor(new Color(49, 68, 86));
-                boolean channel = !node.getAllowsChildren();
-                boolean hasUnread = channel && unread.test(name);
-                setForeground(hasUnread ? ACCENT : TEXT);
-                setFont(tree.getFont().deriveFont(hasUnread ? Font.BOLD : Font.PLAIN));
-                if (channel) setText((channelOrder.indexOf(name) + 1) + ". " + name + (hasUnread ? "  •" : ""));
+                if (user instanceof NetworkNode) {
+                    NetworkNode network = (NetworkNode) user;
+                    setText((network.connected ? "\u25cf " : "\u25cb ") + network.name + (network.connected ? "" : "  (disconnected)"));
+                    setForeground(network.connected ? TEXT : MUTED);
+                    setFont(tree.getFont().deriveFont(Font.BOLD));
+                    return this;
+                }
+                if (user instanceof BufferKey) {
+                    BufferKey key = (BufferKey) user;
+                    boolean hasUnread = unread.test(key);
+                    boolean online = isConnected(key.getNetworkId());
+                    setForeground(!online ? MUTED : hasUnread ? ACCENT : TEXT);
+                    setFont(tree.getFont().deriveFont(hasUnread ? Font.BOLD : Font.PLAIN));
+                    setText((channelOrder.indexOf(key) + 1) + ". " + key.getName() + (hasUnread ? "  \u2022" : ""));
+                    return this;
+                }
+                setForeground(TEXT);
+                setFont(tree.getFont().deriveFont(Font.PLAIN));
                 return this;
             }
         });
         channels.addTreeSelectionListener(e -> {
             DefaultMutableTreeNode node = (DefaultMutableTreeNode) channels.getLastSelectedPathComponent();
-            if (!synchronizing && node != null && !node.getAllowsChildren()) {
-                select.accept(node.getUserObject().toString());
+            if (!synchronizing && node != null && node.getUserObject() instanceof BufferKey) {
+                select.accept((BufferKey) node.getUserObject());
             }
         });
         // Clicking a channel moves focus to the input so the user can type straight away;
         // keyboard selection leaves focus on the tree so arrowing through channels still works.
         channels.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) { showNetworkMenu(e); }
             @Override public void mouseReleased(MouseEvent e) {
+                if (showNetworkMenu(e)) return;
                 if (!SwingUtilities.isLeftMouseButton(e) || input == null) return;
                 int row = channels.getClosestRowForLocation(e.getX(), e.getY());
                 Rectangle bounds = channels.getRowBounds(row);
                 if (bounds == null || e.getY() < bounds.y || e.getY() >= bounds.y + bounds.height) return;
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) channels.getPathForRow(row).getLastPathComponent();
-                if (!node.getAllowsChildren()) input.requestFocusInWindow();
+                if (node.getUserObject() instanceof BufferKey) input.requestFocusInWindow();
             }
         });
 
@@ -139,7 +206,8 @@ final class IrcDesktopLayout extends JPanel {
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
         toolbar.setBackground(HEADER);
-        JButton reconnectButton = button("", "Reconnect to IRC", reconnect);
+        JButton reconnectButton = button("", "Reconnect the selected network", () -> networkActions.reconnect(selectedKey.getNetworkId()));
+        reconnectButton.setName("ircReconnect");
         try {
             reconnectButton.setIcon(new ImageIcon(ImageUtil.loadImageResource(IrcDesktopLayout.class, "reload.png")));
         } catch (Exception ignored) {
@@ -149,6 +217,9 @@ final class IrcDesktopLayout extends JPanel {
         toolbar.add(button("Join…", "Join a channel", join));
         toolbar.add(button("Leave", "Close the selected conversation", leave));
         toolbar.add(button("Channels…", "Browse the server's channel list", browse));
+        JButton networksButton = button("Networks…", "Add, edit or remove IRC networks", () -> networkActions.edit(null));
+        networksButton.setName("ircNetworks");
+        toolbar.add(networksButton);
         fontSelector.setToolTipText("Chat font");
         fontSelector.setFocusable(false);
         toolbar.add(fontSelector);
@@ -208,40 +279,46 @@ final class IrcDesktopLayout extends JPanel {
         composer.add(input, BorderLayout.CENTER);
     }
 
-    List<String> channelOrder() {
+    List<BufferKey> channelOrder() {
         return new ArrayList<>(channelOrder);
     }
 
-    void updateChannels(List<String> names, String selected) {
+    void updateChannels(List<NetworkNode> nets, BufferKey selected) {
         synchronizing = true;
         try {
-            if (!channelNames.equals(names)) {
-                channelNames = new ArrayList<>(names);
+            if (!networks.equals(nets)) {
+                networks = new ArrayList<>(nets);
                 root.removeAllChildren();
-                DefaultMutableTreeNode rooms = new DefaultMutableTreeNode("Channels");
-                DefaultMutableTreeNode privateChats = new DefaultMutableTreeNode("Private chats");
-                for (String name : names) {
-                    DefaultMutableTreeNode node = new DefaultMutableTreeNode(name, false);
-                    if ("System".equals(name)) root.add(node);
-                    else if (name.startsWith("#") || name.startsWith("&")) rooms.add(node);
-                    else privateChats.add(node);
+                for (NetworkNode network : nets) {
+                    DefaultMutableTreeNode networkNode = new DefaultMutableTreeNode(network);
+                    DefaultMutableTreeNode rooms = new DefaultMutableTreeNode("Channels");
+                    DefaultMutableTreeNode privateChats = new DefaultMutableTreeNode("Private chats");
+                    for (String name : network.buffers) {
+                        BufferKey key = BufferKey.of(network.id, name);
+                        DefaultMutableTreeNode node = new DefaultMutableTreeNode(key, false);
+                        if ("System".equals(name)) networkNode.add(node);
+                        else if (key.isChannel()) rooms.add(node);
+                        else privateChats.add(node);
+                    }
+                    networkNode.add(rooms);
+                    networkNode.add(privateChats);
+                    root.add(networkNode);
                 }
-                root.add(rooms);
-                root.add(privateChats);
-                List<String> order = new ArrayList<>();
+                List<BufferKey> order = new ArrayList<>();
                 java.util.Enumeration<?> nodes = root.preorderEnumeration();
                 while (nodes.hasMoreElements()) {
-                    DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
-                    if (!node.getAllowsChildren()) order.add(node.getUserObject().toString());
+                    Object user = ((DefaultMutableTreeNode) nodes.nextElement()).getUserObject();
+                    if (user instanceof BufferKey) order.add((BufferKey) user);
                 }
                 channelOrder = order;
                 treeModel.reload();
                 for (int row = 0; row < channels.getRowCount(); row++) channels.expandRow(row);
             }
+            selectedKey = selected;
             java.util.Enumeration<?> nodes = root.depthFirstEnumeration();
             while (nodes.hasMoreElements()) {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
-                if (!node.getAllowsChildren() && node.getUserObject().equals(selected)) {
+                if (selected.equals(node.getUserObject())) {
                     TreePath path = new TreePath(node.getPath());
                     if (!path.equals(channels.getSelectionPath())) {
                         channels.setSelectionPath(path);
@@ -250,17 +327,58 @@ final class IrcDesktopLayout extends JPanel {
                     break;
                 }
             }
-            channelHeading.setText(selected);
+            channelHeading.setText(headerText(selected));
             // nodeChanged, not repaint: unread rows render wider (bold + marker), and the tree
             // caches row widths, so a plain repaint clips them.
             java.util.Enumeration<?> leaves = root.depthFirstEnumeration();
             while (leaves.hasMoreElements()) {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) leaves.nextElement();
-                if (!node.getAllowsChildren()) treeModel.nodeChanged(node);
+                if (node.getUserObject() instanceof BufferKey) treeModel.nodeChanged(node);
             }
         } finally {
             synchronizing = false;
         }
+    }
+
+    /** "#foo", or "#foo \u00b7 Rizon" once two or more networks are connected. */
+    private String headerText(BufferKey selected) {
+        long connected = networks.stream().filter(n -> n.connected).count();
+        if (connected < 2) return selected.getName();
+        for (NetworkNode network : networks) {
+            if (network.id.equals(selected.getNetworkId())) return selected.getName() + " \u00b7 " + network.name;
+        }
+        return selected.getName();
+    }
+
+    private boolean isConnected(String networkId) {
+        for (NetworkNode network : networks) {
+            if (network.id.equals(networkId)) return network.connected;
+        }
+        return false;
+    }
+
+    private boolean showNetworkMenu(MouseEvent e) {
+        if (!e.isPopupTrigger()) return false;
+        TreePath path = channels.getPathForLocation(e.getX(), e.getY());
+        if (path == null) return false;
+        Object user = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+        if (!(user instanceof NetworkNode)) return false;
+        networkMenu((NetworkNode) user).show(channels, e.getX(), e.getY());
+        return true;
+    }
+
+    JPopupMenu networkMenu(NetworkNode network) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem reconnect = new JMenuItem("Reconnect");
+        reconnect.addActionListener(e -> networkActions.reconnect(network.id));
+        menu.add(reconnect);
+        JMenuItem toggle = new JMenuItem(network.connected ? "Disconnect" : "Connect");
+        toggle.addActionListener(e -> networkActions.setConnected(network.id, !network.connected));
+        menu.add(toggle);
+        JMenuItem edit = new JMenuItem("Edit\u2026");
+        edit.addActionListener(e -> networkActions.edit(network.id));
+        menu.add(edit);
+        return menu;
     }
 
     /** Shows the selected channel's topic beside its name; "" hides it. */
