@@ -100,4 +100,28 @@ public class IrcPluginNetworkRoutingTest {
         assertFalse(IrcPlugin.echoesInGame(new IrcMessage("#rshelp", "Ash", "old",
                 IrcMessage.MessageType.HISTORY, Instant.now())));
     }
+
+    @Test(timeout = 10000)
+    public void connectorCloseDoesNotBlockOnAStalledDisconnect() throws Exception {
+        IrcPlugin plugin = plugin();
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        RecordingAdapter stalled = new RecordingAdapter() {
+            @Override public void disconnect(String reason) {
+                entered.countDown();
+                try { release.await(); } catch (InterruptedException ignored) { }
+            }
+        };
+        Class<?> cls = Class.forName("com.irc.IrcPlugin$PluginConnector");
+        java.lang.reflect.Constructor<?> ctor = cls.getDeclaredConstructor(IrcPlugin.class);
+        ctor.setAccessible(true);
+        NetworkManager.Connector connector = (NetworkManager.Connector) ctor.newInstance(plugin);
+        try {
+            connector.close(stalled, NetworkConfig.builder().id(RIZON).name("Rizon").host("irc.rizon.net").build(), false, "bye");
+            assertTrue("disconnect should have started on another thread", entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(1, release.getCount());
+        } finally {
+            release.countDown();
+        }
+    }
 }

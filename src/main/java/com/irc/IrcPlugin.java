@@ -194,7 +194,14 @@ public class IrcPlugin extends Plugin {
 
         @Override
         public void close(IrcAdapter adapter, NetworkConfig network, boolean removed, String reason) {
-            if (adapter != null) adapter.disconnect(reason);
+            // NetworkManager holds its lock while calling close, and on a stalled socket disconnect
+            // can block (the reader thread holds the stream lock inside readLine), which would
+            // freeze the EDT and every other network. Disconnect off the caller's thread.
+            if (adapter != null) {
+                Thread disconnecter = new Thread(() -> adapter.disconnect(reason), "irc-disconnect");
+                disconnecter.setDaemon(true);
+                disconnecter.start();
+            }
             String id = network.getId();
             SwingUtilities.invokeLater(() -> {
                 if (panel == null) return;
