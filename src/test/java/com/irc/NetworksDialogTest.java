@@ -49,6 +49,40 @@ public class NetworksDialogTest {
     }
 
     @Test
+    public void formRoundTripsTlsVerification() {
+        NetworkConfig unverified = rizon().toBuilder().verifyTls(false).build();
+        assertEquals(unverified, new NetworksDialog.NetworkForm(unverified).toConfig());
+    }
+
+    @Test
+    public void verifyTlsOnlyAppliesWhileTlsIsOn() {
+        NetworksDialog.NetworkForm form = new NetworksDialog.NetworkForm(rizon());
+        assertTrue(form.verifyTls.isSelected());
+        assertTrue(form.verifyTls.isEnabled());
+        assertFalse(form.tlsWarning.isVisible());
+
+        form.verifyTls.doClick();
+        assertTrue("TLS on, verification off: warn", form.tlsWarning.isVisible());
+
+        form.tls.doClick();
+        assertFalse(form.verifyTls.isEnabled());
+        assertFalse("no TLS, nothing to verify", form.tlsWarning.isVisible());
+
+        form.tls.doClick();
+        assertTrue(form.verifyTls.isEnabled());
+        assertTrue(form.tlsWarning.isVisible());
+    }
+
+    @Test
+    public void zncPresetLeavesVerificationAlone() {
+        NetworksDialog.NetworkForm form = new NetworksDialog.NetworkForm(rizon().toBuilder().tls(false).build());
+        form.applyZncPreset();
+        assertTrue(form.verifyTls.isSelected());
+        assertTrue(form.verifyTls.isEnabled());
+        assertTrue(form.zncHint.getText().contains("Verify TLS"));
+    }
+
+    @Test
     public void zncPresetTurnsOnTlsAndShowsTheHint() {
         NetworksDialog.NetworkForm form = new NetworksDialog.NetworkForm(rizon().toBuilder().tls(false).build());
         assertFalse(form.zncHint.isVisible());

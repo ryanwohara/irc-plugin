@@ -275,13 +275,17 @@ final class NetworksDialog extends JDialog {
         final JTextField host = new JTextField(20);
         final JTextField port = new JTextField(6);
         final JCheckBox tls = new JCheckBox("Use TLS");
+        final JCheckBox verifyTls = new JCheckBox("Verify TLS certificate");
+        final JLabel tlsWarning = new JLabel(
+                "Not verified: someone between you and the server could read or change this connection.");
         final JTextField nick = new JTextField(20);
         final JPasswordField serverPassword = new JPasswordField(20);
         final JTextField saslAccount = new JTextField(20);
         final JPasswordField saslPassword = new JPasswordField(20);
         final JTextField autojoin = new JTextField(20);
         final JCheckBox enabled = new JCheckBox("Connect automatically");
-        final JLabel zncHint = new JLabel("ZNC: Server password is username/network:password");
+        final JLabel zncHint = new JLabel("ZNC: Server password is username/network:password;"
+                + " uncheck Verify TLS if your ZNC uses a self-signed certificate");
 
         NetworkForm(NetworkConfig initial) {
             super(new GridBagLayout());
@@ -290,6 +294,11 @@ final class NetworksDialog extends JDialog {
             host.setText(initial.getHost());
             port.setText(String.valueOf(initial.getPort()));
             tls.setSelected(initial.isTls());
+            verifyTls.setSelected(initial.isVerifyTls());
+            tlsWarning.setForeground(new Color(230, 140, 60));
+            tls.addItemListener(e -> updateTlsControls());
+            verifyTls.addItemListener(e -> updateTlsControls());
+            updateTlsControls();
             nick.setText(initial.getNick());
             nick.setToolTipText("Leave blank to use your Username setting");
             serverPassword.setText(initial.getServerPassword());
@@ -307,6 +316,8 @@ final class NetworksDialog extends JDialog {
             row = addRow("Host", host, row);
             row = addRow("Port", port, row);
             row = addRow("", tls, row);
+            row = addRow("", verifyTls, row);
+            row = addRow("", tlsWarning, row);
             row = addRow("Nick", nick, row);
             row = addRow("Server password", serverPassword, row);
             row = addRow("", zncHint, row);
@@ -315,6 +326,13 @@ final class NetworksDialog extends JDialog {
             row = addRow("Autojoin", autojoin, row);
             row = addRow("", enabled, row);
             addRow("", zncPreset, row);
+        }
+
+        /** Verification only means something with TLS on; warn while it is switched off. */
+        private void updateTlsControls() {
+            verifyTls.setEnabled(tls.isSelected());
+            tlsWarning.setVisible(tls.isSelected() && !verifyTls.isSelected());
+            revalidate();
         }
 
         void applyZncPreset() {
@@ -336,6 +354,7 @@ final class NetworksDialog extends JDialog {
                     .host(host.getText().trim())
                     .port(parsedPort)
                     .tls(tls.isSelected())
+                    .verifyTls(verifyTls.isSelected())
                     .nick(nick.getText().trim())
                     .serverPassword(new String(serverPassword.getPassword()))
                     .saslAccount(saslAccount.getText().trim())
