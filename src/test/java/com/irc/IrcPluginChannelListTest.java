@@ -128,7 +128,12 @@ public class IrcPluginChannelListTest {
         setField(IrcPlugin.class, plugin, "config", stubConfig());
         setField(IrcPlugin.class, plugin, "client", clientProxy(probe));
         setField(IrcPlugin.class, plugin, "panel", panel);
-        setField(IrcPlugin.class, plugin, "ircAdapter", adapter);
+        NetworkManager networks = new NetworkManager(new NetworkManager.Connector() {
+            @Override public IrcAdapter open(NetworkConfig network) { throw new AssertionError("no real connections"); }
+            @Override public void close(IrcAdapter a, NetworkConfig network, boolean removed, String reason) { a.disconnect(reason); }
+        });
+        networks.register(NetworkConfig.swiftIrc(stubConfig()), adapter);
+        setField(IrcPlugin.class, plugin, "networks", networks);
         return plugin;
     }
 
@@ -301,7 +306,7 @@ public class IrcPluginChannelListTest {
                 adapter.panelCleared);
         assertNull("and only then is the panel dropped",
                 getField(IrcPlugin.class, plugin, "panel"));
-        assertNull(getField(IrcPlugin.class, plugin, "ircAdapter"));
+        assertNull(getField(IrcPlugin.class, plugin, "networks"));
     }
 
     /**
