@@ -9,6 +9,35 @@ import static org.junit.Assert.*;
 
 public class SimpleIrcClientTest {
 
+    /** Records sent lines instead of writing to a socket. */
+    private static SimpleIrcClient recordingClient(List<String> sent) {
+        SimpleIrcClient client = new SimpleIrcClient() {
+            @Override
+            public synchronized void sendRawLine(String line) {
+                sent.add(line);
+            }
+        };
+        client.credentials("me", "runelite", "me");
+        return client;
+    }
+
+    @Test
+    public void disconnectWhileConnectingStopsRegistration() {
+        List<String> sent = new ArrayList<>();
+        SimpleIrcClient client = recordingClient(sent);
+        client.disconnect("Network removed");
+        assertFalse(client.beginRegistration());
+        assertTrue(sent.toString(), sent.isEmpty());
+    }
+
+    @Test
+    public void registrationProceedsWhenNotStopped() {
+        List<String> sent = new ArrayList<>();
+        SimpleIrcClient client = recordingClient(sent);
+        assertTrue(client.beginRegistration());
+        assertEquals("NICK me", sent.get(0));
+    }
+
     @Test
     public void historyBatchEventCarriesMessages() {
         SimpleIrcClient.IrcEvent inner = new SimpleIrcClient.IrcEvent(

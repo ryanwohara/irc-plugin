@@ -103,8 +103,13 @@ public class SimpleIrcClient {
     int getPort() { return port; }
     boolean isSecure() { return secure; }
 
-    private boolean connected = false;
+    private volatile boolean connected = false;
     private volatile boolean shuttingDown = false;
+    /**
+     * The socket of the attempt in progress, published before the TLS handshake so a disconnect
+     * that arrives while still connecting can close it.
+     */
+    private volatile Socket pendingSocket;
     /**
      * Why the link went down, in the server's or the JDK's own words. Set by whichever path
      * noticed the failure and read by the DISCONNECT event, so "Disconnected from IRC" can say
@@ -153,12 +158,18 @@ public class SimpleIrcClient {
 
     public void connect() {
         shuttingDown = false;
+        pendingSocket = null;
         disconnectReason = null;
         connectPhase = ConnectPhase.CONNECTING;
         executor.submit(() -> {
             try {
                 if (secure) {
                     SSLSocket sslSocket = openSecureSocket();
+                    pendingSocket = sslSocket;
+                    if (shuttingDown) {
+                        closeQuietly(sslSocket);
+                        return;
+                    }
                     // Split from the socket open so a certificate failure is not reported as a
                     // refused connection.
                     connectPhase = ConnectPhase.TLS_HANDSHAKE;
@@ -166,6 +177,11 @@ public class SimpleIrcClient {
                     socket = sslSocket;
                 } else {
                     socket = new Socket(host, port);
+                    pendingSocket = socket;
+                }
+                if (shuttingDown) {
+                    closeQuietly(socket);
+                    return;
                 }
 
                 connectPhase = ConnectPhase.REGISTERING;
@@ -175,9 +191,18 @@ public class SimpleIrcClient {
                 advertisedCaps.clear();
                 capEndSent = false;
                 capHistorySupported = false;
-                sendRegistration();
+                if (!beginRegistration()) {
+                    closeQuietly(socket);
+                    return;
+                }
 
                 connected = true;
+                if (shuttingDown) {
+                    // disconnect() slipped in between registering and here and saw us
+                    // unconnected; it has closed the socket, so do not report a connection.
+                    connected = false;
+                    return;
+                }
                 fireEvent(new IrcEvent(IrcEvent.Type.CONNECT, null, null, null, null));
 
                 String line;
@@ -227,6 +252,21 @@ public class SimpleIrcClient {
         });
     }
 
+    /** Sends the registration burst; false, sending nothing, when disconnect() came first. */
+    boolean beginRegistration() {
+        if (shuttingDown) return false;
+        sendRegistration();
+        return true;
+    }
+
+    private static void closeQuietly(Socket target) {
+        if (target == null) return;
+        try {
+            target.close();
+        } catch (IOException ignored) {
+        }
+    }
+
     /** The registration burst. PASS goes first, as a trailing parameter so spaces survive. */
     void sendRegistration() {
         if (!serverPassword.isEmpty()) sendRawLine("PASS :" + serverPassword);
@@ -270,7 +310,14 @@ public class SimpleIrcClient {
     }
 
     public void disconnect(String reason) {
-        if (shuttingDown || !connected) return;
+        if (shuttingDown) return;
+        if (!connected) {
+            // Still connecting: stop the attempt before it registers, or it would live on
+            // unseen (and join channels) after the network was removed or reconnected.
+            shuttingDown = true;
+            closeQuietly(pendingSocket);
+            return;
+        }
 
         shuttingDown = true;
         try {
