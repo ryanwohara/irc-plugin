@@ -112,6 +112,9 @@ public class IrcOverlay extends Overlay implements KeyListener {
 
         // tabs
         java.util.List<BufferKey> buffers = panel.getBuffers();
+        if (config.overlayActiveChannelOnly() && panel.getCurrentBuffer() != null) {
+            buffers = java.util.Collections.singletonList(panel.getCurrentBuffer());
+        }
         int activeTabIndex = Math.max(0, buffers.indexOf(panel.getCurrentBuffer()));
 
         int xOffset = 0;

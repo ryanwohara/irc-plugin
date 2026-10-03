@@ -313,6 +313,15 @@ public interface IrcConfig extends Config
     )
     default int overlayMaxWidth() { return 500; }
 
+    @ConfigItem(
+            keyName = "overlayActiveChannelOnly",
+            name = "Active Channel Only",
+            description = "Show only the active channel's tab in the overlay",
+            position = 3,
+            section = overlaySettings
+    )
+    default boolean overlayActiveChannelOnly() { return false; }
+
     @ConfigSection(
             name = "Side Panel",
             description = "Side panel settings",

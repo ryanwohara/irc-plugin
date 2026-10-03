@@ -201,6 +201,11 @@ alt+click & drag.
 
 Maximum width of the overlay, in pixels. Defaults to 500.
 
+#### active channel only
+
+Show only the active channel's tab in the overlay, instead of a tab for every channel. Off by
+default.
+
 ### Side Panel
 
 #### enabled
