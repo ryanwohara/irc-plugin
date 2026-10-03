@@ -265,6 +265,13 @@ public class IrcPlugin extends Plugin {
             SwingUtilities.invokeLater(() -> {
                 if (panel == null) return;
                 panel.setNetworkConnected(id, false);
+                // The detached adapter can no longer empty its user lists. Queued before any
+                // replacement connection opens, so it cannot wipe that session's NAMES.
+                for (BufferKey key : panel.getBuffers()) {
+                    if (key.getNetworkId().equals(id) && key.isChannel()) {
+                        panel.setChannelUsers(key, Collections.emptyList());
+                    }
+                }
                 if (removed) {
                     panel.removeNetworkBuffers(id);
                     panel.forgetNetwork(id);

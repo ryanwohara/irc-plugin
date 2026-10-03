@@ -211,4 +211,27 @@ public class IrcPluginNetworkRoutingTest {
         for (NetworkConfig network : configs) ids.add(network.getId());
         assertEquals(Arrays.asList("b2", "swiftirc", "a1"), ids);
     }
+
+    @Test
+    public void closingANetworkEmptiesItsUserListsOnly() throws Exception {
+        IrcPlugin plugin = plugin();
+        IrcPanel panel = panelOf(plugin);
+        panel.addChannel("#rshelp");
+        List<ChannelUserList.Entry> users = Collections.singletonList(new ChannelUserList.Entry("Ash", "@", 0));
+        panel.setChannelUsers(BufferKey.of(RIZON, "#foo"), users);
+        panel.setChannelUsers(BufferKey.swiftIrc("#rshelp"), users);
+        Class<?> cls = Class.forName("com.irc.IrcPlugin$PluginConnector");
+        java.lang.reflect.Constructor<?> ctor = cls.getDeclaredConstructor(IrcPlugin.class);
+        ctor.setAccessible(true);
+        NetworkManager.Connector connector = (NetworkManager.Connector) ctor.newInstance(plugin);
+        connector.close(rizon, NetworkConfig.builder().id(RIZON).name("Rizon").host("irc.rizon.net").build(), false, "bye");
+        javax.swing.SwingUtilities.invokeAndWait(() -> { });
+        Field field = IrcPanel.class.getDeclaredField("channelUserSnapshots");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        java.util.Map<BufferKey, List<ChannelUserList.Entry>> snapshots =
+                (java.util.Map<BufferKey, List<ChannelUserList.Entry>>) field.get(panel);
+        assertEquals(Collections.emptyList(), snapshots.get(BufferKey.of(RIZON, "#foo").folded()));
+        assertEquals(users, snapshots.get(BufferKey.swiftIrc("#rshelp").folded()));
+    }
 }
