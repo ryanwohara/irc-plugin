@@ -90,6 +90,19 @@ public class SimpleIrcClient {
     private String host;
     private int port;
     private boolean secure;
+    /** Sent as PASS before NICK/USER when non-empty. ZNC reads "user/network:password" from it. */
+    private String serverPassword = "";
+
+    public SimpleIrcClient serverPassword(String password) {
+        this.serverPassword = password == null ? "" : password;
+        return this;
+    }
+
+    String getServerPassword() { return serverPassword; }
+    String getHost() { return host; }
+    int getPort() { return port; }
+    boolean isSecure() { return secure; }
+
     private boolean connected = false;
     private volatile boolean shuttingDown = false;
     /**
@@ -162,9 +175,7 @@ public class SimpleIrcClient {
                 advertisedCaps.clear();
                 capEndSent = false;
                 capHistorySupported = false;
-                sendRawLine("NICK " + nick);
-                sendRawLine("USER " + username + " 0 * :" + realName);
-                sendRawLine("CAP LS 302");
+                sendRegistration();
 
                 connected = true;
                 fireEvent(new IrcEvent(IrcEvent.Type.CONNECT, null, null, null, null));
@@ -214,6 +225,14 @@ public class SimpleIrcClient {
                 }
             }
         });
+    }
+
+    /** The registration burst. PASS goes first, as a trailing parameter so spaces survive. */
+    void sendRegistration() {
+        if (!serverPassword.isEmpty()) sendRawLine("PASS :" + serverPassword);
+        sendRawLine("NICK " + nick);
+        sendRawLine("USER " + username + " 0 * :" + realName);
+        sendRawLine("CAP LS 302");
     }
 
     /**
@@ -449,8 +468,8 @@ public class SimpleIrcClient {
                     if (message.startsWith("\u0001") && message.endsWith("\u0001")) {
                         handleCtcp(source, target, message);
                     } else {
-                        String messageChannel = target.startsWith("#") ? target : sourceNick;
-                        fireEvent(new IrcEvent(IrcEvent.Type.MESSAGE, sourceNick, messageChannel, message, null));
+                        fireEvent(new IrcEvent(IrcEvent.Type.MESSAGE, sourceNick,
+                                bufferFor(target, sourceNick), message, currentTagTime));
                     }
                 }
                 break;
@@ -624,6 +643,9 @@ public class SimpleIrcClient {
                             if (advertisedCaps.contains("chathistory")) toRequest.add("chathistory");
                             if (advertisedCaps.contains("batch")) toRequest.add("batch");
                             if (advertisedCaps.contains("server-time")) toRequest.add("server-time");
+                            // ZNC delivers lines typed in our other attached clients. Not
+                            // echo-message: the adapter echoes our own sends locally already.
+                            if (advertisedCaps.contains("znc.in/self-message")) toRequest.add("znc.in/self-message");
                             if (saslEnabled && advertisedCaps.contains("sasl")) toRequest.add("sasl");
                             if (!toRequest.isEmpty()) {
                                 sendRawLine("CAP REQ :" + String.join(" ", toRequest));
@@ -688,8 +710,7 @@ public class SimpleIrcClient {
 
         switch (command) {
             case "ACTION":
-                String actionChannel = target.startsWith("#") ? target : sourceNick;
-                fireEvent(new IrcEvent(IrcEvent.Type.ACTION, sourceNick, actionChannel, param, null));
+                fireEvent(new IrcEvent(IrcEvent.Type.ACTION, sourceNick, bufferFor(target, sourceNick), param, currentTagTime));
                 break;
             case "VERSION":
                 sendRawLine("NOTICE " + sourceNick + " :\u0001VERSION RuneLite IRC Plugin\u0001");
@@ -698,6 +719,15 @@ public class SimpleIrcClient {
                 sendRawLine("NOTICE " + sourceNick + " :\u0001PING " + param + "\u0001");
                 break;
         }
+    }
+
+    /**
+     * The buffer a PRIVMSG belongs in: the channel, else the other person. A line from our own
+     * nick (ZNC self-message, typed in another client) belongs with its target, not with us.
+     */
+    private String bufferFor(String target, String sourceNick) {
+        if (target.startsWith("#")) return target;
+        return sourceNick.equalsIgnoreCase(nick) ? target : sourceNick;
     }
 
     private void handleNumeric(int numeric, String source, List<String> params) {
