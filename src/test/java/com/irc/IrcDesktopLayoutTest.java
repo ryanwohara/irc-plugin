@@ -240,6 +240,59 @@ public class IrcDesktopLayoutTest {
     }
 
     @Test
+    public void topicHtmlEscapesMarkupAndLinksOnlyUrls() {
+        String html = IrcDesktopLayout.topicHtml("Rules: <b>be nice</b> https://example.com/a?b=1&c=2 ok");
+        assertTrue(html.startsWith("<html>"));
+        assertTrue("markup stays text", html.contains("&lt;b&gt;be nice&lt;/b&gt;"));
+        assertFalse(html.contains("<b>"));
+        assertTrue(html.contains("<a href=\"https://example.com/a?b=1&amp;c=2\""));
+        assertTrue(html.contains(">https://example.com/a?b=1&amp;c=2</a>"));
+        assertNull("no links, no HTML", IrcDesktopLayout.topicHtml("Welcome to #runelite"));
+    }
+
+    @Test
+    public void clickingTheTopicOpensOnlyTheLinkUnderTheMouse() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            IrcDesktopLayout layout = layout(new java.util.ArrayList<>());
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            layout.setSize(960, 600);
+            layout.showTopic("Read https://example.com/rules first");
+            layout.validate();
+            JLabel topic = (JLabel) find(layout, "ircTopic");
+            // An unshown split pane leaves the header's label unsized; give it the room a window would.
+            topic.setSize(500, 34);
+            assertEquals("Read https://example.com/rules first", topic.getToolTipText());
+
+            javax.swing.text.View view = (javax.swing.text.View)
+                    topic.getClientProperty(javax.swing.plaf.basic.BasicHTML.propertyKey);
+            assertNotNull("a topic with a link renders as HTML", view);
+            Rectangle text = layout.topicTextBounds();
+            Point overLink = centreOf(view, text, "example.com");
+            Point overPlain = centreOf(view, text, "Read");
+            assertEquals("https://example.com/rules", layout.topicLinkAt(overLink));
+            assertNull(layout.topicLinkAt(overPlain));
+
+            layout.showTopic("No links here <b>at all</b>");
+            assertEquals("—  No links here <b>at all</b>", topic.getText());
+            assertNull(layout.topicLinkAt(overLink));
+        });
+    }
+
+    /** The centre of the first occurrence of {@code word} as the label's HTML view lays it out. */
+    private static Point centreOf(javax.swing.text.View view, Rectangle text, String word) {
+        try {
+            javax.swing.text.Document doc = view.getDocument();
+            int start = doc.getText(0, doc.getLength()).indexOf(word);
+            Shape shape = view.modelToView(start + 1, text, javax.swing.text.Position.Bias.Forward);
+            Rectangle r = shape.getBounds();
+            return new Point(r.x + Math.max(1, r.width / 2), r.y + r.height / 2);
+        } catch (javax.swing.text.BadLocationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Test
     public void headerNamesTheNetworkOnlyWhenTwoAreConnected() throws Exception {
         org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
         SwingUtilities.invokeAndWait(() -> {

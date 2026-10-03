@@ -1,8 +1,15 @@
 package com.irc;
 
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicHTML;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.Element;
+import javax.swing.text.Position;
+import javax.swing.text.View;
+import javax.swing.text.html.HTML;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -17,6 +24,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 
 /** Expanded navigation around the existing chat components, with no separate IRC state. */
 final class IrcDesktopLayout extends JPanel {
@@ -269,8 +278,22 @@ final class IrcDesktopLayout extends JPanel {
         topic.setForeground(MUTED);
         topic.setBorder(BorderFactory.createEmptyBorder(9, 0, 9, 12));
         topic.setMinimumSize(new Dimension(0, 0));
-        // Topics are set by other users: show any markup as text rather than rendering it.
+        // Topics are set by other users: show any markup as text rather than rendering it. A topic
+        // with links is shown as HTML we build ourselves from the escaped text (see topicHtml).
         topic.putClientProperty("html.disable", Boolean.TRUE);
+        topic.addMouseMotionListener(new MouseAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                topic.setCursor(topicLinkAt(e.getPoint()) != null
+                        ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor());
+            }
+        });
+        topic.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (!SwingUtilities.isLeftMouseButton(e)) return;
+                String url = topicLinkAt(e.getPoint());
+                if (url != null) LinkBrowser.browse(url);
+            }
+        });
         chatHeader.add(topic, BorderLayout.CENTER);
         chat.add(chatHeader, BorderLayout.NORTH);
         chat.add(conversation, BorderLayout.CENTER);
@@ -494,10 +517,63 @@ final class IrcDesktopLayout extends JPanel {
 
     /** Shows the selected channel's topic beside its name; "" hides it. */
     void showTopic(String text) {
-        topic.setText(text.isEmpty() ? "" : "—  " + text);
+        String html = topicHtml(text);
+        topic.putClientProperty("html.disable", html == null ? Boolean.TRUE : null);
+        topic.setText(html != null ? html : text.isEmpty() ? "" : "—  " + text);
+        topic.setCursor(Cursor.getDefaultCursor());
         // A tooltip is HTML when it starts with <html>; the leading space keeps it plain text.
         topic.setToolTipText(text.isEmpty() ? null
                 : javax.swing.plaf.basic.BasicHTML.isHTMLString(text) ? " " + text : text);
+    }
+
+    /**
+     * The topic as label HTML with its links clickable, or null when it has no links (it is then
+     * shown as plain text, which keeps the "…" truncation). Everything but the links is escaped,
+     * so markup in a topic still shows as text. Never wraps: an overlong topic is clipped.
+     */
+    static String topicHtml(String text) {
+        java.util.regex.Matcher links = IrcPanel.VALID_LINK.matcher(text);
+        if (!links.find()) return null;
+        StringBuilder html = new StringBuilder("<html><body style='white-space:nowrap'>—&nbsp;&nbsp;");
+        int last = 0;
+        do {
+            String url = links.group();
+            html.append(escapeHtml4(text.substring(last, links.start())))
+                    .append("<a href=\"").append(escapeHtml4(url)).append("\" style='color:")
+                    .append(String.format("#%06x", ACCENT.getRGB() & 0xFFFFFF)).append("'>")
+                    .append(escapeHtml4(url)).append("</a>");
+            last = links.end();
+        } while (links.find());
+        return html.append(escapeHtml4(text.substring(last))).append("</body></html>").toString();
+    }
+
+    /** Where the topic label paints its text, as BasicLabelUI lays it out. */
+    Rectangle topicTextBounds() {
+        Insets insets = topic.getInsets();
+        Rectangle view = new Rectangle(insets.left, insets.top,
+                topic.getWidth() - insets.left - insets.right, topic.getHeight() - insets.top - insets.bottom);
+        Rectangle icon = new Rectangle();
+        Rectangle text = new Rectangle();
+        SwingUtilities.layoutCompoundLabel(topic, topic.getFontMetrics(topic.getFont()), topic.getText(), null,
+                topic.getVerticalAlignment(), topic.getHorizontalAlignment(),
+                topic.getVerticalTextPosition(), topic.getHorizontalTextPosition(),
+                view, icon, text, topic.getIconTextGap());
+        return text;
+    }
+
+    /** The URL of the topic link under {@code point}, or null. */
+    String topicLinkAt(Point point) {
+        View view = (View) topic.getClientProperty(BasicHTML.propertyKey);
+        if (view == null) return null;
+        Rectangle text = topicTextBounds();
+        if (!text.contains(point)) return null;
+        Position.Bias[] bias = new Position.Bias[1];
+        int offset = view.viewToModel(point.x, point.y, text, bias);
+        Element element = ((javax.swing.text.StyledDocument) view.getDocument()).getCharacterElement(offset);
+        Object anchor = element.getAttributes().getAttribute(HTML.Tag.A);
+        if (!(anchor instanceof AttributeSet)) return null;
+        Object href = ((AttributeSet) anchor).getAttribute(HTML.Attribute.HREF);
+        return href != null ? href.toString() : null;
     }
 
     void updateUsers(String channel, List<ChannelUserList.Entry> entries) {
