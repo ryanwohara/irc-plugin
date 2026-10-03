@@ -66,6 +66,19 @@ final class IrcDesktopLayout extends JPanel {
         };
     }
 
+    /** Reorders asked for by dragging in the tree. Indexes are final positions after the move. */
+    interface Moves {
+        void moveNetwork(String networkId, int newIndex);
+
+        /** {@code newIndex} counts within the buffer's group: its network's channels or private chats. */
+        void moveBuffer(BufferKey key, int newIndex);
+
+        Moves NONE = new Moves() {
+            @Override public void moveNetwork(String networkId, int newIndex) { }
+            @Override public void moveBuffer(BufferKey key, int newIndex) { }
+        };
+    }
+
     private static final Color BACKGROUND = new Color(30, 33, 38);
     private static final Color HEADER = new Color(40, 44, 50);
     private static final Color TEXT = new Color(218, 222, 229);
@@ -92,6 +105,7 @@ final class IrcDesktopLayout extends JPanel {
     private final JToggleButton usersToggle = new JToggleButton("User list", true);
     private JTextField input;
     private boolean synchronizing;
+    private Moves moves = Moves.NONE;
 
     IrcDesktopLayout(Predicate<BufferKey> unread, Consumer<BufferKey> select,
                      Consumer<String> query, Consumer<String> whois, Runnable join,
@@ -166,6 +180,10 @@ final class IrcDesktopLayout extends JPanel {
                 if (node.getUserObject() instanceof BufferKey) input.requestFocusInWindow();
             }
         });
+
+        channels.setDragEnabled(true);
+        channels.setDropMode(DropMode.INSERT);
+        channels.setTransferHandler(new ReorderHandler());
 
         users.setName("ircUsers");
         users.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -277,6 +295,87 @@ final class IrcDesktopLayout extends JPanel {
         conversation.add(chat, BorderLayout.CENTER);
         this.input = input;
         composer.add(input, BorderLayout.CENTER);
+    }
+
+    void setMoves(Moves moves) {
+        this.moves = moves != null ? moves : Moves.NONE;
+    }
+
+    /** Networks and buffers other than System can be dragged; the group headings cannot. */
+    private static boolean isDraggable(TreePath path) {
+        if (path == null) return false;
+        Object user = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+        return user instanceof NetworkNode
+                || user instanceof BufferKey && !"System".equals(((BufferKey) user).getName());
+    }
+
+    /**
+     * Whether {@code dragged} may be inserted at {@code childIndex} under {@code parent}: a network
+     * among the networks, a buffer only within the group it is already in. A buffer never moves to
+     * another network or between channels and private chats.
+     */
+    boolean canDrop(TreePath dragged, TreePath parent, int childIndex) {
+        if (!isDraggable(dragged) || parent == null || childIndex < 0) return false;
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) dragged.getLastPathComponent();
+        DefaultMutableTreeNode target = (DefaultMutableTreeNode) parent.getLastPathComponent();
+        if (node.getUserObject() instanceof NetworkNode) return target == root;
+        return node.getParent() == target;
+    }
+
+    /** Applies a legal drop through {@link Moves}; a drop that leaves the node in place does nothing. */
+    void drop(TreePath dragged, TreePath parent, int childIndex) {
+        if (!canDrop(dragged, parent, childIndex)) return;
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) dragged.getLastPathComponent();
+        DefaultMutableTreeNode target = (DefaultMutableTreeNode) parent.getLastPathComponent();
+        int from = target.getIndex(node);
+        if (from < 0) return;
+        // The insert index counts the dragged node itself, so a move down lands one earlier.
+        int to = Math.min(childIndex > from ? childIndex - 1 : childIndex, target.getChildCount() - 1);
+        if (to == from) return;
+        Object user = node.getUserObject();
+        if (user instanceof NetworkNode) moves.moveNetwork(((NetworkNode) user).id, to);
+        else moves.moveBuffer((BufferKey) user, to);
+    }
+
+    /** Drag and drop within the tree only; the transferable carries nothing, the path is kept here. */
+    private final class ReorderHandler extends TransferHandler {
+        private TreePath dragged;
+
+        @Override
+        public int getSourceActions(JComponent c) {
+            return MOVE;
+        }
+
+        @Override
+        protected java.awt.datatransfer.Transferable createTransferable(JComponent c) {
+            TreePath path = channels.getSelectionPath();
+            if (!isDraggable(path)) return null;
+            dragged = path;
+            return new java.awt.datatransfer.StringSelection(String.valueOf(
+                    ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject()));
+        }
+
+        @Override
+        protected void exportDone(JComponent source, java.awt.datatransfer.Transferable data, int action) {
+            dragged = null;
+        }
+
+        @Override
+        public boolean canImport(TransferSupport support) {
+            if (!support.isDrop() || dragged == null) return false;
+            JTree.DropLocation location = (JTree.DropLocation) support.getDropLocation();
+            return canDrop(dragged, location.getPath(), location.getChildIndex());
+        }
+
+        @Override
+        public boolean importData(TransferSupport support) {
+            if (!canImport(support)) return false;
+            JTree.DropLocation location = (JTree.DropLocation) support.getDropLocation();
+            TreePath path = dragged;
+            // After the drag finishes: the move rebuilds the tree it is dropping into.
+            SwingUtilities.invokeLater(() -> drop(path, location.getPath(), location.getChildIndex()));
+            return true;
+        }
     }
 
     List<BufferKey> channelOrder() {

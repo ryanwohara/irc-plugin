@@ -285,6 +285,118 @@ public class IrcDesktopLayoutTest {
         });
     }
 
+    @Test
+    public void treeDragsWithinAGroupOrAmongNetworksOnly() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            java.util.List<String> calls = new java.util.ArrayList<>();
+            IrcDesktopLayout layout = layout(calls);
+            layout.setMoves(new IrcDesktopLayout.Moves() {
+                @Override public void moveNetwork(String id, int index) { calls.add("network " + id + " " + index); }
+                @Override public void moveBuffer(BufferKey key, int index) { calls.add("move " + key.getNetworkId() + " " + key + " " + index); }
+            });
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            JTree tree = (JTree) find(layout, "ircChannels");
+            assertTrue(tree.getDragEnabled());
+            assertEquals(DropMode.INSERT, tree.getDropMode());
+            assertEquals(TransferHandler.MOVE, tree.getTransferHandler().getSourceActions(tree));
+            layout.updateChannels(Arrays.asList(swift(true, "System", "#a", "#b", "Luna", "Ash"), rizon(true, "System", "#c")),
+                    BufferKey.swiftIrc("System"));
+            calls.clear();
+            TreePath root = new TreePath(tree.getModel().getRoot());
+            TreePath swiftNode = path(tree, (Object) swift(true, "System", "#a", "#b", "Luna", "Ash"));
+            TreePath rizonNode = path(tree, (Object) rizon(true, "System", "#c"));
+            TreePath swiftChannels = swiftNode.pathByAddingChild(((DefaultMutableTreeNode) swiftNode.getLastPathComponent()).getChildAt(1));
+            TreePath swiftChats = swiftNode.pathByAddingChild(((DefaultMutableTreeNode) swiftNode.getLastPathComponent()).getChildAt(2));
+            TreePath rizonChannels = rizonNode.pathByAddingChild(((DefaultMutableTreeNode) rizonNode.getLastPathComponent()).getChildAt(1));
+            TreePath a = path(tree, (Object) BufferKey.swiftIrc("#a"));
+            TreePath luna = path(tree, (Object) BufferKey.swiftIrc("Luna"));
+
+            assertTrue(layout.canDrop(rizonNode, root, 0));
+            assertFalse(layout.canDrop(rizonNode, swiftNode, 0));
+            assertTrue(layout.canDrop(a, swiftChannels, 2));
+            assertFalse(layout.canDrop(a, rizonChannels, 0));
+            assertFalse(layout.canDrop(a, swiftChats, 0));
+            assertFalse(layout.canDrop(a, root, 0));
+            assertTrue(layout.canDrop(luna, swiftChats, 2));
+            assertFalse(layout.canDrop(luna, swiftChannels, 0));
+            assertFalse(layout.canDrop(path(tree, (Object) BufferKey.swiftIrc("System")), swiftNode, 0));
+            assertFalse(layout.canDrop(swiftChannels, swiftNode, 0));
+            assertFalse(layout.canDrop(a, swiftChannels, -1));
+            assertTrue(calls.isEmpty());
+
+            // Insert indexes count the dragged node itself; the callback gets its final place.
+            layout.drop(path(tree, (Object) BufferKey.swiftIrc("#b")), swiftChannels, 0);
+            layout.drop(a, swiftChannels, 2);
+            layout.drop(a, swiftChannels, 1);
+            layout.drop(luna, swiftChats, 2);
+            layout.drop(rizonNode, root, 0);
+            layout.drop(a, rizonChannels, 0);
+            assertEquals(Arrays.asList("move swiftirc #b 0", "move swiftirc #a 1", "move swiftirc Luna 1",
+                    "network rizon-id 0"), calls);
+        });
+    }
+
+    @Test
+    public void droppingInThePopOutReordersThePanelAndReportsIt() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        AtomicReference<IrcPanel> ref = new AtomicReference<>();
+        java.util.List<String> reported = new java.util.ArrayList<>();
+        LookAndFeel previous = UIManager.getLookAndFeel();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                RuneLiteLAF.setup();
+                IrcPanel panel = new IrcPanel();
+                ref.set(panel);
+                try {
+                    Field config = IrcPanel.class.getDeclaredField("config");
+                    config.setAccessible(true);
+                    config.set(panel, new IrcConfig() {
+                        @Override public String username() { return "Mikey"; }
+                        @Override public String password() { return ""; }
+                    });
+                } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+                panel.init((channel, text) -> {}, (network, channel, password) -> {},
+                        channel -> {}, reconnect -> {}, (network, query) -> {}, () -> {});
+                panel.initializeGui();
+                panel.setOrderListener(new IrcPanel.OrderListener() {
+                    @Override public void networkOrderChanged(java.util.List<String> ids) { reported.add("networks " + ids); }
+                    @Override public void channelOrderChanged(String id, java.util.List<String> names) { reported.add(id + " " + names); }
+                });
+            });
+            SwingUtilities.invokeAndWait(() -> {
+                IrcPanel panel = ref.get();
+                panel.setNetworkName("rizon-id", "Rizon");
+                panel.addChannel("#a");
+                panel.addChannel("#b");
+                panel.addChannel(BufferKey.of("rizon-id", "#c"));
+                panel.setFocusedChannel("#a");
+                panel.setDetached(true, false);
+            });
+            SwingUtilities.invokeAndWait(() -> {
+                IrcPanel panel = ref.get();
+                JTree tree = (JTree) find(panel.getChatContent(), "ircChannels");
+                IrcDesktopLayout layout = (IrcDesktopLayout) SwingUtilities.getAncestorOfClass(IrcDesktopLayout.class, tree);
+                TreePath b = path(tree, (Object) BufferKey.swiftIrc("#b"));
+                layout.drop(b, b.getParentPath(), 0);
+                TreePath rizonNode = path(tree, (Object) BufferKey.of("rizon-id", "#c")).getParentPath().getParentPath();
+                layout.drop(rizonNode, rizonNode.getParentPath(), 0);
+                assertEquals(Arrays.asList(BufferKey.swiftIrc("System"), BufferKey.swiftIrc("#b"), BufferKey.swiftIrc("#a"),
+                        BufferKey.of("rizon-id", "#c")), panel.getBuffers());
+                assertEquals(BufferKey.swiftIrc("#a"), panel.getCurrentBuffer());
+                assertEquals(Arrays.asList(BufferKey.of("rizon-id", "#c"), BufferKey.swiftIrc("System"),
+                        BufferKey.swiftIrc("#b"), BufferKey.swiftIrc("#a")), layout.channelOrder());
+                assertEquals(Arrays.asList("swiftirc [#b, #a]", "networks [rizon-id, swiftirc]"), reported);
+            });
+        } finally {
+            SwingUtilities.invokeAndWait(() -> {
+                if (ref.get() != null) ref.get().shutdown();
+                try { UIManager.setLookAndFeel(previous); }
+                catch (UnsupportedLookAndFeelException e) { throw new AssertionError(e); }
+            });
+        }
+    }
+
     private static String rowText(JTree tree, TreePath path) {
         JLabel label = (JLabel) tree.getCellRenderer().getTreeCellRendererComponent(
                 tree, path.getLastPathComponent(), false, false, true, tree.getRowForPath(path), false);

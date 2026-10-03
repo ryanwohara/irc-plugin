@@ -773,6 +773,10 @@ public class IrcPanel extends PluginPanel {
                             },
                             this::requestDock, getFontComboBox(), getFontSizeComboBox(),
                             nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
+                    desktopLayout.setMoves(new IrcDesktopLayout.Moves() {
+                        @Override public void moveNetwork(String id, int newIndex) { userMovedNetwork(id, newIndex); }
+                        @Override public void moveBuffer(BufferKey key, int newIndex) { userMovedBuffer(key, newIndex); }
+                    });
                 }
                 chatContent.remove(controlPanel);
                 desktopLayout.attachChat(tabbedPane, inputField);
