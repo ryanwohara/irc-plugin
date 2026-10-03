@@ -201,10 +201,11 @@ public class IrcPanelNickListTest {
 
         Field field = IrcPanel.class.getDeclaredField("channelUserSnapshots");
         field.setAccessible(true);
-        Map<String, List<ChannelUserList.Entry>> snapshots =
-                (Map<String, List<ChannelUserList.Entry>>) field.get(panel);
+        Map<BufferKey, List<ChannelUserList.Entry>> snapshots =
+                (Map<BufferKey, List<ChannelUserList.Entry>>) field.get(panel);
 
-        assertEquals("roster kept despite no GUI to draw it on", 3, snapshots.get("#chan").size());
+        assertEquals("roster kept despite no GUI to draw it on", 3,
+                snapshots.get(BufferKey.swiftIrc("#chan").folded()).size());
     }
 
     @Test

@@ -70,7 +70,7 @@ public class IrcPanelChannelListTest {
     public void requestChannelListForwardsTheQuery() throws Exception {
         IrcPanel panel = headlessPanel();
         List<String> requested = new ArrayList<>();
-        panel.init(null, null, null, null, requested::add, null);
+        panel.init(null, null, null, null, (network, query) -> requested.add(query), null);
 
         panel.requestChannelList(">50");
 
@@ -88,7 +88,7 @@ public class IrcPanelChannelListTest {
     public void requestChannelListCoalescesNullToEmptyString() throws Exception {
         IrcPanel panel = headlessPanel();
         List<String> requested = new ArrayList<>();
-        panel.init(null, null, null, null, requested::add, null);
+        panel.init(null, null, null, null, (network, query) -> requested.add(query), null);
 
         panel.requestChannelList(null);
 
@@ -175,8 +175,7 @@ public class IrcPanelChannelListTest {
 
         assertEquals("the expiry must be reported exactly once", 1, reported.size());
 
-        Map<String, IrcPanel.ChannelPane> panes = panel.getChannelPanes();
-        String text = panes.get("System").getText();
+        String text = panel.getPane("System").getText();
         assertFalse("the panel must not also write the notice itself - the plugin owns emitting it,"
                         + " so a direct write would double up in the panel and still skip the chatbox: "
                         + text,

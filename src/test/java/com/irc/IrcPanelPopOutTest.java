@@ -31,7 +31,7 @@ public class IrcPanelPopOutTest {
                 @Override public String password() { return ""; }
             });
             panel.init((channel, text) -> sent.set(channel + ":" + text),
-                    (channel, password) -> {}, channel -> {}, reconnect -> {}, query -> {}, () -> {});
+                    (network, channel, password) -> {}, channel -> {}, reconnect -> {}, (network, query) -> {}, () -> {});
             panel.initializeGui();
             JFrame main = new JFrame();
             mainRef.set(main);
@@ -48,7 +48,7 @@ public class IrcPanelPopOutTest {
                 IrcPanel panel = panelRef.get();
                 // initializeGui queues the System tab; select after that startup work completes.
                 panel.setFocusedChannel("#test");
-                IrcPanel.ChannelPane original = panel.getChannelPanes().get("#test");
+                IrcPanel.ChannelPane original = panel.getPane("#test");
                 assertTrue(original.getText().contains("test scrollback"));
                 panel.inputField.setText("my draft");
                 panel.showChannelList(Collections.emptyList(), "", false);
@@ -62,7 +62,7 @@ public class IrcPanelPopOutTest {
                 assertFalse(dockedBrowser.isDisplayable());
                 assertEquals("my draft", panel.inputField.getText());
                 assertEquals("#test", panel.getCurrentChannel());
-                assertSame(original, panel.getChannelPanes().get("#test"));
+                assertSame(original, panel.getPane("#test"));
                 panel.inputField.postActionEvent();
                 assertEquals("#test:my draft", sent.get());
                 assertEquals("", panel.inputField.getText());

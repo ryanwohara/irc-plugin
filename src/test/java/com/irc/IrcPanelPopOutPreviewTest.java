@@ -54,8 +54,8 @@ public class IrcPanelPopOutPreviewTest {
                 @Override public boolean hoverPreviewImages() { return true; }
             });
             setField(IrcPanel.class, panel, "okHttpClient", new OkHttpClient());
-            panel.init((channel, text) -> {}, (channel, password) -> {}, channel -> {},
-                    reconnect -> {}, query -> {}, () -> {});
+            panel.init((channel, text) -> {}, (network, channel, password) -> {}, channel -> {},
+                    reconnect -> {}, (network, query) -> {}, () -> {});
             panel.initializeGui();
             if (sidebarInWindow) {
                 JFrame main = new JFrame();
@@ -76,7 +76,7 @@ public class IrcPanelPopOutPreviewTest {
             Thread.sleep(1000);
             SwingUtilities.invokeAndWait(() -> {
                 IrcPanel panel = panelRef.get();
-                IrcPanel.ChannelPane pane = panel.getChannelPanes().get("#test");
+                IrcPanel.ChannelPane pane = panel.getPane("#test");
                 seedCache(pane);
                 try {
                     MouseEvent move = new MouseEvent(pane, MouseEvent.MOUSE_MOVED,
@@ -118,7 +118,7 @@ public class IrcPanelPopOutPreviewTest {
     }
 
     private static Object currentPopup(IrcPanel panel) {
-        IrcPanel.ChannelPane pane = panel.getChannelPanes().get("#test");
+        IrcPanel.ChannelPane pane = panel.getPane("#test");
         PreviewManager manager = (PreviewManager) getField(IrcPanel.ChannelPane.class, pane, "previewManager");
         return getField(PreviewManager.class, manager, "currentImagePreview");
     }

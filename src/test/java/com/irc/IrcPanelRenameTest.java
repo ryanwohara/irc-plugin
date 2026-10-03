@@ -42,8 +42,8 @@ public class IrcPanelRenameTest {
     }
 
     private static void addChannel(IrcPanel panel, JTabbedPane tabs, JComboBox<String> dropdown, String name) {
-        panel.getChannelPanes().put(name, null);
-        panel.unreadMessages.put(name, false);
+        panel.getChannelPanes().put(BufferKey.swiftIrc(name), null);
+        panel.unreadMessages.put(BufferKey.swiftIrc(name), false);
         tabs.addTab(name, new JPanel());
         if (dropdown != null) {
             dropdown.addItem(name);

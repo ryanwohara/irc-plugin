@@ -156,13 +156,13 @@ public class IrcPlugin extends Plugin {
         joinChannel(channel, config.channelPassword());
     }
 
-    private void handleMessageSend(String channel, String message) {
+    private void handleMessageSend(BufferKey buffer, String message) {
         if (message.startsWith("/") ||
                 (message.startsWith(config.prefix())
                         && message.length() > config.prefix().length())) {
             handleCommand(message);
         } else {
-            sendMessage(channel, message);
+            sendMessage(buffer.getName(), message);
         }
     }
 
@@ -178,7 +178,7 @@ public class IrcPlugin extends Plugin {
                 if (arg.isEmpty()) {
                     // Join with nothing to join: browse the server's channels instead of
                     // silently doing nothing.
-                    handleChannelListRequest("");
+                    handleChannelListRequest(NetworkConfig.SWIFTIRC_ID, "");
                 } else {
                     String chan = arg.split(" ")[0];
                     String password = arg.split(" ").length > 1 ? arg.split(" ")[1] : "";
@@ -203,7 +203,7 @@ public class IrcPlugin extends Plugin {
 
             case "go":
                 if (!arg.isEmpty()) {
-                    for (String channel : panel.getChannelPanes().keySet()) {
+                    for (String channel : panel.getChannelNames()) {
                         if (channel.contains(arg)) {
                             panel.setFocusedChannel(channel);
                             break;
@@ -341,7 +341,7 @@ public class IrcPlugin extends Plugin {
                 break;
 
             case "list":
-                handleChannelListRequest(arg);
+                handleChannelListRequest(NetworkConfig.SWIFTIRC_ID, arg);
                 break;
 
             case "clear":
@@ -381,7 +381,7 @@ public class IrcPlugin extends Plugin {
      * sendRawLine silently no-ops when the socket is down, so an unconnected /list would look
      * like nothing happened at all - check first and say so.
      */
-    private void handleChannelListRequest(String query) {
+    private void handleChannelListRequest(String networkId, String query) {
         if (ircAdapter == null || panel == null) return;
 
         if (!ircAdapter.isConnected()) {
@@ -592,22 +592,22 @@ public class IrcPlugin extends Plugin {
         }
     }
 
-    private void handleChannelJoin(String channel, String password) {
+    private void handleChannelJoin(String networkId, String channel, String password) {
         joinChannel(channel, password);
     }
 
-    private void handleChannelLeave(String channel) {
-        leaveChannel(channel);
+    private void handleChannelLeave(BufferKey channel) {
+        leaveChannel(channel.getName());
     }
 
-    private void handleReconnect(Boolean ignored) {
+    private void handleReconnect(String networkId) {
         if (ircAdapter == null || panel == null) return;
         ircAdapter.disconnect("Reloading, brb");
         connectToIrc();
         for (String channel : panel.getChannelNames()) {
             if (channel.startsWith("#")) {
                 String password = channelPasswords.getOrDefault(channel.toLowerCase(), "");
-                handleChannelJoin(channel, password);
+                handleChannelJoin(NetworkConfig.SWIFTIRC_ID, channel, password);
             }
         }
     }
@@ -802,8 +802,8 @@ public class IrcPlugin extends Plugin {
             int intStackCount = client.getIntStackSize();
             intStack[intStackCount - 3] = 1;
 
-            String currentChannel = panel != null ? panel.getCurrentChannel() : this.config.channel();
-            handleMessageSend(currentChannel, message.substring(1));
+            BufferKey current = panel != null ? panel.getCurrentBuffer() : BufferKey.swiftIrc(this.config.channel());
+            handleMessageSend(current, message.substring(1));
         }
     }
 

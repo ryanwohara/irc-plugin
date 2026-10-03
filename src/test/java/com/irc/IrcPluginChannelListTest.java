@@ -208,7 +208,7 @@ public class IrcPluginChannelListTest {
         WireProbeAdapter adapter = new WireProbeAdapter(panel);
         IrcPlugin plugin = pluginWith(panel, adapter, new GameStateProbe());
 
-        privateMethod("handleChannelListRequest", String.class).invoke(plugin, ">50");
+        privateMethod("handleChannelListRequest", String.class, String.class).invoke(plugin, NetworkConfig.SWIFTIRC_ID, ">50");
         drainEdt();
 
         assertTrue("the request must reach the adapter", adapter.sent);
@@ -224,15 +224,14 @@ public class IrcPluginChannelListTest {
         adapter.connected = false;
         IrcPlugin plugin = pluginWith(panel, adapter, new GameStateProbe());
 
-        privateMethod("handleChannelListRequest", String.class).invoke(plugin, "");
+        privateMethod("handleChannelListRequest", String.class, String.class).invoke(plugin, NetworkConfig.SWIFTIRC_ID, "");
         drainEdt();
 
         assertFalse(adapter.sent);
         assertFalse(panel.armed);
 
-        Map<String, IrcPanel.ChannelPane> panes = panel.getChannelPanes();
         assertTrue("the user has to be told why nothing happened",
-                panes.get("System").getText().toLowerCase().contains("not connected"));
+                panel.getPane("System").getText().toLowerCase().contains("not connected"));
     }
 
     /**
@@ -273,8 +272,7 @@ public class IrcPluginChannelListTest {
         panel.cancelChannelListTimeout();
         drainEdt();
 
-        Map<String, IrcPanel.ChannelPane> panes = panel.getChannelPanes();
-        String text = panes.get("System").getText();
+        String text = panel.getPane("System").getText();
         assertTrue("the panel must still see the notice, got: " + text,
                 text.toLowerCase().contains("no channel list response"));
         assertTrue("the notice must be emitted through processMessage, the same funnel that queues"

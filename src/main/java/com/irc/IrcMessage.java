@@ -2,6 +2,7 @@ package com.irc;
 
 import lombok.AllArgsConstructor;
 import lombok.Value;
+import lombok.With;
 import java.time.Instant;
 
 @Value
@@ -17,9 +18,20 @@ public class IrcMessage {
     Instant timestamp;
     /** The sender's channel prefix ("@", "+", ...) when the message was received; "" when none. */
     String prefix;
+    /** The network the message belongs to; see {@link NetworkConfig#SWIFTIRC_ID}. */
+    @With
+    String networkId;
 
     IrcMessage(String channel, String sender, String content, MessageType type, Instant timestamp) {
         this(channel, sender, content, type, timestamp, "");
+    }
+
+    IrcMessage(String channel, String sender, String content, MessageType type, Instant timestamp, String prefix) {
+        this(channel, sender, content, type, timestamp, prefix, NetworkConfig.SWIFTIRC_ID);
+    }
+
+    BufferKey getBuffer() {
+        return BufferKey.of(networkId, channel);
     }
 
     /** The sender with its prefix, kept after the "* " that marks an action: "@bob", "* @bob". */

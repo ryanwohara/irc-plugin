@@ -50,24 +50,41 @@ public class IrcPanel extends PluginPanel {
     private JTabbedPane tabbedPane;
     public JTextField inputField;
     @Getter
-    private final Map<String, ChannelPane> channelPanes = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<BufferKey, ChannelPane> channelPanes = Collections.synchronizedMap(new LinkedHashMap<>());
     @Getter
     private NavigationButton navigationButton;
 
-    private BiConsumer<String, String> onMessageSend;
-    private BiConsumer<String, String> onChannelJoin;
-    private Consumer<String> onChannelLeave;
-    private Consumer<Boolean> onReconnect;
-    private Consumer<String> onChannelListRequest;
+
+    /** Joins a channel on a given network. */
+    interface ChannelJoin {
+        void join(String networkId, String channel, String password);
+    }
+
+    private BiConsumer<BufferKey, String> onMessageSend;
+    private ChannelJoin onChannelJoin;
+    private Consumer<BufferKey> onChannelLeave;
+    /** Receives the network id to reconnect. */
+    private Consumer<String> onReconnect;
+    /** Receives (network id, query). */
+    private BiConsumer<String, String> onChannelListRequest;
     private Runnable onChannelListTimeout;
+    /** The network the channel browser is showing; joins from it go there. */
+    private volatile String channelListNetworkId = NetworkConfig.SWIFTIRC_ID;
     private ChannelListDialog channelListDialog;
     private ChannelNumberKeys channelNumberKeys;
     private Timer channelListTimeout;
     private static final int CHANNEL_LIST_TIMEOUT_MS = 30000;
     private Font font;
 
-    public final Map<String, Boolean> unreadMessages = new LinkedHashMap<>();
-    private String focusedChannel;
+    public final Map<BufferKey, Boolean> unreadMessages = new LinkedHashMap<>();
+    private BufferKey focusedChannel;
+    /** Network display names and connection state by id, in the order networks were announced. */
+    private final Map<String, String> networkNames = new LinkedHashMap<>();
+    private final Map<String, Boolean> networkConnected = new LinkedHashMap<>();
+
+    {
+        networkNames.put(NetworkConfig.SWIFTIRC_ID, NetworkConfig.SWIFTIRC_NAME);
+    }
     private static final String SYSTEM_TAB = "System";
 
     // One per layout (side panel and pop-out); a Swing component can only have one parent.
@@ -79,25 +96,48 @@ public class IrcPanel extends PluginPanel {
 
     private static final String USERS_HEADER_PREFIX = "Users (";
     /**
-     * Rosters by channel, keyed case-insensitively: IRC channel names are case-insensitive, and a
+     * Rosters by buffer, keyed by {@link BufferKey#folded()}: IRC channel names are case-insensitive, and a
      * server that canonicalises casing differently between its JOIN echo and its 366 numeric would
      * otherwise file the roster under a key this panel never looks up - the dropdown would simply
      * never populate. Callers marshal to the EDT before calling {@link #setChannelUsers} - it
      * mutates a Swing model synchronously - so the synchronized map is cheap defensive depth, not
      * the primary thread-safety mechanism.
      */
-    private final Map<String, List<ChannelUserList.Entry>> channelUserSnapshots =
-            Collections.synchronizedMap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
+    private final Map<BufferKey, List<ChannelUserList.Entry>> channelUserSnapshots =
+            Collections.synchronizedMap(new HashMap<>());
     private List<ChannelUserList.Entry> displayedEntries = Collections.emptyList();
-    /** Each channel's current topic, for the pop-out header. Only touched on the EDT. */
-    private final Map<String, String> channelTopics = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    /** Each buffer's current topic, keyed by {@link BufferKey#folded()}. Only touched on the EDT. */
+    private final Map<BufferKey, String> channelTopics = new HashMap<>();
     private final JComboBox<String> nickDropdown = getNickComboBox();
 
-    public ArrayList<String> getChannelNames() {
-        Map<String, ChannelPane> panes = getChannelPanes();
-        synchronized (panes) {
-            return new ArrayList<>(panes.keySet());
+    /** Every buffer, in tab order. Safe from any thread. */
+    public List<BufferKey> getBuffers() {
+        synchronized (channelPanes) {
+            return new ArrayList<>(channelPanes.keySet());
         }
+    }
+
+    /** Buffer names in tab order, for callers that only deal with SwiftIRC. */
+    public ArrayList<String> getChannelNames() {
+        ArrayList<String> names = new ArrayList<>();
+        for (BufferKey key : getBuffers()) names.add(key.getName());
+        return names;
+    }
+
+    /** The tab/dropdown title: the bare name on SwiftIRC, "name (Network)" elsewhere. */
+    String titleOf(BufferKey key) {
+        if (NetworkConfig.SWIFTIRC_ID.equals(key.getNetworkId())) return key.getName();
+        return key.getName() + " (" + networkNames.getOrDefault(key.getNetworkId(), key.getNetworkId()) + ")";
+    }
+
+    /** Test/legacy helper: the SwiftIRC pane with this name. */
+    ChannelPane getPane(String name) {
+        return channelPanes.get(BufferKey.swiftIrc(name));
+    }
+
+    /** Test/legacy helper: whether the SwiftIRC buffer with this name has unread lines. */
+    boolean isUnread(String name) {
+        return unreadMessages.getOrDefault(BufferKey.swiftIrc(name), false);
     }
 
     /**
@@ -114,12 +154,15 @@ public class IrcPanel extends PluginPanel {
     private void initializeFlashTimer() {
         // Change color for different flash
         flashTimer = new Timer(500, e -> {
-            String currentTab = getCurrentChannel();
-            for (int i = 0; i < tabbedPane.getTabCount(); i++) {
-                String tabTitle = tabbedPane.getTitleAt(i);
-                if (!SYSTEM_TAB.equals(tabTitle) && unreadMessages.getOrDefault(tabTitle, false) && !tabTitle.equals(currentTab)) {
+            BufferKey current = getCurrentBuffer();
+            List<BufferKey> buffers = getBuffers();
+            for (int i = 0; i < tabbedPane.getTabCount() && i < buffers.size(); i++) {
+                BufferKey key = buffers.get(i);
+                boolean unread = unreadMessages.getOrDefault(key, false);
+                if (SYSTEM_TAB.equals(key.getName())) continue;
+                if (unread && !key.equals(current)) {
                     tabbedPane.setForegroundAt(i, new Color(135, 206, 250)); // Change color for different flash
-                } else if (!SYSTEM_TAB.equals(tabTitle) && !unreadMessages.getOrDefault(tabTitle, false)) {
+                } else if (!unread) {
                     tabbedPane.setForegroundAt(i, Color.white);
                 }
             }
@@ -184,7 +227,7 @@ public class IrcPanel extends PluginPanel {
 
         addButton.addActionListener(e -> promptAddChannel());
         removeButton.addActionListener(e -> promptRemoveChannel());
-        reloadButton.addActionListener(e -> onReconnect.accept(true));
+        reloadButton.addActionListener(e -> onReconnect.accept(getCurrentBuffer().getNetworkId()));
         popOutButton.addActionListener(e -> configManager.setConfiguration("irc", "popOut", true));
         row1Buttons.add(reloadButton);
         row1Buttons.add(addButton);
@@ -218,7 +261,7 @@ public class IrcPanel extends PluginPanel {
         inputField.addActionListener(e -> {
             String message = inputField.getText();
             if (!message.isEmpty() && onMessageSend != null) {
-                onMessageSend.accept(getCurrentChannel(), message);
+                onMessageSend.accept(getCurrentBuffer(), message);
                 inputHistory.add(message);
                 inputField.setText("");
             }
@@ -238,10 +281,10 @@ public class IrcPanel extends PluginPanel {
     /** Runs when the focused buffer changes. Package-private so tests can drive it without the
      *  full initializeGui() Swing setup, which cannot run headless. */
     void onFocusedBufferChanged() {
-        String newChannel = getCurrentChannel();
-        focusedChannel = newChannel;
-        if (newChannel != null && unreadMessages.containsKey(newChannel)) {
-            unreadMessages.put(newChannel, false);
+        BufferKey current = getCurrentBuffer();
+        focusedChannel = current;
+        if (unreadMessages.containsKey(current)) {
+            unreadMessages.put(current, false);
             int selectedIndex = tabbedPane.getSelectedIndex();
             if (selectedIndex != -1) {
                 tabbedPane.setForegroundAt(selectedIndex, Color.WHITE);
@@ -252,23 +295,17 @@ public class IrcPanel extends PluginPanel {
     }
 
     public void cycleChannel() {
-        List<String> channels = this.getChannelNames();
-        if (channels.isEmpty()) return;
-
-        String current = this.getCurrentChannel();
-        int index = channels.indexOf(current);
-        index = (index + 1) % channels.size();
-        this.setFocusedChannel(channels.get(index));
+        List<BufferKey> buffers = getBuffers();
+        if (buffers.isEmpty()) return;
+        int index = (buffers.indexOf(getCurrentBuffer()) + 1) % buffers.size();
+        setFocusedChannel(buffers.get(index));
     }
 
     public void cycleChannelBackwards() {
-        List<String> channels = this.getChannelNames();
-        if (channels.isEmpty()) return;
-
-        String current = this.getCurrentChannel();
-        int index = channels.indexOf(current);
-        index = (index - 1 < 0 ? channels.size() - 1 : (index - 1) % channels.size());
-        this.setFocusedChannel(channels.get(index));
+        List<BufferKey> buffers = getBuffers();
+        if (buffers.isEmpty()) return;
+        int index = buffers.indexOf(getCurrentBuffer()) - 1;
+        setFocusedChannel(buffers.get(index < 0 ? buffers.size() - 1 : index));
     }
 
     /**
@@ -276,10 +313,17 @@ public class IrcPanel extends PluginPanel {
      * tree groups buffers, so its order can differ from the side panel's tabs.
      */
     void jumpToChannel(int number) {
-        List<String> channels = detachedLayout ? desktopLayout.channelOrder() : getChannelNames();
-        if (number < 1 || number > channels.size()) return;
-        setFocusedChannel(channels.get(number - 1));
+        List<BufferKey> buffers = detachedLayout ? desktopOrder() : getBuffers();
+        if (number < 1 || number > buffers.size()) return;
+        setFocusedChannel(buffers.get(number - 1));
         inputField.requestFocusInWindow();
+    }
+
+    /** Interim (replaced in Task 5): the pop-out still lists SwiftIRC names only. */
+    private List<BufferKey> desktopOrder() {
+        List<BufferKey> keys = new ArrayList<>();
+        for (String name : desktopLayout.channelOrder()) keys.add(BufferKey.swiftIrc(name));
+        return keys;
     }
 
     private JComboBox<String> getFontComboBox() {
@@ -382,20 +426,24 @@ public class IrcPanel extends PluginPanel {
         if (index < 1 || index > entries.size()) {
             return;
         }
-        String nick = entries.get(index - 1).getNick();
+        BufferKey query = BufferKey.of(getCurrentBuffer().getNetworkId(), entries.get(index - 1).getNick());
         nickDropdown.setSelectedIndex(0);
-        addChannel(nick);
-        setFocusedChannel(nick);
+        addChannel(query);
+        setFocusedChannel(query);
     }
 
     /** Pushes a fresh roster in. Only redraws when it is for the buffer currently on screen. */
-    public void setChannelUsers(String channel, List<ChannelUserList.Entry> entries) {
-        channelUserSnapshots.put(channel, entries);
-        // equalsIgnoreCase, not equals: the channel name here comes from a server numeric and the
-        // tab title from a JOIN echo, which need not agree on casing.
-        if (tabbedPane != null && channel.equalsIgnoreCase(getCurrentChannel())) {
+    public void setChannelUsers(BufferKey channel, List<ChannelUserList.Entry> entries) {
+        channelUserSnapshots.put(channel.folded(), entries);
+        // Folded, not exact: the name here comes from a server numeric and the tab title from a
+        // JOIN echo, which need not agree on casing.
+        if (tabbedPane != null && channel.folded().equals(getCurrentBuffer().folded())) {
             repopulateNickDropdown();
         }
+    }
+
+    public void setChannelUsers(String channel, List<ChannelUserList.Entry> entries) {
+        setChannelUsers(BufferKey.swiftIrc(channel), entries);
     }
 
     /**
@@ -407,9 +455,10 @@ public class IrcPanel extends PluginPanel {
         if (tabbedPane == null) {
             return;
         }
-        String channel = getCurrentChannel();
+        BufferKey current = getCurrentBuffer();
+        String channel = current.getName();
         List<ChannelUserList.Entry> entries =
-                channelUserSnapshots.getOrDefault(channel, Collections.emptyList());
+                channelUserSnapshots.getOrDefault(current.folded(), Collections.emptyList());
         displayedEntries = entries;
         if (desktopLayout != null) desktopLayout.updateUsers(channel, entries);
 
@@ -440,7 +489,11 @@ public class IrcPanel extends PluginPanel {
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 
-                if (unreadMessages.getOrDefault(value.toString(), false)) {
+                List<BufferKey> buffers = getBuffers();
+                int row = index >= 0 ? index : bufferComboBox.getSelectedIndex();
+                boolean unread = row >= 0 && row < buffers.size()
+                        && unreadMessages.getOrDefault(buffers.get(row), false);
+                if (unread) {
                     label.setForeground(new Color(135, 206, 250)); // Change color for different flash
                 } else {
                     label.setForeground(Color.white);
@@ -472,28 +525,20 @@ public class IrcPanel extends PluginPanel {
         return navigationButton;
     }
 
+    public void setFocusedChannel(BufferKey channel) {
+        if (channel == null || !unreadMessages.containsKey(channel)) return;
+        int index = getBuffers().indexOf(channel);
+        if (index < 0) return;
+        unreadMessages.put(channel, false);
+        tabbedPane.setForegroundAt(index, Color.WHITE);
+        tabbedPane.setSelectedIndex(index);
+        bufferDropdown.setSelectedIndex(index);
+        this.focusedChannel = channel;
+        refreshDesktopChannels();
+    }
+
     public void setFocusedChannel(String channel) {
-        if (channel != null && unreadMessages.containsKey(channel)) {
-            int i = 0;
-            int index = 0;
-            synchronized (channelPanes) {
-                for (Map.Entry<String, ChannelPane> entry : channelPanes.entrySet()) {
-                    if (entry.getKey().equals(channel)) {
-                        index = i;
-                        break;
-                    }
-                    i++;
-                }
-            }
-
-            unreadMessages.put(channel, false);
-            tabbedPane.setForegroundAt(index, Color.WHITE);
-            tabbedPane.setSelectedIndex(index);
-            bufferDropdown.setSelectedIndex(index);
-
-            this.focusedChannel = channel;
-            refreshDesktopChannels();
-        }
+        if (channel != null) setFocusedChannel(BufferKey.swiftIrc(channel));
     }
 
     private JComboBox<String> getStringFontComboBox() {
@@ -568,7 +613,9 @@ public class IrcPanel extends PluginPanel {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    public void init(BiConsumer<String, String> messageSendCallback, BiConsumer<String, String> channelJoinCallback, Consumer<String> channelLeaveCallback, Consumer<Boolean> onReconnect, Consumer<String> channelListRequestCallback, Runnable channelListTimeoutCallback) {
+    public void init(BiConsumer<BufferKey, String> messageSendCallback, ChannelJoin channelJoinCallback,
+                     Consumer<BufferKey> channelLeaveCallback, Consumer<String> onReconnect,
+                     BiConsumer<String, String> channelListRequestCallback, Runnable channelListTimeoutCallback) {
         this.onMessageSend = messageSendCallback;
         this.onChannelJoin = channelJoinCallback;
         this.onChannelLeave = channelLeaveCallback;
@@ -577,29 +624,57 @@ public class IrcPanel extends PluginPanel {
         this.onChannelListTimeout = channelListTimeoutCallback;
     }
 
+    /** The selected buffer; SwiftIRC's System when nothing is selected. */
+    public BufferKey getCurrentBuffer() {
+        int index = tabbedPane == null ? -1 : tabbedPane.getSelectedIndex();
+        List<BufferKey> buffers = getBuffers();
+        return index >= 0 && index < buffers.size() ? buffers.get(index) : BufferKey.swiftIrc(SYSTEM_TAB);
+    }
+
     public String getCurrentChannel() {
-        int index = tabbedPane.getSelectedIndex();
-        return index != -1 ? tabbedPane.getTitleAt(index) : "System";
+        return getCurrentBuffer().getName();
+    }
+
+    /** The selected buffer's name when it is on {@code networkId}, else that network's System. */
+    public String getCurrentChannelOn(String networkId) {
+        BufferKey current = getCurrentBuffer();
+        return current.getNetworkId().equals(networkId) ? current.getName() : SYSTEM_TAB;
     }
 
     public void clearCurrentPane() {
-        int index = tabbedPane.getSelectedIndex();
-        String channel = index != -1 ? tabbedPane.getTitleAt(index) : "System";
-        ChannelPane pane = channelPanes.get(channel);
+        ChannelPane pane = channelPanes.get(getCurrentBuffer());
         if (pane != null) {
             pane.clear();
         }
     }
 
+    public boolean isPane(BufferKey key) {
+        return channelPanes.containsKey(key);
+    }
+
     public boolean isPane(String name) {
-        return tabbedPane.indexOfTab(name) != -1;
+        return isPane(BufferKey.swiftIrc(name));
+    }
+
+    /** Asks the plugin for the selected buffer's network's channel list. */
+    public void requestChannelList(String query) {
+        requestChannelList(getCurrentBuffer().getNetworkId(), query);
     }
 
     /** Asks the plugin for a channel list. {@code query} is passed to the server verbatim. */
-    public void requestChannelList(String query) {
+    public void requestChannelList(String networkId, String query) {
+        channelListNetworkId = networkId;
         if (onChannelListRequest != null) {
-            onChannelListRequest.accept(query != null ? query : "");
+            onChannelListRequest.accept(networkId, query != null ? query : "");
         }
+    }
+
+    String getChannelListNetworkId() {
+        return channelListNetworkId;
+    }
+
+    void setChannelListNetworkId(String networkId) {
+        channelListNetworkId = networkId;
     }
 
     /**
@@ -667,15 +742,18 @@ public class IrcPanel extends PluginPanel {
             if (detached) {
                 if (desktopLayout == null) {
                     desktopLayout = new IrcDesktopLayout(config.server().getHostname(),
-                            name -> unreadMessages.getOrDefault(name, false), this::setFocusedChannel,
+                            name -> unreadMessages.getOrDefault(BufferKey.swiftIrc(name), false),
+                            name -> setFocusedChannel(BufferKey.swiftIrc(name)),
                             nick -> {
-                                addChannel(nick);
-                                setFocusedChannel(nick);
+                                BufferKey query = BufferKey.of(getCurrentBuffer().getNetworkId(), nick);
+                                addChannel(query);
+                                setFocusedChannel(query);
                                 inputField.requestFocusInWindow();
                             },
-                            nick -> onMessageSend.accept(getCurrentChannel(), "/whois " + nick),
+                            nick -> onMessageSend.accept(getCurrentBuffer(), "/whois " + nick),
                             this::promptAddChannel, this::promptRemoveChannel,
-                            () -> requestChannelList(""), () -> onReconnect.accept(true),
+                            () -> requestChannelList(""),
+                            () -> onReconnect.accept(getCurrentBuffer().getNetworkId()),
                             this::requestDock, getFontComboBox(), getFontSizeComboBox(),
                             nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
                 }
@@ -700,7 +778,7 @@ public class IrcPanel extends PluginPanel {
     private void refreshDesktopChannels() {
         if (desktopLayout == null) return;
         desktopLayout.updateChannels(getChannelNames(), getCurrentChannel());
-        desktopLayout.showTopic(channelTopics.getOrDefault(getCurrentChannel(), ""));
+        desktopLayout.showTopic(channelTopics.getOrDefault(getCurrentBuffer().folded(), ""));
     }
 
     public void bringPopOutToFront() {
@@ -729,65 +807,95 @@ public class IrcPanel extends PluginPanel {
      * {@link SwingUtilities#invokeLater}.
      */
     public void showChannelList(List<ChannelListEntry> entries, String query, boolean truncated) {
+        showChannelList(NetworkConfig.SWIFTIRC_ID, entries, query, truncated);
+    }
+
+    public void showChannelList(String networkId, List<ChannelListEntry> entries, String query, boolean truncated) {
+        channelListNetworkId = networkId;
         cancelChannelListTimeout();
         if (channelListDialog == null) {
             channelListDialog = new ChannelListDialog(
                     SwingUtilities.getWindowAncestor(chatContent),
                     (channel, password) -> {
                         if (onChannelJoin != null) {
-                            onChannelJoin.accept(channel, password);
+                            onChannelJoin.join(channelListNetworkId, channel, password);
                         }
                     },
-                    this::requestChannelList);
+                    q -> requestChannelList(channelListNetworkId, q));
         }
         channelListDialog.setEntries(entries, query, truncated);
         channelListDialog.showDialog();
     }
 
-    public void addChannel(String channel) {
+    public void addChannel(BufferKey channel) {
         if (channelPanes.containsKey(channel)) return;
         ChannelPane pane = new ChannelPane(font, config, okHttpClient);
-        bufferDropdown.addItem(channel);
+        bufferDropdown.addItem(titleOf(channel));
 
         JScrollPane scrollPane = new JScrollPane(pane);
         scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> pane.cancelPreviewManager());
 
         channelPanes.put(channel, pane);
         unreadMessages.put(channel, false);
-        tabbedPane.addTab(channel, new JScrollPane(pane));
-        if (config.autofocusOnNewTab() || channel.equals(config.channel()) || channelPanes.size() == 2) {
+        tabbedPane.addTab(titleOf(channel), new JScrollPane(pane));
+        boolean configuredChannel = NetworkConfig.SWIFTIRC_ID.equals(channel.getNetworkId())
+                && channel.getName().equals(config.channel());
+        if (config.autofocusOnNewTab() || configuredChannel || channelPanes.size() == 2) {
             tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
             this.setFocusedChannel(channel);
         }
         refreshDesktopChannels();
     }
 
+    public void addChannel(String channel) {
+        addChannel(BufferKey.swiftIrc(channel));
+    }
+
+    public void removeChannel(BufferKey channel) {
+        removeBuffer(channel, false);
+    }
+
     public void removeChannel(String channel) {
-        if (!channelPanes.containsKey(channel) || channel.equals("System")) return;
-        int index = tabbedPane.indexOfTab(channel);
-        if (index == -1) return;
+        removeChannel(BufferKey.swiftIrc(channel));
+    }
+
+    /** Closes every buffer of a network, its System buffer included. */
+    public void removeNetworkBuffers(String networkId) {
+        for (BufferKey key : getBuffers()) {
+            if (key.getNetworkId().equals(networkId)) removeBuffer(key, true);
+        }
+    }
+
+    private void removeBuffer(BufferKey channel, boolean includingSystem) {
+        if (!channelPanes.containsKey(channel)) return;
+        if (!includingSystem && SYSTEM_TAB.equals(channel.getName())) return;
+        int index = getBuffers().indexOf(channel);
+        if (index == -1 || index >= tabbedPane.getTabCount()) return;
         tabbedPane.removeTabAt(index);
         channelPanes.remove(channel);
         unreadMessages.remove(channel);
-        bufferDropdown.removeItem(channel);
-        channelUserSnapshots.remove(channel);
-        channelTopics.remove(channel);
+        bufferDropdown.removeItemAt(index);
+        channelUserSnapshots.remove(channel.folded());
+        channelTopics.remove(channel.folded());
         onFocusedBufferChanged();
     }
 
     public void addMessage(IrcMessage message) {
-        ChannelPane pane = channelPanes.get(message.getChannel());
+        BufferKey key = message.getBuffer();
+        ChannelPane pane = channelPanes.get(key);
         if (pane == null) {
-            addChannel(message.getChannel());
-            pane = channelPanes.get(message.getChannel());
+            addChannel(key);
+            pane = channelPanes.get(key);
         }
-        if (!message.getChannel().equals(focusedChannel)) {
-            unreadMessages.put(message.getChannel(), true);
+        boolean history = message.getType() == IrcMessage.MessageType.HISTORY
+                || message.getType() == IrcMessage.MessageType.HISTORY_SEPARATOR;
+        if (!key.equals(focusedChannel) && !history) {
+            unreadMessages.put(key, true);
         }
         if (message.getType() == IrcMessage.MessageType.TOPIC
                 && IrcMessage.TOPIC_SENDER.equals(message.getSender())) {
             String topic = IrcFormatting.stripCodes(message.getContent());
-            channelTopics.put(message.getChannel(), topic == null ? "" : topic.trim());
+            channelTopics.put(key.folded(), topic == null ? "" : topic.trim());
         }
         pane.appendMessage(message, config);
         refreshDesktopChannels();
@@ -841,37 +949,43 @@ public class IrcPanel extends PluginPanel {
             channel = "#" + channel;
         }
         if (onChannelJoin != null) {
-            onChannelJoin.accept(channel, password);
+            onChannelJoin.join(getCurrentBuffer().getNetworkId(), channel, password);
         }
     }
 
-    public void renameChannel(String oldName, String newName) {
-        if (!channelPanes.containsKey(oldName) || channelPanes.containsKey(newName)) {
+    public void renameChannel(BufferKey oldKey, String newName) {
+        BufferKey newKey = BufferKey.of(oldKey.getNetworkId(), newName);
+        if (!channelPanes.containsKey(oldKey) || channelPanes.containsKey(newKey)) {
             return;
         }
-        int index = tabbedPane.indexOfTab(oldName);
+        int index = getBuffers().indexOf(oldKey);
         if (index == -1) {
             return;
         }
+        String oldTitle = titleOf(oldKey);
         synchronized (channelPanes) {
-            renameKeyInPlace(channelPanes, oldName, newName);
+            renameKeyInPlace(channelPanes, oldKey, newKey);
         }
-        renameKeyInPlace(unreadMessages, oldName, newName);
-        renameKeyInPlace(channelTopics, oldName, newName);
-        tabbedPane.setTitleAt(index, newName);
-        renameBufferDropdownItem(oldName, newName);
-        if (oldName.equals(focusedChannel)) {
-            focusedChannel = newName;
+        renameKeyInPlace(unreadMessages, oldKey, newKey);
+        renameKeyInPlace(channelTopics, oldKey.folded(), newKey.folded());
+        tabbedPane.setTitleAt(index, titleOf(newKey));
+        renameBufferDropdownItem(oldTitle, titleOf(newKey));
+        if (oldKey.equals(focusedChannel)) {
+            focusedChannel = newKey;
         }
         refreshDesktopChannels();
     }
 
-    static <V> void renameKeyInPlace(Map<String, V> map, String oldKey, String newKey) {
+    public void renameChannel(String oldName, String newName) {
+        renameChannel(BufferKey.swiftIrc(oldName), newName);
+    }
+
+    static <K, V> void renameKeyInPlace(Map<K, V> map, K oldKey, K newKey) {
         if (!map.containsKey(oldKey) || map.containsKey(newKey)) {
             return;
         }
-        LinkedHashMap<String, V> rebuilt = new LinkedHashMap<>();
-        for (Map.Entry<String, V> entry : map.entrySet()) {
+        LinkedHashMap<K, V> rebuilt = new LinkedHashMap<>();
+        for (Map.Entry<K, V> entry : map.entrySet()) {
             rebuilt.put(entry.getKey().equals(oldKey) ? newKey : entry.getKey(), entry.getValue());
         }
         map.clear();
@@ -908,9 +1022,9 @@ public class IrcPanel extends PluginPanel {
     }
 
     private void promptRemoveChannel() {
-        String channel = getCurrentChannel();
-        if (!channel.equals("System")) {
-            int result = JOptionPane.showConfirmDialog(chatContent, "Close " + channel + "?", "Confirm", JOptionPane.YES_NO_OPTION);
+        BufferKey channel = getCurrentBuffer();
+        if (!SYSTEM_TAB.equals(channel.getName())) {
+            int result = JOptionPane.showConfirmDialog(chatContent, "Close " + titleOf(channel) + "?", "Confirm", JOptionPane.YES_NO_OPTION);
             if (result == JOptionPane.YES_OPTION && onChannelLeave != null) {
                 onChannelLeave.accept(channel);
             }
@@ -919,18 +1033,40 @@ public class IrcPanel extends PluginPanel {
 
     private void actionPerformed(ActionEvent e) {
         int idx = bufferDropdown.getSelectedIndex();
-        int i = 0;
-        synchronized (channelPanes) {
-            for (Map.Entry<String, ChannelPane> channel : channelPanes.entrySet()) {
-                if (i == idx) {
-                    this.setFocusedChannel(channel.getKey());
-                    break;
-                }
-
-                i++;
-            }
+        List<BufferKey> buffers = getBuffers();
+        if (idx >= 0 && idx < buffers.size()) {
+            setFocusedChannel(buffers.get(idx));
         }
         hideAllPreviews();
+    }
+
+    /** Names a network; retitles its buffers when the name changes. EDT only. */
+    public void setNetworkName(String networkId, String name) {
+        String previous = networkNames.put(networkId, name);
+        if (name.equals(previous) || tabbedPane == null) return;
+        List<BufferKey> buffers = getBuffers();
+        for (int i = 0; i < buffers.size(); i++) {
+            BufferKey key = buffers.get(i);
+            if (!key.getNetworkId().equals(networkId)) continue;
+            String oldTitle = key.getName() + " (" + (previous != null ? previous : networkId) + ")";
+            tabbedPane.setTitleAt(i, titleOf(key));
+            renameBufferDropdownItem(oldTitle, titleOf(key));
+        }
+        refreshDesktopChannels();
+    }
+
+    /** Records a network's link state for the pop-out tree. EDT only. */
+    public void setNetworkConnected(String networkId, boolean connected) {
+        networkConnected.put(networkId, connected);
+        refreshDesktopChannels();
+    }
+
+    /** Drops a removed network's name and state. Its buffers go via removeNetworkBuffers. */
+    public void forgetNetwork(String networkId) {
+        if (NetworkConfig.SWIFTIRC_ID.equals(networkId)) return;
+        networkNames.remove(networkId);
+        networkConnected.remove(networkId);
+        refreshDesktopChannels();
     }
 
 
@@ -1417,9 +1553,10 @@ public class IrcPanel extends PluginPanel {
     }
 
     private void completeInput(boolean forward) {
-        String channel = getCurrentChannel();
+        BufferKey current = getCurrentBuffer();
+        String channel = current.getName();
         List<String> nicks = new ArrayList<>();
-        for (ChannelUserList.Entry entry : channelUserSnapshots.getOrDefault(channel, Collections.emptyList())) {
+        for (ChannelUserList.Entry entry : channelUserSnapshots.getOrDefault(current.folded(), Collections.emptyList())) {
             nicks.add(entry.getNick());
         }
         // A PM buffer has no roster; the one other person is the buffer itself.
@@ -1427,8 +1564,10 @@ public class IrcPanel extends PluginPanel {
             nicks.add(channel);
         }
         List<String> channels = new ArrayList<>();
-        for (String name : getChannelNames()) {
-            if (name.startsWith("#")) channels.add(name);
+        for (BufferKey key : getBuffers()) {
+            if (key.getNetworkId().equals(current.getNetworkId()) && key.getName().startsWith("#")) {
+                channels.add(key.getName());
+            }
         }
         TabCompleter.Result result = tabCompleter.complete(
                 inputField.getText(), inputField.getCaretPosition(), nicks, channels, forward);

@@ -39,8 +39,8 @@ public class IrcDesktopLayoutTest {
                         @Override public String password() { return ""; }
                     });
                 } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
-                panel.init((channel, text) -> sent.set(text), (channel, password) -> {},
-                        channel -> {}, reconnect -> {}, query -> {}, () -> {});
+                panel.init((channel, text) -> sent.set(text), (network, channel, password) -> {},
+                        channel -> {}, reconnect -> {}, (network, query) -> {}, () -> {});
                 panel.initializeGui();
             });
             SwingUtilities.invokeAndWait(() -> {
@@ -94,7 +94,7 @@ public class IrcDesktopLayoutTest {
                 assertEquals(32, fontSize.getItemAt(fontSize.getItemCount() - 1));
                 assertEquals(5, users.getModel().getSize());
                 assertEquals("#runelite", panel.getCurrentChannel());
-                assertTrue(panel.unreadMessages.get("#rshelp"));
+                assertTrue(panel.isUnread("#rshelp"));
                 JLabel topic = (JLabel) find(panel.getChatContent(), "ircTopic");
                 String runeliteTopic = "Welcome to #runelite | Be nice | <html><b>not bold</b>";
                 assertEquals("—  " + runeliteTopic, topic.getText());
@@ -108,7 +108,7 @@ public class IrcDesktopLayoutTest {
                         IrcMessage.MessageType.TOPIC, Instant.now()));
                 assertEquals("—  Questions welcome", topic.getText());
                 assertEquals("#rshelp", panel.getCurrentChannel());
-                assertFalse(panel.unreadMessages.get("#rshelp"));
+                assertFalse(panel.isUnread("#rshelp"));
                 assertEquals(0, users.getModel().getSize());
                 tree.setSelectionPath(path(tree, "#runelite"));
                 users.setSelectedIndex(0);

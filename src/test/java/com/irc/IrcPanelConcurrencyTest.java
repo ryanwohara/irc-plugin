@@ -33,10 +33,10 @@ public class IrcPanelConcurrencyTest {
             try {
                 for (int round = 0; round < 100_000 && !stop.get(); round++) {
                     for (int i = 0; i < 16; i++) {
-                        panel.getChannelPanes().put("#chan" + i, null);
+                        panel.getChannelPanes().put(BufferKey.swiftIrc("#chan" + i), null);
                     }
                     for (int i = 0; i < 16; i++) {
-                        panel.getChannelPanes().remove("#chan" + i);
+                        panel.getChannelPanes().remove(BufferKey.swiftIrc("#chan" + i));
                     }
                 }
             } catch (Throwable t) {
