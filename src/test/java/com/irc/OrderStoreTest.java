@@ -91,4 +91,25 @@ public class OrderStoreTest {
         assertEquals(expected, next);
         assertEquals(3, current.size());
     }
+
+    @Test
+    public void mergeKeepsClosedChannelsAfterTheirSavedPredecessor() {
+        assertEquals(Arrays.asList("#a", "#b", "#rshelp"),
+                OrderStore.merge(Arrays.asList("#a", "#rshelp", "#b"), Arrays.asList("#b", "#rshelp")));
+        assertEquals(Arrays.asList("#rshelp", "#a", "#b"),
+                OrderStore.merge(Arrays.asList("#rshelp", "#a", "#b"), Arrays.asList("#rshelp", "#b")));
+    }
+
+    @Test
+    public void mergeKeepsConsecutiveClosedChannelsTogether() {
+        assertEquals(Arrays.asList("#x", "#y", "#c", "#b", "#p", "#q"),
+                OrderStore.merge(Arrays.asList("#x", "#y", "#b", "#p", "#q", "#c"), Arrays.asList("#c", "#b")));
+    }
+
+    @Test
+    public void mergeAddsNewChannelsAndHandlesNoSavedOrder() {
+        assertEquals(Arrays.asList("#new", "#A", "#gone"),
+                OrderStore.merge(Arrays.asList("#a", "#gone"), Arrays.asList("#new", "#A")));
+        assertEquals(Arrays.asList("#b", "#a"), OrderStore.merge(Collections.emptyList(), Arrays.asList("#b", "#a")));
+    }
 }

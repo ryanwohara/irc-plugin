@@ -1075,10 +1075,13 @@ public class IrcPanel extends PluginPanel {
                 : without.indexOf(others.get(others.size() - 1)) + 1;
         moveBuffer(key, target);
         if (getBuffers().equals(before) || !key.isChannel()) return;
-        List<String> names = new ArrayList<>();
+        List<String> open = new ArrayList<>();
         for (BufferKey buffer : getBuffers()) {
-            if (buffer.getNetworkId().equals(key.getNetworkId()) && buffer.isChannel()) names.add(buffer.getName());
+            if (buffer.getNetworkId().equals(key.getNetworkId()) && buffer.isChannel()) open.add(buffer.getName());
         }
+        // Closed channels keep their saved place; only the open ones were reordered.
+        List<String> names = OrderStore.merge(
+                channelOrders.getOrDefault(key.getNetworkId(), Collections.emptyList()), open);
         channelOrders.put(key.getNetworkId(), names);
         if (orderListener != null) orderListener.channelOrderChanged(key.getNetworkId(), new ArrayList<>(names));
     }

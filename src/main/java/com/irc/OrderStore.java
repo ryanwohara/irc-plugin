@@ -98,6 +98,23 @@ final class OrderStore {
         return sorted;
     }
 
+    /**
+     * The full channel order after the user reordered the open channels: {@code open} in its new
+     * order, with every saved channel that is not open kept straight after the channel saved
+     * before it (at the front when it was first). A drag must not lose the place of a channel
+     * that happens to be closed.
+     */
+    static List<String> merge(List<String> saved, List<String> open) {
+        List<String> merged = new ArrayList<>(open);
+        for (int i = 0; i < saved.size(); i++) {
+            String name = saved.get(i);
+            if (indexIn(merged, name) >= 0) continue;
+            int at = i == 0 ? 0 : indexIn(merged, saved.get(i - 1)) + 1;
+            merged.add(at, name);
+        }
+        return merged;
+    }
+
     /** {@code ids} without those not in {@code known}: a removed network is pruned on the next save. */
     static List<String> retainKnown(List<String> ids, Set<String> known) {
         List<String> kept = new ArrayList<>();

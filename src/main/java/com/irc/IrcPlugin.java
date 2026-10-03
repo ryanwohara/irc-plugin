@@ -179,10 +179,14 @@ public class IrcPlugin extends Plugin {
                 OrderStore.serializeNetworkOrder(OrderStore.retainKnown(ids, networkIds())));
     }
 
-    /** Saves one network's channel order, dropping networks that no longer exist. */
+    /**
+     * Saves one network's channel order, dropping networks that no longer exist. Merged with what
+     * is saved, so a channel that is closed right now keeps its place and join position.
+     */
     private void saveChannelOrder(String networkId, List<String> channelNames) {
-        Map<String, List<String>> order = OrderStore.withChannels(
-                OrderStore.parseChannelOrder(gson, config.channelOrder()), networkId, channelNames, networkIds());
+        Map<String, List<String>> saved = OrderStore.parseChannelOrder(gson, config.channelOrder());
+        List<String> merged = OrderStore.merge(saved.getOrDefault(networkId, Collections.emptyList()), channelNames);
+        Map<String, List<String>> order = OrderStore.withChannels(saved, networkId, merged, networkIds());
         configManager.setConfiguration("irc", OrderStore.CHANNEL_ORDER_KEY, OrderStore.serializeChannelOrder(gson, order));
     }
 

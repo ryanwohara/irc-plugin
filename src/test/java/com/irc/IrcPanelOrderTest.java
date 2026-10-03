@@ -212,4 +212,30 @@ public class IrcPanelOrderTest {
         assertEquals(Arrays.asList(NetworkConfig.SWIFTIRC_ID, RIZON), panel.networkOrder());
         assertEquals(Collections.emptyList(), calls);
     }
+
+    @Test
+    public void aDragKeepsTheSavedPlaceOfClosedChannels() throws Exception {
+        IrcPanel panel = panel();
+        panel.setChannelOrder(NetworkConfig.SWIFTIRC_ID, Arrays.asList("#a", "#rshelp", "#b"));
+        panel.addChannel("#rshelp");
+        panel.addChannel("#b");
+        panel.userMovedBuffer(BufferKey.swiftIrc("#b"), 0);
+        assertEquals(Collections.singletonList("channels swiftirc [#a, #b, #rshelp]"), calls);
+        panel.addChannel("#a");
+        assertEquals(keys("System", "#a", "#b", "#rshelp"), panel.getBuffers());
+    }
+
+    @Test
+    public void insertingBeforeTheSelectedTabKeepsItSelected() throws Exception {
+        IrcPanel panel = panel();
+        panel.setChannelOrder(NetworkConfig.SWIFTIRC_ID, Arrays.asList("#a", "#b"));
+        panel.addChannel("#b");
+        panel.setFocusedChannel("#b");
+        panel.addChannel("#a");
+        assertEquals(keys("System", "#a", "#b"), panel.getBuffers());
+        assertEquals(BufferKey.swiftIrc("#b"), panel.getCurrentBuffer());
+        JComboBox<String> dropdown = get(panel, "bufferDropdown");
+        assertEquals("#b", dropdown.getSelectedItem());
+        assertEquals(2, dropdown.getSelectedIndex());
+    }
 }
