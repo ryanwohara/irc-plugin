@@ -4,7 +4,8 @@ An integration with SwiftIRC through the OSRS chat box.
 
 ## Warning
 
-This will share your IP with the SwiftIRC administration.
+This will share your IP with the administration of each IRC network you connect to:
+SwiftIRC by default, and any other network or ZNC bouncer you add.
 
 ## Functionality
 
