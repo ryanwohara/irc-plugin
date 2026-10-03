@@ -27,6 +27,11 @@ final class NetworkManager {
     private final Map<String, IrcAdapter> running = new LinkedHashMap<>();
     /** Networks the user disconnected by hand; a config change must not bring them back. */
     private final Set<String> paused = new HashSet<>();
+    /**
+     * Networks that don't connect automatically but that the user connected by hand this
+     * session; a config change must not take them back down.
+     */
+    private final Set<String> manual = new HashSet<>();
 
     NetworkManager(Connector connector) {
         this.connector = connector;
@@ -41,6 +46,7 @@ final class NetworkManager {
                 stop(id, true, "Network removed");
                 known.remove(id);
                 paused.remove(id);
+                manual.remove(id);
             }
         }
 
@@ -50,8 +56,13 @@ final class NetworkManager {
         for (NetworkConfig config : next.values()) {
             String id = config.getId();
             NetworkConfig before = previous.get(id);
-            if (!config.isEnabled()) {
+            if (!config.isEnabled() && !manual.contains(id)) {
                 stop(id, false, "Disconnecting");
+            } else if (!config.isEnabled()) {
+                if (running.containsKey(id) && before != null && before.connectionDiffers(config)) {
+                    stop(id, false, "Reloading, brb");
+                    start(config);
+                }
             } else if (!running.containsKey(id)) {
                 if (!paused.contains(id)) start(config);
             } else if (before != null && before.connectionDiffers(config)) {
@@ -87,7 +98,7 @@ final class NetworkManager {
 
     synchronized void reconnect(String id) {
         NetworkConfig config = known.get(id);
-        if (config == null || !config.isEnabled()) return;
+        if (config == null || (!config.isEnabled() && !manual.contains(id))) return;
         paused.remove(id);
         stop(id, false, "Reloading, brb");
         start(config);
@@ -115,7 +126,7 @@ final class NetworkManager {
         if (config == null) return;
         if (connected) {
             paused.remove(id);
-            if (!config.isEnabled()) return;
+            if (!config.isEnabled()) manual.add(id);
             if (!running.containsKey(id)) {
                 start(config);
             } else {
@@ -128,6 +139,7 @@ final class NetworkManager {
             }
         } else {
             paused.add(id);
+            manual.remove(id);
             stop(id, false, "Disconnecting");
         }
     }

@@ -170,6 +170,53 @@ public class NetworkManagerTest {
         assertTrue(manager.adapters().isEmpty());
     }
 
+    @Test
+    public void aNetworkThatDoesNotConnectAutomaticallyCanBeConnectedByHand() {
+        NetworkConfig manual = net("a").toBuilder().enabled(false).build();
+        manager.apply(Collections.singletonList(manual));
+        assertTrue(calls.isEmpty());
+        manager.setConnected("a", true);
+        assertEquals(Collections.singletonList("open a"), calls);
+        assertTrue(manager.isRunning("a"));
+    }
+
+    @Test
+    public void aHandConnectionSurvivesUnrelatedConfigChanges() {
+        NetworkConfig manual = net("a").toBuilder().enabled(false).build();
+        manager.apply(Collections.singletonList(manual));
+        manager.setConnected("a", true);
+        calls.clear();
+        manager.apply(Arrays.asList(manual.toBuilder().name("Renamed").build(), net("b")));
+        assertEquals(Collections.singletonList("open b"), calls);
+        assertTrue(manager.isRunning("a"));
+    }
+
+    @Test
+    public void aHandConnectionStillReconnectsWhenItsSettingsChange() {
+        NetworkConfig manual = net("a").toBuilder().enabled(false).build();
+        manager.apply(Collections.singletonList(manual));
+        manager.setConnected("a", true);
+        calls.clear();
+        manager.apply(Collections.singletonList(manual.toBuilder().port(7000).build()));
+        assertEquals(Arrays.asList("close a true false Reloading, brb", "open a"), calls);
+        calls.clear();
+        manager.reconnect("a");
+        assertEquals(Arrays.asList("close a true false Reloading, brb", "open a"), calls);
+    }
+
+    @Test
+    public void disconnectingByHandEndsAHandConnection() {
+        NetworkConfig manual = net("a").toBuilder().enabled(false).build();
+        manager.apply(Collections.singletonList(manual));
+        manager.setConnected("a", true);
+        manager.setConnected("a", false);
+        calls.clear();
+        manager.apply(Collections.singletonList(manual));
+        manager.reconnect("a");
+        assertTrue("stays down, and reconnect leaves it alone", calls.isEmpty());
+        assertFalse(manager.isRunning("a"));
+    }
+
     private static List<String> ids(List<NetworkConfig> configs) {
         List<String> ids = new ArrayList<>();
         for (NetworkConfig c : configs) ids.add(c.getId());
