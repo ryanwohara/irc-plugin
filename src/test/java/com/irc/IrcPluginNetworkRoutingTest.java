@@ -172,4 +172,43 @@ public class IrcPluginNetworkRoutingTest {
         joinOnOpen(plugin, adapter, NetworkConfig.swiftIrc(bare));
         assertEquals(Collections.singletonList("JOIN #rshelp"), adapter.sent);
     }
+
+    private static IrcConfig orderedConfig(String networks, String networkOrder, String channelOrder) {
+        return new IrcConfig() {
+            @Override public String username() { return "me"; }
+            @Override public String password() { return ""; }
+            @Override public String networks() { return networks; }
+            @Override public String networkOrder() { return networkOrder; }
+            @Override public String channelOrder() { return channelOrder; }
+        };
+    }
+
+    @Test
+    public void joinsFollowTheSavedChannelOrderThenTheRest() throws Exception {
+        IrcPlugin plugin = plugin();
+        set(IrcPlugin.class, plugin, "gson", new com.google.gson.Gson());
+        set(IrcPlugin.class, plugin, "config", orderedConfig("", "", "{\"rizon-id\":[\"#b\",\"#A\"]}"));
+        panelOf(plugin).addChannel(BufferKey.of(RIZON, "#b"));
+        RecordingAdapter adapter = new RecordingAdapter();
+        joinOnOpen(plugin, adapter, NetworkConfig.builder().id(RIZON).name("Rizon").host("irc.rizon.net")
+                .autojoin("#x,#a,#b").build());
+        assertEquals(Arrays.asList("JOIN #b", "JOIN #a", "JOIN #x", "JOIN #foo"), adapter.sent);
+    }
+
+    @Test
+    public void networksAreAppliedInTheSavedOrder() throws Exception {
+        IrcPlugin plugin = plugin();
+        set(IrcPlugin.class, plugin, "gson", new com.google.gson.Gson());
+        set(IrcPlugin.class, plugin, "config", orderedConfig(
+                "[{\"id\":\"a1\",\"name\":\"Rizon\",\"host\":\"irc.rizon.net\"},"
+                        + "{\"id\":\"b2\",\"name\":\"Libera\",\"host\":\"irc.libera.chat\"}]",
+                "b2,gone,swiftirc", ""));
+        Method m = IrcPlugin.class.getDeclaredMethod("networkConfigs");
+        m.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<NetworkConfig> configs = (List<NetworkConfig>) m.invoke(plugin);
+        List<String> ids = new ArrayList<>();
+        for (NetworkConfig network : configs) ids.add(network.getId());
+        assertEquals(Arrays.asList("b2", "swiftirc", "a1"), ids);
+    }
 }

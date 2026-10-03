@@ -98,6 +98,29 @@ final class OrderStore {
         return sorted;
     }
 
+    /** {@code ids} without those not in {@code known}: a removed network is pruned on the next save. */
+    static List<String> retainKnown(List<String> ids, Set<String> known) {
+        List<String> kept = new ArrayList<>();
+        for (String id : ids) {
+            if (known.contains(id)) kept.add(id);
+        }
+        return kept;
+    }
+
+    /**
+     * A copy of {@code order} with {@code networkId}'s channels replaced by {@code channels} and
+     * networks not in {@code known} dropped.
+     */
+    static Map<String, List<String>> withChannels(Map<String, List<String>> order, String networkId,
+                                                  List<String> channels, Set<String> known) {
+        Map<String, List<String>> next = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : order.entrySet()) {
+            if (known.contains(entry.getKey())) next.put(entry.getKey(), entry.getValue());
+        }
+        next.put(networkId, new ArrayList<>(channels));
+        return next;
+    }
+
     /** The position of {@code name} in {@code order} ignoring case, or -1. */
     static int indexIn(List<String> order, String name) {
         String folded = name.toLowerCase(Locale.ROOT);

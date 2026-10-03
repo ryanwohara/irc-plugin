@@ -70,4 +70,25 @@ public class OrderStoreTest {
         assertEquals(Arrays.asList("#a", "#b"),
                 OrderStore.sortByOrder(Arrays.asList("#a", "#b"), Collections.emptyList()));
     }
+
+    @Test
+    public void savingANetworkOrderDropsRemovedNetworks() {
+        assertEquals(Arrays.asList("b2", "swiftirc"), OrderStore.retainKnown(Arrays.asList("b2", "gone", "swiftirc"),
+                new java.util.HashSet<>(Arrays.asList("swiftirc", "b2", "c3"))));
+    }
+
+    @Test
+    public void savingAChannelOrderReplacesThatNetworkAndDropsRemovedOnes() {
+        Map<String, List<String>> current = new LinkedHashMap<>();
+        current.put("gone", Collections.singletonList("#x"));
+        current.put("swiftirc", Arrays.asList("#a", "#b"));
+        current.put("b2", Collections.singletonList("#old"));
+        Map<String, List<String>> next = OrderStore.withChannels(current, "b2", Arrays.asList("#new", "#old"),
+                new java.util.HashSet<>(Arrays.asList("swiftirc", "b2")));
+        Map<String, List<String>> expected = new LinkedHashMap<>();
+        expected.put("swiftirc", Arrays.asList("#a", "#b"));
+        expected.put("b2", Arrays.asList("#new", "#old"));
+        assertEquals(expected, next);
+        assertEquals(3, current.size());
+    }
 }

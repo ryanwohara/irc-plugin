@@ -73,6 +73,8 @@ public class IrcPlugin extends Plugin {
     private final Map<String, String> channelPasswords = new HashMap<>();
     /** Networks opened since startUp; later opens are reconnects. */
     private final Set<String> openedThisSession = ConcurrentHashMap.newKeySet();
+    /** Networks the panel was last given a channel order for. EDT only. */
+    private final Set<String> orderedNetworks = new HashSet<>();
 
     @Override
     protected void startUp() throws Exception {
@@ -87,8 +89,22 @@ public class IrcPlugin extends Plugin {
         emojiService.initialize();
         networks = new NetworkManager(new PluginConnector());
         SwingUtilities.invokeLater(() -> {
-            if (panel != null) panel.setNetworkActions(new PanelNetworkActions());
+            if (panel == null) return;
+            panel.setNetworkActions(new PanelNetworkActions());
+            panel.setOrderListener(new IrcPanel.OrderListener() {
+                @Override
+                public void networkOrderChanged(List<String> networkIds) {
+                    saveNetworkOrder(networkIds);
+                }
+
+                @Override
+                public void channelOrderChanged(String networkId, List<String> channelNames) {
+                    saveChannelOrder(networkId, channelNames);
+                }
+            });
         });
+        // Before any connection opens, so the first channels already land in their saved place.
+        applyChannelOrder();
         applyNetworks();
     }
 
@@ -122,6 +138,7 @@ public class IrcPlugin extends Plugin {
         }
         channelPasswords.clear();
         openedThisSession.clear();
+        SwingUtilities.invokeLater(orderedNetworks::clear);
     }
 
     @Provides
@@ -129,8 +146,13 @@ public class IrcPlugin extends Plugin {
         return configManager.getConfig(IrcConfig.class);
     }
 
-    /** SwiftIRC from the Connection settings, then the saved extras. */
+    /** Every network in the user's order: see {@link OrderStore#applyNetworkOrder}. */
     private List<NetworkConfig> networkConfigs() {
+        return OrderStore.applyNetworkOrder(storedNetworks(), networkOrder());
+    }
+
+    /** SwiftIRC from the Connection settings, then the saved extras, as the dialog edits them. */
+    private List<NetworkConfig> storedNetworks() {
         List<NetworkConfig> all = new ArrayList<>();
         all.add(NetworkConfig.swiftIrc(config));
         all.addAll(NetworkStore.parse(gson, config.networks()));
@@ -142,29 +164,61 @@ public class IrcPlugin extends Plugin {
         return OrderStore.parseNetworkOrder(config.networkOrder());
     }
 
-    /** Saves the network order, dropping ids of networks that no longer exist. */
+    private Set<String> networkIds() {
+        Set<String> ids = new HashSet<>();
+        for (NetworkConfig network : storedNetworks()) ids.add(network.getId());
+        return ids;
+    }
+
+    /**
+     * Saves the network order, dropping networks that no longer exist. The ConfigChanged this
+     * fires re-applies the same order, which changes nothing and reports nothing.
+     */
     private void saveNetworkOrder(List<String> ids) {
-        Set<String> known = new HashSet<>();
-        for (NetworkConfig network : networkConfigs()) known.add(network.getId());
-        List<String> kept = new ArrayList<>();
-        for (String id : ids) {
-            if (known.contains(id)) kept.add(id);
-        }
-        configManager.setConfiguration("irc", OrderStore.NETWORK_ORDER_KEY, OrderStore.serializeNetworkOrder(kept));
+        configManager.setConfiguration("irc", OrderStore.NETWORK_ORDER_KEY,
+                OrderStore.serializeNetworkOrder(OrderStore.retainKnown(ids, networkIds())));
+    }
+
+    /** Saves one network's channel order, dropping networks that no longer exist. */
+    private void saveChannelOrder(String networkId, List<String> channelNames) {
+        Map<String, List<String>> order = OrderStore.withChannels(
+                OrderStore.parseChannelOrder(gson, config.channelOrder()), networkId, channelNames, networkIds());
+        configManager.setConfiguration("irc", OrderStore.CHANNEL_ORDER_KEY, OrderStore.serializeChannelOrder(gson, order));
+    }
+
+    /** Hands the saved channel order to the panel, which puts the open channels into it. */
+    private void applyChannelOrder() {
+        Map<String, List<String>> order = OrderStore.parseChannelOrder(gson, config.channelOrder());
+        SwingUtilities.invokeLater(() -> {
+            if (panel == null) return;
+            for (String id : orderedNetworks) {
+                if (!order.containsKey(id)) panel.setChannelOrder(id, Collections.emptyList());
+            }
+            orderedNetworks.clear();
+            orderedNetworks.addAll(order.keySet());
+            for (Map.Entry<String, List<String>> entry : order.entrySet()) {
+                panel.setChannelOrder(entry.getKey(), entry.getValue());
+                panel.sortChannels(entry.getKey());
+            }
+        });
     }
 
     private void applyNetworks() {
         if (networks == null) return;
         List<NetworkConfig> all = networkConfigs();
+        List<NetworkConfig> stored = storedNetworks();
+        List<String> order = new ArrayList<>();
+        for (NetworkConfig network : all) order.add(network.getId());
         SwingUtilities.invokeLater(() -> {
             if (panel == null) return;
             for (NetworkConfig network : all) panel.setNetworkName(network.getId(), network.getName());
+            panel.setNetworkOrder(order);
         });
         networks.apply(all);
         if (networksDialog != null) {
             SwingUtilities.invokeLater(() -> {
                 if (networksDialog != null) {
-                    networksDialog.setNetworks(all.get(0), all.subList(1, all.size()), networkOrder());
+                    networksDialog.setNetworks(stored.get(0), stored.subList(1, stored.size()), networkOrder());
                 }
             });
         }
@@ -240,7 +294,7 @@ public class IrcPlugin extends Plugin {
     /** EDT only. Reuses one dialog; selects {@code networkId} when given. */
     private void openNetworksDialog(String networkId) {
         if (panel == null || networks == null) return;
-        List<NetworkConfig> all = networkConfigs();
+        List<NetworkConfig> all = storedNetworks();
         if (networksDialog == null) {
             networksDialog = new NetworksDialog(SwingUtilities.getWindowAncestor(panel.getChatContent()),
                     all.get(0), all.subList(1, all.size()), networkOrder(), new NetworksDialog.Callbacks() {
@@ -306,36 +360,47 @@ public class IrcPlugin extends Plugin {
 
     /** The channels a freshly opened connection joins. */
     private void joinOnOpen(IrcAdapter adapter, NetworkConfig network) {
-        Set<String> joined = new HashSet<>();
-        boolean firstOpen = openedThisSession.add(network.getId());
+        String id = network.getId();
+        // Each channel once whatever its casing, with the password to join it with.
+        Map<String, String> names = new LinkedHashMap<>();
+        Map<String, String> passwords = new HashMap<>();
+        boolean firstOpen = openedThisSession.add(id);
         if (network.isBuiltIn()) {
             // Like main: the default channel is joined once per session; a reconnect only
             // rejoins open buffers, so a channel the user parted stays parted.
             if (firstOpen) {
-                for (String channel : joinDefaultChannel(adapter).split(",")) {
-                    joined.add(channel.toLowerCase());
+                for (String channel : defaultChannel().split(",")) {
+                    want(names, passwords, channel, config.channelPassword());
                 }
             }
         } else {
             for (String channel : network.autojoinChannels()) {
-                joinChannel(adapter, network.getId(), channel, channelPasswords.getOrDefault(passwordKey(network.getId(), channel), ""));
-                joined.add(channel.toLowerCase());
+                want(names, passwords, channel, channelPasswords.getOrDefault(passwordKey(id, channel), ""));
             }
         }
         // A reconnect rejoins whatever channel buffers are still open for this network.
         if (panel != null) {
             for (BufferKey key : panel.getBuffers()) {
-                if (key.getNetworkId().equals(network.getId()) && key.getName().startsWith("#")
-                        && joined.add(key.getName().toLowerCase())) {
-                    joinChannel(adapter, network.getId(), key.getName(),
-                            channelPasswords.getOrDefault(passwordKey(network.getId(), key.getName()), ""));
+                if (key.getNetworkId().equals(id) && key.getName().startsWith("#")) {
+                    want(names, passwords, key.getName(),
+                            channelPasswords.getOrDefault(passwordKey(id, key.getName()), ""));
                 }
             }
         }
+        // The saved order first, so the buffers open in it; anything it does not name after.
+        List<String> order = OrderStore.parseChannelOrder(gson, config.channelOrder())
+                .getOrDefault(id, Collections.emptyList());
+        for (String channel : OrderStore.sortByOrder(new ArrayList<>(names.values()), order)) {
+            joinChannel(adapter, id, channel, passwords.get(channel.toLowerCase()));
+        }
     }
 
-    /** Joins the configured channel(s) and returns them as joined (normalized). */
-    private String joinDefaultChannel(IrcAdapter adapter) {
+    private static void want(Map<String, String> names, Map<String, String> passwords, String channel, String password) {
+        if (names.putIfAbsent(channel.toLowerCase(), channel) == null) passwords.put(channel.toLowerCase(), password);
+    }
+
+    /** The configured channel(s), normalized as joined. */
+    private String defaultChannel() {
         String channel;
         if (config.channel().isEmpty()) {
             channel = "#rshelp";
@@ -345,7 +410,6 @@ public class IrcPlugin extends Plugin {
                 channel = "#" + channel;
             }
         }
-        joinChannel(adapter, NetworkConfig.SWIFTIRC_ID, channel, config.channelPassword());
         return channel;
     }
 
@@ -937,8 +1001,11 @@ public class IrcPlugin extends Plugin {
             if (overlay != null) {
                 overlay.setEnabled(config.overlayEnabled());
             }
-        } else if (NetworkStore.CONFIG_KEY.equals(configChanged.getKey())) {
+        } else if (NetworkStore.CONFIG_KEY.equals(configChanged.getKey())
+                || OrderStore.NETWORK_ORDER_KEY.equals(configChanged.getKey())) {
             applyNetworks();
+        } else if (OrderStore.CHANNEL_ORDER_KEY.equals(configChanged.getKey())) {
+            applyChannelOrder();
         } else if ("server".equals(configChanged.getKey())
                 || "accountName".equals(configChanged.getKey())
                 || "password".equals(configChanged.getKey())
