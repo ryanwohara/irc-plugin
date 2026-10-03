@@ -31,6 +31,7 @@ final class NetworkStore {
         String host;
         Integer port;
         Boolean tls;
+        Boolean verifyTls;
         String nick;
         String serverPassword;
         String saslAccount;
@@ -71,6 +72,7 @@ final class NetworkStore {
                     .host(s.host.trim())
                     .port(s.port != null ? s.port : NetworkConfig.DEFAULT_PORT)
                     .tls(s.tls == null || s.tls)
+                    .verifyTls(s.verifyTls == null || s.verifyTls)
                     .nick(orEmpty(s.nick))
                     .serverPassword(orEmpty(s.serverPassword))
                     .saslAccount(orEmpty(s.saslAccount))
@@ -91,6 +93,7 @@ final class NetworkStore {
             s.host = n.getHost();
             s.port = n.getPort();
             s.tls = n.isTls();
+            s.verifyTls = n.isVerifyTls();
             s.nick = n.getNick();
             s.serverPassword = n.getServerPassword();
             s.saslAccount = n.getSaslAccount();

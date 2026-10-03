@@ -5,7 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -98,6 +101,15 @@ public class SimpleIrcClient {
         return this;
     }
 
+    /** False accepts any certificate for any host - for a self-signed bouncer, say. */
+    private boolean verifyTls = true;
+
+    public SimpleIrcClient verifyTls(boolean verify) {
+        this.verifyTls = verify;
+        return this;
+    }
+
+    boolean isVerifyingTls() { return verifyTls; }
     String getServerPassword() { return serverPassword; }
     String getHost() { return host; }
     int getPort() { return port; }
@@ -288,19 +300,59 @@ public class SimpleIrcClient {
      * ordering between setSSLParameters and setEnabledProtocols.
      */
     static void applyTlsSettings(SSLSocket sslSocket) {
+        applyTlsSettings(sslSocket, true);
+    }
+
+    /** As above; {@code verify} false leaves the hostname unchecked, for an unverified network. */
+    static void applyTlsSettings(SSLSocket sslSocket, boolean verify) {
         SSLParameters params = sslSocket.getSSLParameters();
-        params.setEndpointIdentificationAlgorithm("HTTPS");
+        params.setEndpointIdentificationAlgorithm(verify ? "HTTPS" : null);
         params.setProtocols(sslSocket.getSupportedProtocols());
         sslSocket.setSSLParameters(params);
     }
 
+    /**
+     * Trusts every certificate chain. Only for a network the user has marked "don't verify",
+     * typically a bouncer with a self-signed certificate: the link stays encrypted, but anyone
+     * on the path could impersonate the server.
+     */
+    static final X509TrustManager TRUST_ANY = new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {
+        }
+
+        @Override
+        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {
+        }
+
+        @Override
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+            return new java.security.cert.X509Certificate[0];
+        }
+    };
+
+    /** The JDK default when verifying; otherwise a factory that trusts any certificate. */
+    static SSLSocketFactory socketFactory(boolean verify) {
+        if (verify) return (SSLSocketFactory) SSLSocketFactory.getDefault();
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[]{TRUST_ANY}, null);
+            return context.getSocketFactory();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException("TLS is unavailable", e);
+        }
+    }
+
     /** Opens the TLS socket without handshaking, so the caller can attribute each phase. */
     private SSLSocket openSecureSocket() throws IOException {
-        SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        SSLSocketFactory factory = socketFactory(verifyTls);
+        if (!verifyTls) {
+            log.warn("TLS certificate verification is off for {}:{}", host, port);
+        }
         // Created with the hostname rather than an InetAddress: SNI and hostname verification
         // both need the name we dialled, and an InetAddress would strip it.
         SSLSocket sslSocket = (SSLSocket) factory.createSocket(host, port);
-        applyTlsSettings(sslSocket);
+        applyTlsSettings(sslSocket, verifyTls);
         sslSocket.setSoTimeout(READ_TIMEOUT_MS);
         return sslSocket;
     }

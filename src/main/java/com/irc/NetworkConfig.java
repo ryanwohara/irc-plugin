@@ -23,6 +23,8 @@ public class NetworkConfig {
     String host;
     @Builder.Default int port = DEFAULT_PORT;
     @Builder.Default boolean tls = true;
+    /** False accepts any certificate for any host: still encrypted, but not authenticated. */
+    @Builder.Default boolean verifyTls = true;
     /** Blank means "use the Username setting". */
     @Builder.Default String nick = "";
     /** Sent as PASS before registering; ZNC reads "user/network:password" from it. */
@@ -40,6 +42,7 @@ public class NetworkConfig {
     /** True when moving from this config to {@code other} needs a fresh connection. */
     boolean connectionDiffers(NetworkConfig other) {
         return !Objects.equals(host, other.host) || port != other.port || tls != other.tls
+                || verifyTls != other.verifyTls
                 || !Objects.equals(nick, other.nick)
                 || !Objects.equals(serverPassword, other.serverPassword)
                 || !Objects.equals(saslAccount, other.saslAccount)
@@ -66,6 +69,7 @@ public class NetworkConfig {
                 .host(config.server().getHostname())
                 .port(DEFAULT_PORT)
                 .tls(true)
+                .verifyTls(true)
                 .saslAccount(config.accountName() == null ? "" : config.accountName())
                 .saslPassword(password == null ? "" : password)
                 .autojoin(config.channel() == null ? "" : config.channel())

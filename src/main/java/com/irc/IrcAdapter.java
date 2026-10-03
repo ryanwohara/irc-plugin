@@ -60,7 +60,8 @@ public class IrcAdapter {
         client = new SimpleIrcClient()
                 .server(network.getHost(), network.getPort(), network.isTls())
                 .credentials(currentNick, "runelite", currentNick)
-                .serverPassword(network.getServerPassword());
+                .serverPassword(network.getServerPassword())
+                .verifyTls(network.isVerifyTls());
 
         if (!network.getSaslPassword().isEmpty()) {
             client.sasl(network.getSaslAccount(), network.getSaslPassword());
@@ -301,6 +302,9 @@ public class IrcAdapter {
                     if (NetworkConfig.SWIFTIRC_ID.equals(networkId)) {
                         processMessage(new IrcMessage("System", "System", "Welcome to IRC! To chat in the current channel, use '" + config.prefix() + "' followed by your message in the game chatbox.", IrcMessage.MessageType.SYSTEM, Instant.now()));
                         processMessage(new IrcMessage("System", "System", "For a list of commands, type '/help' in the side panel input box.", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    }
+                    if (client.isSecure() && !client.isVerifyingTls()) {
+                        processMessage(new IrcMessage("System", "System", "TLS certificate verification is off for this network.", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     }
                     reportConnected(true);
                     break;
