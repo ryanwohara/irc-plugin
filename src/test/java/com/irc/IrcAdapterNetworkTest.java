@@ -80,6 +80,24 @@ public class IrcAdapterNetworkTest {
     }
 
     @Test
+    public void liveTaggedLinesAreStampedWithOurClock() {
+        List<IrcMessage> messages = new ArrayList<>();
+        IrcAdapter adapter = new IrcAdapter();
+        adapter.initialize(stubConfig(), rizon(), messages::add, null, "me");
+        adapter.getClient().processLine(":server 001 me :Welcome");
+        Instant serverClock = Instant.now().minus(Duration.ofSeconds(3));
+        Instant before = Instant.now();
+        adapter.getClient().processLine("@time=" + serverClock + " :Ash!u@h PRIVMSG #chan :live");
+        adapter.getClient().processLine("@time=" + serverClock + " :Ash!u@h PRIVMSG #chan :\u0001ACTION waves\u0001");
+        IrcMessage live = last(messages, "live");
+        assertEquals(IrcMessage.MessageType.CHAT, live.getType());
+        assertFalse(live.getTimestamp().isBefore(before));
+        IrcMessage action = last(messages, "waves");
+        assertEquals(IrcMessage.MessageType.CHAT, action.getType());
+        assertFalse(action.getTimestamp().isBefore(before));
+    }
+
+    @Test
     public void unparseableTimeTagIsLive() {
         List<IrcMessage> messages = new ArrayList<>();
         IrcAdapter adapter = new IrcAdapter();

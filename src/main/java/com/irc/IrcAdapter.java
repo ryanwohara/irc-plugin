@@ -256,10 +256,9 @@ public class IrcAdapter {
         return sent.isBefore(reference.minus(PLAYBACK_THRESHOLD));
     }
 
-    /** A clock ahead of ours would date lines in the future; show those as now. */
-    private static Instant displayTime(Instant sent) {
-        Instant now = Instant.now();
-        return sent == null || sent.isAfter(now) ? now : sent;
+    /** Replayed lines keep the time they were sent; live ones are stamped by our clock, as on main. */
+    private static Instant displayTime(IrcMessage.MessageType type, Instant sent) {
+        return type == IrcMessage.MessageType.HISTORY ? sent : Instant.now();
     }
 
     /** The panel is read once: {@link #detach} may null it from another thread. */
@@ -349,14 +348,14 @@ public class IrcAdapter {
                     Instant chatSent = serverTime(event.getAdditionalData());
                     IrcMessage.MessageType chatType = isPlayback(chatSent) ? IrcMessage.MessageType.HISTORY : IrcMessage.MessageType.CHAT;
                     // Looked up by the original target: PMs have no channel, so they get no prefix.
-                    processMessage(new IrcMessage(target, source, event.getMessage(), chatType, displayTime(chatSent),
+                    processMessage(new IrcMessage(target, source, event.getMessage(), chatType, displayTime(chatType, chatSent),
                             client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
 
                 case ACTION: {
                     Instant sent = serverTime(event.getAdditionalData());
                     IrcMessage.MessageType actionType = isPlayback(sent) ? IrcMessage.MessageType.HISTORY : IrcMessage.MessageType.CHAT;
-                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), actionType, displayTime(sent),
+                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), actionType, displayTime(actionType, sent),
                             client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
                 }
