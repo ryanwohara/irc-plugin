@@ -447,4 +447,20 @@ public interface IrcConfig extends Config
             hidden = true
     )
     default String networks() { return ""; }
+
+    @ConfigItem(
+            keyName = OrderStore.NETWORK_ORDER_KEY,
+            name = "Network order",
+            description = "Comma-separated network ids, in the order the pop-out lists them.",
+            hidden = true
+    )
+    default String networkOrder() { return ""; }
+
+    @ConfigItem(
+            keyName = OrderStore.CHANNEL_ORDER_KEY,
+            name = "Channel order",
+            description = "Each network's channels, in the order the pop-out lists them.",
+            hidden = true
+    )
+    default String channelOrder() { return ""; }
 }
