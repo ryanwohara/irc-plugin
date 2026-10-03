@@ -407,6 +407,43 @@ public class IrcDesktopLayoutTest {
         return rowText(tree, path(tree, name));
     }
 
+    /**
+     * A disconnected network's root reads "○ Name  (disconnected)", which can be wider than the
+     * channel pane. Updating or selecting must not scroll the tree sideways to show it.
+     */
+    @Test
+    public void aWideNetworkLabelDoesNotScrollTheChannelListSideways() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            IrcDesktopLayout layout = layout(new java.util.ArrayList<>());
+            layout.attachChat(new JTabbedPane(), new JTextField());
+            layout.setSize(960, 600);
+            layout.validate();
+            JTree tree = (JTree) find(layout, "ircChannels");
+            JViewport viewport = (JViewport) SwingUtilities.getAncestorOfClass(JViewport.class, tree);
+            IrcDesktopLayout.NetworkNode wide = new IrcDesktopLayout.NetworkNode("libera-id",
+                    "Libera.Chat Network Bouncer", false, Arrays.asList("System", "#a"));
+
+            layout.updateChannels(Arrays.asList(swift(true, "System", "#rshelp"), wide), BufferKey.swiftIrc("#rshelp"));
+            layout.validate();
+            assertEquals("after the tree is rebuilt", 0, viewport.getViewPosition().x);
+
+            layout.updateChannels(Arrays.asList(swift(true, "System", "#rshelp"), wide), BufferKey.of("libera-id", "#a"));
+            layout.validate();
+            assertEquals("after selecting a channel under the wide root", 0, viewport.getViewPosition().x);
+
+            // A selected channel below the fold is still brought into view vertically.
+            java.util.List<String> many = new java.util.ArrayList<>(Arrays.asList("System"));
+            for (int i = 0; i < 60; i++) many.add("#c" + i);
+            IrcDesktopLayout.NetworkNode tall = new IrcDesktopLayout.NetworkNode("libera-id",
+                    "Libera.Chat Network Bouncer", false, many);
+            layout.updateChannels(Arrays.asList(swift(true, "System"), tall), BufferKey.of("libera-id", "#c59"));
+            layout.validate();
+            assertEquals(0, viewport.getViewPosition().x);
+            assertTrue("the last channel is scrolled to", viewport.getViewPosition().y > 0);
+        });
+    }
+
     private static IrcDesktopLayout layout(java.util.List<String> calls) {
         return new IrcDesktopLayout(key -> false, key -> calls.add("select " + key.getNetworkId() + " " + key),
                 nick -> {}, nick -> {}, () -> {}, () -> {}, () -> {},

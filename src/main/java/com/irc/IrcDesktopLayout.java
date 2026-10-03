@@ -421,7 +421,7 @@ final class IrcDesktopLayout extends JPanel {
                     TreePath path = new TreePath(node.getPath());
                     if (!path.equals(channels.getSelectionPath())) {
                         channels.setSelectionPath(path);
-                        channels.scrollPathToVisible(path);
+                        scrollRowIntoView(path);
                     }
                     break;
                 }
@@ -437,6 +437,18 @@ final class IrcDesktopLayout extends JPanel {
         } finally {
             synchronizing = false;
         }
+    }
+
+    /**
+     * Scrolls the selected row into view vertically only. scrollPathToVisible would also chase
+     * the row sideways, and a wide root label ("\u25cb Name  (disconnected)") pulls the whole tree
+     * to the right whenever it is rebuilt.
+     */
+    private void scrollRowIntoView(TreePath path) {
+        Rectangle row = channels.getPathBounds(path);
+        if (row == null) return;
+        Rectangle visible = channels.getVisibleRect();
+        channels.scrollRectToVisible(new Rectangle(visible.x, row.y, visible.width, row.height));
     }
 
     /** "#foo", or "#foo \u00b7 Rizon" once two or more networks are connected. */
