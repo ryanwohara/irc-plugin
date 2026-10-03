@@ -81,6 +81,19 @@ public class IrcPanel extends PluginPanel {
     /** Network display names and connection state by id, in the order networks were announced. */
     private final Map<String, String> networkNames = new LinkedHashMap<>();
     private final Map<String, Boolean> networkConnected = new LinkedHashMap<>();
+    /** Each network's saved channel order, by network id; new channels open in their place. */
+    private final Map<String, List<String>> channelOrders = new HashMap<>();
+    /** Set while tabs are moved or inserted: the tab pane's interim selection is meaningless. */
+    private boolean reordering;
+
+    /** Told when the user reorders networks or channels, so the order can be saved. */
+    interface OrderListener {
+        void networkOrderChanged(List<String> networkIds);
+
+        void channelOrderChanged(String networkId, List<String> channelNames);
+    }
+
+    private OrderListener orderListener;
 
     {
         networkNames.put(NetworkConfig.SWIFTIRC_ID, NetworkConfig.SWIFTIRC_NAME);
@@ -281,6 +294,7 @@ public class IrcPanel extends PluginPanel {
     /** Runs when the focused buffer changes. Package-private so tests can drive it without the
      *  full initializeGui() Swing setup, which cannot run headless. */
     void onFocusedBufferChanged() {
+        if (reordering) return;
         BufferKey current = getCurrentBuffer();
         focusedChannel = current;
         if (unreadMessages.containsKey(current)) {
@@ -849,21 +863,236 @@ public class IrcPanel extends PluginPanel {
     public void addChannel(BufferKey channel) {
         if (channelPanes.containsKey(channel)) return;
         ChannelPane pane = new ChannelPane(font, config, okHttpClient);
-        bufferDropdown.addItem(titleOf(channel));
+        int index = insertionIndex(channel);
+        if (index < 0) {
+            bufferDropdown.addItem(titleOf(channel));
+        }
 
         JScrollPane scrollPane = new JScrollPane(pane);
         scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> pane.cancelPreviewManager());
 
-        channelPanes.put(channel, pane);
-        unreadMessages.put(channel, false);
-        tabbedPane.addTab(titleOf(channel), new JScrollPane(pane));
+        if (index < 0) {
+            channelPanes.put(channel, pane);
+            unreadMessages.put(channel, false);
+            tabbedPane.addTab(titleOf(channel), new JScrollPane(pane));
+            index = tabbedPane.getTabCount() - 1;
+        } else {
+            insertBuffer(channel, pane, index);
+        }
         boolean configuredChannel = NetworkConfig.SWIFTIRC_ID.equals(channel.getNetworkId())
                 && channel.getName().equals(config.channel());
         if (config.autofocusOnNewTab() || configuredChannel || channelPanes.size() == 2) {
-            tabbedPane.setSelectedIndex(tabbedPane.getTabCount() - 1);
+            tabbedPane.setSelectedIndex(index);
             this.setFocusedChannel(channel);
         }
         refreshDesktopChannels();
+    }
+
+    /**
+     * Where a new channel goes when its network has a saved order: before the first open channel
+     * of that network that the order puts later, else just after the network's last channel.
+     * -1 means append, as for every buffer without a saved place.
+     */
+    private int insertionIndex(BufferKey channel) {
+        List<String> order = channelOrders.get(channel.getNetworkId());
+        if (order == null || !channel.isChannel()) return -1;
+        int rank = OrderStore.indexIn(order, channel.getName());
+        if (rank < 0) return -1;
+        List<BufferKey> buffers = getBuffers();
+        int lastChannel = -1;
+        for (int i = 0; i < buffers.size(); i++) {
+            BufferKey key = buffers.get(i);
+            if (!key.getNetworkId().equals(channel.getNetworkId()) || !key.isChannel()) continue;
+            if (OrderStore.indexIn(order, key.getName()) > rank) return i;
+            lastChannel = i;
+        }
+        return lastChannel < 0 || lastChannel + 1 >= buffers.size() ? -1 : lastChannel + 1;
+    }
+
+    /** Adds a buffer at {@code index} rather than the end, keeping the same buffer selected. */
+    private void insertBuffer(BufferKey channel, ChannelPane pane, int index) {
+        BufferKey selected = getCurrentBuffer();
+        List<BufferKey> order = getBuffers();
+        order.add(index, channel);
+        reordering = true;
+        try {
+            synchronized (channelPanes) {
+                channelPanes.put(channel, pane);
+                reorderKeys(channelPanes, order);
+            }
+            unreadMessages.put(channel, false);
+            reorderKeys(unreadMessages, order);
+            withoutDropdownListeners(() -> bufferDropdown.insertItemAt(titleOf(channel), index));
+            tabbedPane.insertTab(titleOf(channel), null, new JScrollPane(pane), null, index);
+            reselect(selected);
+        } finally {
+            reordering = false;
+        }
+    }
+
+    /**
+     * Moves a buffer's tab, pane, unread flag and dropdown entry to {@code newIndex} in the tab
+     * order, together, so the three stay index-aligned. The same buffer stays selected. EDT only.
+     */
+    void moveBuffer(BufferKey key, int newIndex) {
+        List<BufferKey> order = getBuffers();
+        int from = order.indexOf(key);
+        if (from < 0 || newIndex < 0 || newIndex >= order.size() || from == newIndex) return;
+        BufferKey selected = getCurrentBuffer();
+        order.remove(from);
+        order.add(newIndex, key);
+        reordering = true;
+        try {
+            String title = tabbedPane.getTitleAt(from);
+            Color foreground = tabbedPane.getForegroundAt(from);
+            Component content = tabbedPane.getComponentAt(from);
+            tabbedPane.removeTabAt(from);
+            tabbedPane.insertTab(title, null, content, null, newIndex);
+            tabbedPane.setForegroundAt(newIndex, foreground);
+            synchronized (channelPanes) {
+                reorderKeys(channelPanes, order);
+            }
+            reorderKeys(unreadMessages, order);
+            withoutDropdownListeners(() -> {
+                String item = bufferDropdown.getItemAt(from);
+                bufferDropdown.removeItemAt(from);
+                bufferDropdown.insertItemAt(item, newIndex);
+            });
+            reselect(selected);
+        } finally {
+            reordering = false;
+        }
+        refreshDesktopChannels();
+    }
+
+    /** Selects {@code key}'s tab and dropdown entry again after the indexes shifted. */
+    private void reselect(BufferKey key) {
+        int index = getBuffers().indexOf(key);
+        if (index < 0) return;
+        tabbedPane.setSelectedIndex(index);
+        withoutDropdownListeners(() -> bufferDropdown.setSelectedIndex(index));
+    }
+
+    private void withoutDropdownListeners(Runnable change) {
+        ActionListener[] listeners = bufferDropdown.getActionListeners();
+        for (ActionListener listener : listeners) bufferDropdown.removeActionListener(listener);
+        try {
+            change.run();
+        } finally {
+            for (ActionListener listener : listeners) bufferDropdown.addActionListener(listener);
+        }
+    }
+
+    /** Rebuilds {@code map} in {@code order}; keys it lacks are skipped, keys not listed kept last. */
+    private static <K, V> void reorderKeys(Map<K, V> map, List<K> order) {
+        LinkedHashMap<K, V> rebuilt = new LinkedHashMap<>();
+        for (K key : order) {
+            if (map.containsKey(key)) rebuilt.put(key, map.get(key));
+        }
+        for (Map.Entry<K, V> entry : map.entrySet()) rebuilt.putIfAbsent(entry.getKey(), entry.getValue());
+        map.clear();
+        map.putAll(rebuilt);
+    }
+
+    /** Set by the plugin; told only about moves the user makes, never about loaded orders. */
+    void setOrderListener(OrderListener listener) {
+        this.orderListener = listener;
+    }
+
+    /** Network ids in the order the pop-out lists them. */
+    List<String> networkOrder() {
+        return new ArrayList<>(networkNames.keySet());
+    }
+
+    /**
+     * Lists the given networks first, in that order; ids not given keep their current order after
+     * them, and ids the panel does not know are ignored. EDT only.
+     */
+    public void setNetworkOrder(List<String> networkIds) {
+        LinkedHashMap<String, String> reordered = new LinkedHashMap<>();
+        for (String id : networkIds) {
+            if (networkNames.containsKey(id)) reordered.put(id, networkNames.get(id));
+        }
+        for (Map.Entry<String, String> entry : networkNames.entrySet()) {
+            reordered.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        if (new ArrayList<>(reordered.keySet()).equals(networkOrder())) return;
+        networkNames.clear();
+        networkNames.putAll(reordered);
+        refreshDesktopChannels();
+    }
+
+    /** Remembers a network's channel order for channels opened from now on. EDT only. */
+    public void setChannelOrder(String networkId, List<String> channelNames) {
+        channelOrders.put(networkId, new ArrayList<>(channelNames));
+    }
+
+    /**
+     * Puts a network's open channels into its saved order. The channels the order names swap
+     * among their own tab positions; every other buffer stays where it is. EDT only.
+     */
+    public void sortChannels(String networkId) {
+        List<String> order = channelOrders.get(networkId);
+        if (order == null || order.isEmpty()) return;
+        List<BufferKey> desired = getBuffers();
+        List<Integer> slots = new ArrayList<>();
+        List<BufferKey> listed = new ArrayList<>();
+        for (int i = 0; i < desired.size(); i++) {
+            BufferKey key = desired.get(i);
+            if (key.getNetworkId().equals(networkId) && key.isChannel()
+                    && OrderStore.indexIn(order, key.getName()) >= 0) {
+                slots.add(i);
+                listed.add(key);
+            }
+        }
+        listed.sort(Comparator.comparingInt(key -> OrderStore.indexIn(order, key.getName())));
+        for (int i = 0; i < slots.size(); i++) desired.set(slots.get(i), listed.get(i));
+        for (int i = 0; i < desired.size(); i++) {
+            if (!getBuffers().get(i).equals(desired.get(i))) moveBuffer(desired.get(i), i);
+        }
+    }
+
+    /**
+     * The user dropped a buffer at {@code indexInGroup} among its network's channels (or private
+     * chats). A channel move is remembered and reported so it can be saved.
+     */
+    void userMovedBuffer(BufferKey key, int indexInGroup) {
+        List<BufferKey> before = getBuffers();
+        if (!before.contains(key) || SYSTEM_TAB.equals(key.getName())) return;
+        List<BufferKey> others = new ArrayList<>();
+        for (BufferKey other : before) {
+            if (!other.equals(key) && sameGroup(key, other)) others.add(other);
+        }
+        if (others.isEmpty()) return;
+        List<BufferKey> without = new ArrayList<>(before);
+        without.remove(key);
+        int target = indexInGroup < others.size()
+                ? without.indexOf(others.get(Math.max(0, indexInGroup)))
+                : without.indexOf(others.get(others.size() - 1)) + 1;
+        moveBuffer(key, target);
+        if (getBuffers().equals(before) || !key.isChannel()) return;
+        List<String> names = new ArrayList<>();
+        for (BufferKey buffer : getBuffers()) {
+            if (buffer.getNetworkId().equals(key.getNetworkId()) && buffer.isChannel()) names.add(buffer.getName());
+        }
+        channelOrders.put(key.getNetworkId(), names);
+        if (orderListener != null) orderListener.channelOrderChanged(key.getNetworkId(), new ArrayList<>(names));
+    }
+
+    /** Channels group with channels and private chats with private chats, per network. */
+    private static boolean sameGroup(BufferKey a, BufferKey b) {
+        return a.getNetworkId().equals(b.getNetworkId()) && a.isChannel() == b.isChannel()
+                && !SYSTEM_TAB.equals(b.getName());
+    }
+
+    /** The user dropped a network at {@code newIndex} among the networks; reported so it can be saved. */
+    void userMovedNetwork(String networkId, int newIndex) {
+        List<String> order = networkOrder();
+        if (!order.remove(networkId)) return;
+        order.add(Math.max(0, Math.min(newIndex, order.size())), networkId);
+        if (order.equals(networkOrder())) return;
+        setNetworkOrder(order);
+        if (orderListener != null) orderListener.networkOrderChanged(new ArrayList<>(order));
     }
 
     public void addChannel(String channel) {
