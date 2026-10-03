@@ -1,6 +1,7 @@
 # ![Logo](icon.png) IRC Plugin
 
-An integration with SwiftIRC through the OSRS chat box.
+An integration with SwiftIRC through the OSRS chat box. Other IRC networks, and ZNC bouncers, can
+be added alongside it (see [Multiple Networks and ZNC](#multiple-networks-and-znc)).
 
 ## Warning
 
@@ -51,7 +52,8 @@ NickServ Identification: ;;id
 ### Miscellaneous Commands
 
 Commands work from the chat box with the prefix doubled (`;;join`), or from the side panel's
-input box with a slash (`/join`). `;;help` lists them all.
+input box with a slash (`/join`). `;;help` lists them all. They act on the network of the
+channel you have selected.
 
 Join a channel: `;;join #cooking [key]` (with no channel, opens the channel browser)
 
@@ -82,11 +84,17 @@ Clear the side panel: `;;clear`
 
 Open IRC in its own window: `;;popout`
 
-Disconnect: `;;quit [message]`
+Add, edit, or remove IRC networks: `;;networks`
+
+Disconnect from the selected channel's network: `;;quit [message]`
 
 ## Configuration
 
 ### Connection
+
+These settings are for SwiftIRC. Other networks are set up in the Networks dialog (see
+[Multiple Networks and ZNC](#multiple-networks-and-znc)), which is also where SwiftIRC's
+**Connect automatically** and **Show in game chat** switches live.
 
 #### server
 
@@ -206,14 +214,24 @@ into a separate, resizable window. `;;popout` works even when **Enabled** is off
 window to the front if it is already open.
 Drag its title bar to move it, including to another monitor. All chat controls remain
 interactive: type messages, switch channels, browse channels, and click links as usual.
-The expanded layout includes a channel/private-chat tree with unread markers, chat in the
-center, and a user list on the right. Drag the dividers to adjust column widths. Clicking a
-channel in the tree moves the cursor to the input box so you can type straight away.
-Channels are numbered in the tree, matching the **Alt+number** shortcuts (see
-[Keyboard Shortcuts](#keyboard-shortcuts)). Double-click
-a nick (or press Enter on it) to open a private conversation; right-click for Message and WHOIS.
-The toolbar provides Reconnect, Join, Leave, Channels, and Dock actions. Docking restores the
-compact sidebar layout.
+The expanded layout includes a channel tree with unread markers, chat in the center, and a user
+list on the right. Drag the dividers to adjust column widths. The **Channel list** and **User
+list** buttons hide or show either side.
+
+The tree has one entry per network, marked ● when connected and ○ when not, each with its System
+buffer, its channels, and its private chats. Drag a network to reorder the networks, or a channel
+within its network to reorder its channels; the order is remembered. Right-click a network to
+Reconnect, Connect or Disconnect it, or Edit it. Clicking a channel in the tree moves the cursor
+to the input box so you can type straight away. Channels are numbered down the whole tree,
+matching the **Alt+number** shortcuts (see [Keyboard Shortcuts](#keyboard-shortcuts)).
+
+Above the chat are the channel's name (with its network once two are connected) and its topic.
+Links in the topic are clickable, and a long topic scrolls sideways - use the scrollbar or the
+mouse wheel. Double-click a nick (or press Enter on it) to open a private conversation;
+right-click for Message and WHOIS.
+
+The toolbar provides Reconnect, Join, Leave, Channels, and Networks for the selected channel's
+network, font and font size selectors, and Dock. Docking restores the compact sidebar layout.
 The same chat controls are reused, preserving scrollback, the selected channel, and unsent text
 without reconnecting to IRC.
 
@@ -299,6 +317,40 @@ Auto-joining multiple channels is possible by comma separating them in the setti
 #rshelp,#swiftirc,#cooking
 ```
 
+### Multiple Networks and ZNC
+
+SwiftIRC is always listed. To connect to another network at the same time, open the Networks
+dialog with the **Networks…** button in the pop-out or `;;networks`, and click **Add…**:
+
+| Field | |
+| --- | --- |
+| Name, Host, Port | The network as it appears in the tree, and where to connect |
+| Use TLS / Verify TLS certificate | Encrypt the connection, and check the server's certificate. Untick **Verify** only for a server with a self-signed certificate; the connection stays encrypted but is not authenticated, and its System buffer says so |
+| Nick | Blank uses your **username** setting |
+| Server password | Sent before registering. ZNC reads `username/network:password` from it |
+| SASL account / password | For networks that log you in with SASL |
+| Autojoin | Channels to join on connect, comma separated |
+| Connect automatically | Off leaves the network listed but disconnected; **Connect** still works by hand |
+| Show in game chat | See below |
+
+**ZNC.** The **ZNC preset** button turns TLS on. Add one entry per ZNC network; **Duplicate**
+copies an entry so only the `username/network` part of the password needs changing. When you
+connect, ZNC replays what you missed: those lines keep their original times, show as history, and
+don't mark channels unread. Lines you type in another client attached to the same ZNC appear too.
+
+**In-game chat.** Only one network's chat is shown in the game's chat box and overlay: SwiftIRC
+unless you tick **Show in game chat** on another. Messages you type in game with the prefix go to
+the channel selected in the side panel or pop-out, whichever network it belongs to. If you reach
+SwiftIRC through a ZNC, edit SwiftIRC in the dialog, untick **Connect automatically**, and tick
+**Show in game chat** on your ZNC entry instead.
+
+**Order.** **Move up** / **Move down** in the dialog, or dragging in the pop-out's tree, reorders
+networks; dragging a channel reorders it within its network. Channels are also joined in that
+order.
+
+In the side panel, other networks' channels are listed with the network's name, e.g.
+`#foo (Rizon)`. The same channel name on two networks is two separate channels.
+
 ### Registering a Nick
 
 To run commands, it is recommended to use the `System` tab of the side panel.
@@ -345,6 +397,10 @@ wrong you should see one of:
 
 Disconnect messages carry the cause where one is known, so `Disconnected from IRC (Ping timeout:
 240 seconds)` tells you it was not your own `/quit`.
+
+Each network reports in its own System buffer. A TLS handshake failure against a ZNC or server
+with a self-signed certificate usually means **Verify TLS certificate** needs to be unticked for
+that network in the Networks dialog.
 
 If a problem is not reproducible, enable **log raw IRC lines** in the plugin settings and
 reproduce it. The full protocol exchange, with passwords removed, is written to the RuneLite
