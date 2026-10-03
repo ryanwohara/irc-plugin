@@ -802,7 +802,7 @@ public class IrcPanel extends PluginPanel {
         desktopLayout.showTopic(channelTopics.getOrDefault(getCurrentBuffer().folded(), ""));
     }
 
-    /** Networks in announcement order, each with its buffers in tab order. */
+    /** Networks in the user's order (announcement order until reordered), each with its buffers in tab order. */
     private List<IrcDesktopLayout.NetworkNode> networkNodes() {
         Map<String, List<String>> buffersByNetwork = new LinkedHashMap<>();
         for (String id : networkNames.keySet()) buffersByNetwork.put(id, new ArrayList<>());
@@ -1264,21 +1264,14 @@ public class IrcPanel extends PluginPanel {
             return;
         }
         int selected = bufferDropdown.getSelectedIndex();
-        ActionListener[] listeners = bufferDropdown.getActionListeners();
-        for (ActionListener listener : listeners) {
-            bufferDropdown.removeActionListener(listener);
-        }
-        try {
-            bufferDropdown.removeItemAt(itemIndex);
-            bufferDropdown.insertItemAt(newName, itemIndex);
+        int index = itemIndex;
+        withoutDropdownListeners(() -> {
+            bufferDropdown.removeItemAt(index);
+            bufferDropdown.insertItemAt(newName, index);
             if (selected >= 0 && selected < bufferDropdown.getItemCount()) {
                 bufferDropdown.setSelectedIndex(selected);
             }
-        } finally {
-            for (ActionListener listener : listeners) {
-                bufferDropdown.addActionListener(listener);
-            }
-        }
+        });
     }
 
     private void promptRemoveChannel() {
