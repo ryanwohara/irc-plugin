@@ -439,4 +439,12 @@ public interface IrcConfig extends Config
             section = sidePanelSettings
     )
     default Color chatTextColor() { return ColorScheme.LIGHT_GRAY_COLOR; }
+
+    @ConfigItem(
+            keyName = NetworkStore.CONFIG_KEY,
+            name = "Networks",
+            description = "Extra IRC networks, edited from the pop-out's Networks dialog.",
+            hidden = true
+    )
+    default String networks() { return ""; }
 }
