@@ -463,4 +463,20 @@ public interface IrcConfig extends Config
             hidden = true
     )
     default String channelOrder() { return ""; }
+
+    @ConfigItem(
+            keyName = "swiftIrcEnabled",
+            name = "Connect to SwiftIRC automatically",
+            description = "Off when SwiftIRC is reached another way, e.g. through a ZNC. Set in the Networks dialog.",
+            hidden = true
+    )
+    default boolean swiftIrcEnabled() { return true; }
+
+    @ConfigItem(
+            keyName = "inGameNetwork",
+            name = "In-game network",
+            description = "The network whose chat is echoed into the game chatbox. Set in the Networks dialog.",
+            hidden = true
+    )
+    default String inGameNetwork() { return NetworkConfig.SWIFTIRC_ID; }
 }

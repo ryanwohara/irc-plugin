@@ -73,7 +73,7 @@ public class NetworkConfig {
                 .saslAccount(config.accountName() == null ? "" : config.accountName())
                 .saslPassword(password == null ? "" : password)
                 .autojoin(config.channel() == null ? "" : config.channel())
-                .enabled(true)
+                .enabled(config.swiftIrcEnabled())
                 .build();
     }
 }

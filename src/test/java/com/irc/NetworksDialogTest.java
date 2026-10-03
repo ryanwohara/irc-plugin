@@ -154,23 +154,20 @@ public class NetworksDialogTest {
     }
 
     @Test
-    public void builtInCannotBeEditedButCanBeToggled() throws Exception {
+    public void builtInHasAShortFormAndCanBeToggled() throws Exception {
         org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
         List<String> calls = new ArrayList<>();
         SwingUtilities.invokeAndWait(() -> {
-            NetworksDialog dialog = new NetworksDialog(null, builtIn(), Collections.singletonList(rizon()),
-                    Collections.emptyList(), new NetworksDialog.Callbacks() {
-                        @Override public void save(List<NetworkConfig> extras) { calls.add("save " + extras.size()); }
-                        @Override public void saveOrder(List<String> ids) { calls.add("order " + ids); }
-                        @Override public boolean isConnected(String id) { return "r1".equals(id); }
-                        @Override public void setConnected(String id, boolean c) { calls.add(id + " " + c); }
-                    });
+            NetworksDialog dialog = new NetworksDialog(null, builtIn().toBuilder().enabled(false).build(),
+                    Collections.singletonList(rizon()), Collections.emptyList(), recorder(calls));
             try {
                 dialog.selectNetwork(NetworkConfig.SWIFTIRC_ID);
-                assertFalse(find(dialog, "ircNetworkEdit").isEnabled());
+                assertTrue("SwiftIRC has its own short form", find(dialog, "ircNetworkEdit").isEnabled());
                 assertFalse(find(dialog, "ircNetworkRemove").isEnabled());
                 assertFalse(find(dialog, "ircNetworkDuplicate").isEnabled());
                 JButton connect = (JButton) find(dialog, "ircNetworkConnect");
+                assertTrue("a network that doesn't connect automatically can still be connected by hand",
+                        connect.isEnabled());
                 assertEquals("Connect", connect.getText());
 
                 dialog.selectNetwork("r1");
@@ -182,6 +179,81 @@ public class NetworksDialogTest {
                 dialog.dispose();
             }
         });
+    }
+
+    @Test
+    public void onlyOneNetworkShowsInGameChat() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        List<String> calls = new ArrayList<>();
+        SwingUtilities.invokeAndWait(() -> {
+            NetworksDialog dialog = new NetworksDialog(null, builtIn(), Collections.singletonList(rizon()),
+                    Collections.emptyList(), recorder(calls));
+            try {
+                assertEquals(NetworkConfig.SWIFTIRC_ID, dialog.inGameNetwork());
+                dialog.applyInGameChoice("r1", true);
+                assertEquals("r1", dialog.inGameNetwork());
+                dialog.applyInGameChoice("r1", true);
+                // Unticking a network that isn't the in-game one changes nothing.
+                dialog.applyInGameChoice(NetworkConfig.SWIFTIRC_ID, false);
+                assertEquals("r1", dialog.inGameNetwork());
+                // Unticking the in-game network hands game chat back to SwiftIRC.
+                dialog.applyInGameChoice("r1", false);
+                assertEquals(NetworkConfig.SWIFTIRC_ID, dialog.inGameNetwork());
+                assertEquals(java.util.Arrays.asList("in game r1", "in game swiftirc"), calls);
+            } finally {
+                dialog.dispose();
+            }
+        });
+    }
+
+    @Test
+    public void removingTheInGameNetworkHandsGameChatBackToSwiftIrc() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        List<String> calls = new ArrayList<>();
+        SwingUtilities.invokeAndWait(() -> {
+            NetworksDialog dialog = new NetworksDialog(null, builtIn(), Collections.singletonList(rizon()),
+                    Collections.emptyList(), recorder(calls));
+            try {
+                dialog.setInGameNetwork("r1");
+                dialog.removeNetwork("r1");
+                assertEquals(NetworkConfig.SWIFTIRC_ID, dialog.inGameNetwork());
+                assertTrue(calls.contains("save 0"));
+                assertTrue(calls.contains("in game swiftirc"));
+            } finally {
+                dialog.dispose();
+            }
+        });
+    }
+
+    @Test
+    public void builtInFormHoldsItsTwoSwitches() {
+        NetworksDialog.BuiltInForm form = new NetworksDialog.BuiltInForm(false, true);
+        assertFalse(form.enabled.isSelected());
+        assertTrue(form.inGame.isSelected());
+    }
+
+    @Test
+    public void networkFormCarriesTheInGameChoice() {
+        assertTrue(new NetworksDialog.NetworkForm(rizon(), true).inGame.isSelected());
+        assertFalse(new NetworksDialog.NetworkForm(rizon()).inGame.isSelected());
+    }
+
+    @Test
+    public void describeMarksTheInGameNetwork() {
+        assertEquals("● Rizon   irc.rizon.net:6697  (in game)", NetworksDialog.describe(rizon(), true, true));
+        assertEquals("○ Rizon   irc.rizon.net:6697  (disabled)  (in game)",
+                NetworksDialog.describe(rizon().toBuilder().enabled(false).build(), false, true));
+    }
+
+    private static NetworksDialog.Callbacks recorder(List<String> calls) {
+        return new NetworksDialog.Callbacks() {
+            @Override public void save(List<NetworkConfig> extras) { calls.add("save " + extras.size()); }
+            @Override public void saveOrder(List<String> ids) { calls.add("order " + ids); }
+            @Override public boolean isConnected(String id) { return "r1".equals(id); }
+            @Override public void setConnected(String id, boolean c) { calls.add(id + " " + c); }
+            @Override public void saveBuiltIn(boolean enabled) { calls.add("swiftirc enabled " + enabled); }
+            @Override public void saveInGameNetwork(String id) { calls.add("in game " + id); }
+        };
     }
 
     @Test

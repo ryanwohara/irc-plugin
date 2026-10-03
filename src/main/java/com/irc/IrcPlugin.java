@@ -330,10 +330,21 @@ public class IrcPlugin extends Plugin {
                         public void setConnected(String id, boolean connected) {
                             if (networks != null) networks.setConnected(id, connected);
                         }
+
+                        @Override
+                        public void saveBuiltIn(boolean enabled) {
+                            configManager.setConfiguration("irc", "swiftIrcEnabled", enabled);
+                        }
+
+                        @Override
+                        public void saveInGameNetwork(String id) {
+                            configManager.setConfiguration("irc", "inGameNetwork", id);
+                        }
                     });
         } else {
             networksDialog.setNetworks(all.get(0), all.subList(1, all.size()), networkOrder());
         }
+        networksDialog.setInGameNetwork(inGameNetwork());
         networksDialog.selectNetwork(networkId);
         networksDialog.setVisible(true);
         networksDialog.toFront();
@@ -912,11 +923,18 @@ public class IrcPlugin extends Plugin {
         }
     }
 
-    /** Phase 1: only SwiftIRC's live traffic is echoed into the game chatbox and overlay. */
-    static boolean echoesInGame(IrcMessage message) {
-        return NetworkConfig.SWIFTIRC_ID.equals(message.getNetworkId())
+    /** Only the in-game network's live traffic is echoed into the game chatbox and overlay. */
+    static boolean echoesInGame(IrcMessage message, String inGameNetworkId) {
+        return inGameNetworkId.equals(message.getNetworkId())
                 && message.getType() != IrcMessage.MessageType.HISTORY
                 && message.getType() != IrcMessage.MessageType.HISTORY_SEPARATOR;
+    }
+
+    /** The network chosen for game chat; SwiftIRC when none is chosen or it was removed. */
+    private String inGameNetwork() {
+        String id = config.inGameNetwork();
+        NetworkManager current = networks;
+        return id != null && current != null && current.isKnown(id) ? id : NetworkConfig.SWIFTIRC_ID;
     }
 
     private void processMessage(IrcMessage message) {
@@ -941,7 +959,7 @@ public class IrcPlugin extends Plugin {
             }
         }
 
-        if (echoesInGame(message) && client.getGameState() == GameState.LOGGED_IN) {
+        if (echoesInGame(message, inGameNetwork()) && client.getGameState() == GameState.LOGGED_IN) {
             BufferKey focused = panel != null ? panel.getCurrentBuffer() : null;
             boolean activeChannelCondition = focused == null
                     || (focused.getNetworkId().equals(target.getNetworkId())
@@ -1013,7 +1031,8 @@ public class IrcPlugin extends Plugin {
                 overlay.setEnabled(config.overlayEnabled());
             }
         } else if (NetworkStore.CONFIG_KEY.equals(configChanged.getKey())
-                || OrderStore.NETWORK_ORDER_KEY.equals(configChanged.getKey())) {
+                || OrderStore.NETWORK_ORDER_KEY.equals(configChanged.getKey())
+                || "swiftIrcEnabled".equals(configChanged.getKey())) {
             applyNetworks();
         } else if (OrderStore.CHANNEL_ORDER_KEY.equals(configChanged.getKey())) {
             applyChannelOrder();

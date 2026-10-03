@@ -96,10 +96,10 @@ public class IrcPluginNetworkRoutingTest {
     @Test
     public void onlySwiftIrcLiveTrafficEchoesInGame() {
         IrcMessage live = new IrcMessage("#rshelp", "Ash", "hi", IrcMessage.MessageType.CHAT, Instant.now());
-        assertTrue(IrcPlugin.echoesInGame(live));
-        assertFalse(IrcPlugin.echoesInGame(live.withNetworkId(RIZON)));
+        assertTrue(IrcPlugin.echoesInGame(live, NetworkConfig.SWIFTIRC_ID));
+        assertFalse(IrcPlugin.echoesInGame(live.withNetworkId(RIZON), NetworkConfig.SWIFTIRC_ID));
         assertFalse(IrcPlugin.echoesInGame(new IrcMessage("#rshelp", "Ash", "old",
-                IrcMessage.MessageType.HISTORY, Instant.now())));
+                IrcMessage.MessageType.HISTORY, Instant.now()), NetworkConfig.SWIFTIRC_ID));
     }
 
     @Test(timeout = 10000)

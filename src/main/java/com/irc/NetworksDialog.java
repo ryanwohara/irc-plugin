@@ -21,6 +21,14 @@ final class NetworksDialog extends JDialog {
         boolean isConnected(String networkId);
 
         void setConnected(String networkId, boolean connected);
+
+        /** Persists whether SwiftIRC connects automatically. */
+        default void saveBuiltIn(boolean enabled) {
+        }
+
+        /** Persists which network feeds the game chat. */
+        default void saveInGameNetwork(String networkId) {
+        }
     }
 
     private NetworkConfig builtIn;
@@ -28,6 +36,8 @@ final class NetworksDialog extends JDialog {
     /** The saved network order; see {@link OrderStore#applyNetworkOrder}. */
     private final List<String> order = new ArrayList<>();
     private final Callbacks callbacks;
+    /** The network whose chat is echoed in game; SwiftIRC unless the user picked another. */
+    private String inGame = NetworkConfig.SWIFTIRC_ID;
     private final DefaultListModel<NetworkConfig> model = new DefaultListModel<>();
     private final JList<NetworkConfig> list = new JList<>(model);
     private final JButton edit = button("Edit…", "ircNetworkEdit", this::editSelected);
@@ -51,7 +61,7 @@ final class NetworksDialog extends JDialog {
                                                           boolean selected, boolean focused) {
                 super.getListCellRendererComponent(l, value, index, selected, focused);
                 NetworkConfig network = (NetworkConfig) value;
-                setText(describe(network, callbacks.isConnected(network.getId())));
+                setText(describe(network, callbacks.isConnected(network.getId()), network.getId().equals(inGame)));
                 return this;
             }
         });
@@ -67,7 +77,8 @@ final class NetworksDialog extends JDialog {
         buttons.add(down);
         JPanel south = new JPanel(new BorderLayout());
         south.add(buttons, BorderLayout.NORTH);
-        JLabel note = new JLabel("SwiftIRC is set up in RuneLite's Global Chat (IRC) settings.");
+        JLabel note = new JLabel("SwiftIRC's server, username and passwords are set in RuneLite's"
+                + " Global Chat (IRC) settings.");
         note.setBorder(BorderFactory.createEmptyBorder(0, 8, 8, 8));
         south.add(note, BorderLayout.SOUTH);
 
@@ -91,6 +102,29 @@ final class NetworksDialog extends JDialog {
         reload();
     }
 
+    void setInGameNetwork(String id) {
+        inGame = id != null ? id : NetworkConfig.SWIFTIRC_ID;
+        list.repaint();
+    }
+
+    String inGameNetwork() {
+        return inGame;
+    }
+
+    /**
+     * Ticking "Show in game chat" makes that network the in-game one; unticking the current one
+     * hands game chat back to SwiftIRC. Only one network is ever in game.
+     */
+    void applyInGameChoice(String id, boolean checked) {
+        String next = inGame;
+        if (checked) next = id;
+        else if (id.equals(inGame)) next = NetworkConfig.SWIFTIRC_ID;
+        if (next.equals(inGame)) return;
+        inGame = next;
+        callbacks.saveInGameNetwork(next);
+        list.repaint();
+    }
+
     void selectNetwork(String id) {
         if (id == null) return;
         for (int i = 0; i < model.size(); i++) {
@@ -102,8 +136,12 @@ final class NetworksDialog extends JDialog {
     }
 
     static String describe(NetworkConfig network, boolean connected) {
+        return describe(network, connected, false);
+    }
+
+    static String describe(NetworkConfig network, boolean connected, boolean inGame) {
         return (connected ? "● " : "○ ") + network.getName() + "   " + network.getHost() + ":" + network.getPort()
-                + (network.isEnabled() ? "" : "  (disabled)");
+                + (network.isEnabled() ? "" : "  (disabled)") + (inGame ? "  (in game)" : "");
     }
 
     /** Why {@code candidate} can't be saved, or null when it can. {@code others} may include it. */
@@ -134,10 +172,11 @@ final class NetworksDialog extends JDialog {
     private void updateButtons() {
         NetworkConfig selected = selected();
         boolean extra = selected != null && !selected.isBuiltIn();
-        edit.setEnabled(extra);
+        edit.setEnabled(selected != null);
         duplicate.setEnabled(extra);
         remove.setEnabled(extra);
-        connect.setEnabled(selected != null && selected.isEnabled());
+        // A network that doesn't connect automatically can still be connected by hand.
+        connect.setEnabled(selected != null);
         connect.setText(selected != null && callbacks.isConnected(selected.getId()) ? "Disconnect" : "Connect");
         int index = list.getSelectedIndex();
         up.setEnabled(index > 0);
@@ -199,30 +238,40 @@ final class NetworksDialog extends JDialog {
 
     private void addNetwork() {
         NetworkConfig fresh = NetworkConfig.builder().id(UUID.randomUUID().toString()).name("").host("").build();
-        NetworkConfig edited = editNetwork(fresh, "Add network");
-        if (edited != null) {
+        NetworkForm form = editNetwork(fresh, "Add network");
+        if (form != null) {
+            NetworkConfig edited = form.toConfig();
             extras.add(edited);
             commit(edited.getId());
+            applyInGameChoice(edited.getId(), form.inGame.isSelected());
         }
     }
 
     private void editSelected() {
         NetworkConfig selected = selected();
-        if (selected == null || selected.isBuiltIn()) return;
-        NetworkConfig edited = editNetwork(selected, "Edit " + selected.getName());
-        if (edited != null) {
+        if (selected == null) return;
+        if (selected.isBuiltIn()) {
+            editBuiltIn();
+            return;
+        }
+        NetworkForm form = editNetwork(selected, "Edit " + selected.getName());
+        if (form != null) {
+            NetworkConfig edited = form.toConfig();
             extras.set(indexOf(selected.getId()), edited);
             commit(edited.getId());
+            applyInGameChoice(edited.getId(), form.inGame.isSelected());
         }
     }
 
     private void duplicateSelected() {
         NetworkConfig selected = selected();
         if (selected == null || selected.isBuiltIn()) return;
-        NetworkConfig edited = editNetwork(duplicateOf(selected), "Duplicate " + selected.getName());
-        if (edited != null) {
+        NetworkForm form = editNetwork(duplicateOf(selected), "Duplicate " + selected.getName());
+        if (form != null) {
+            NetworkConfig edited = form.toConfig();
             extras.add(indexOf(selected.getId()) + 1, edited);
             commit(edited.getId());
+            applyInGameChoice(edited.getId(), form.inGame.isSelected());
         }
     }
 
@@ -233,8 +282,30 @@ final class NetworksDialog extends JDialog {
                 "Remove " + selected.getName() + "? Its buffers will close.", "Remove network",
                 JOptionPane.YES_NO_OPTION);
         if (choice != JOptionPane.YES_OPTION) return;
-        extras.remove(indexOf(selected.getId()));
+        removeNetwork(selected.getId());
+    }
+
+    /** Drops an extra network; game chat falls back to SwiftIRC if it was the in-game one. */
+    void removeNetwork(String id) {
+        int index = indexOf(id);
+        if (index < 0) return;
+        extras.remove(index);
         commit(null);
+        applyInGameChoice(id, false);
+    }
+
+    /** SwiftIRC's own short form: everything else about it lives in RuneLite's settings. */
+    private void editBuiltIn() {
+        BuiltInForm form = new BuiltInForm(builtIn.isEnabled(), NetworkConfig.SWIFTIRC_ID.equals(inGame));
+        int choice = JOptionPane.showConfirmDialog(this, form, "Edit " + NetworkConfig.SWIFTIRC_NAME,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (choice != JOptionPane.OK_OPTION) return;
+        if (form.enabled.isSelected() != builtIn.isEnabled()) {
+            builtIn = builtIn.toBuilder().enabled(form.enabled.isSelected()).build();
+            callbacks.saveBuiltIn(builtIn.isEnabled());
+            reload();
+        }
+        applyInGameChoice(NetworkConfig.SWIFTIRC_ID, form.inGame.isSelected());
     }
 
     private void toggleConnection() {
@@ -246,8 +317,8 @@ final class NetworksDialog extends JDialog {
     }
 
     /** Shows the form until it validates or is cancelled; null when cancelled. */
-    private NetworkConfig editNetwork(NetworkConfig initial, String title) {
-        NetworkForm form = new NetworkForm(initial);
+    private NetworkForm editNetwork(NetworkConfig initial, String title) {
+        NetworkForm form = new NetworkForm(initial, initial.getId().equals(inGame));
         while (true) {
             int choice = JOptionPane.showConfirmDialog(this, form, title,
                     JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -256,7 +327,7 @@ final class NetworksDialog extends JDialog {
             List<NetworkConfig> others = new ArrayList<>(extras);
             others.add(0, builtIn);
             String error = validate(candidate, others);
-            if (error == null) return candidate;
+            if (error == null) return form;
             JOptionPane.showMessageDialog(this, error, "Network not saved", JOptionPane.WARNING_MESSAGE);
         }
     }
@@ -266,6 +337,22 @@ final class NetworksDialog extends JDialog {
         button.setName(name);
         button.addActionListener(e -> action.run());
         return button;
+    }
+
+    /** SwiftIRC's form: whether it connects automatically and whether it feeds game chat. */
+    static final class BuiltInForm extends JPanel {
+        final JCheckBox enabled = new JCheckBox("Connect automatically");
+        final JCheckBox inGame = new JCheckBox("Show in game chat");
+
+        BuiltInForm(boolean connectAutomatically, boolean showInGame) {
+            super(new GridLayout(0, 1, 0, 4));
+            enabled.setSelected(connectAutomatically);
+            inGame.setSelected(showInGame);
+            add(enabled);
+            add(inGame);
+            add(new JLabel("Turn this off when you reach SwiftIRC through a ZNC instead."));
+            add(new JLabel("Server, username and passwords are in RuneLite's Global Chat (IRC) settings."));
+        }
     }
 
     /** The add/edit form. Package-private fields so tests can fill it in. */
@@ -284,12 +371,18 @@ final class NetworksDialog extends JDialog {
         final JPasswordField saslPassword = new JPasswordField(20);
         final JTextField autojoin = new JTextField(20);
         final JCheckBox enabled = new JCheckBox("Connect automatically");
+        final JCheckBox inGame = new JCheckBox("Show in game chat");
         final JLabel zncHint = new JLabel("ZNC: Server password is username/network:password;"
                 + " uncheck Verify TLS if your ZNC uses a self-signed certificate");
 
         NetworkForm(NetworkConfig initial) {
+            this(initial, false);
+        }
+
+        NetworkForm(NetworkConfig initial, boolean showInGame) {
             super(new GridBagLayout());
             id = initial.getId();
+            inGame.setSelected(showInGame);
             name.setText(initial.getName());
             host.setText(initial.getHost());
             port.setText(String.valueOf(initial.getPort()));
@@ -325,6 +418,7 @@ final class NetworksDialog extends JDialog {
             row = addRow("SASL password", saslPassword, row);
             row = addRow("Autojoin", autojoin, row);
             row = addRow("", enabled, row);
+            row = addRow("", inGame, row);
             addRow("", zncPreset, row);
         }
 
