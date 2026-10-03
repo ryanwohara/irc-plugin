@@ -35,6 +35,7 @@ import javax.swing.*;
 import java.awt.Color;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,6 +71,8 @@ public class IrcPlugin extends Plugin {
     private static final Pattern VALID_WINKS = Pattern.compile("^;([opdOPD)(<>]|[-_];)");
 
     private final Map<String, String> channelPasswords = new HashMap<>();
+    /** Networks opened since startUp; later opens are reconnects. */
+    private final Set<String> openedThisSession = ConcurrentHashMap.newKeySet();
 
     @Override
     protected void startUp() throws Exception {
@@ -118,6 +121,7 @@ public class IrcPlugin extends Plugin {
             overlay = null;
         }
         channelPasswords.clear();
+        openedThisSession.clear();
     }
 
     @Provides
@@ -168,27 +172,7 @@ public class IrcPlugin extends Plugin {
             IrcAdapter adapter = new IrcAdapter();
             adapter.initialize(config, network, IrcPlugin.this::processMessage, panel, nick);
             adapter.connect();
-
-            Set<String> joined = new HashSet<>();
-            if (network.isBuiltIn()) {
-                joinDefaultChannel(adapter);
-                joined.add(config.channel().toLowerCase());
-            } else {
-                for (String channel : network.autojoinChannels()) {
-                    joinChannel(adapter, network.getId(), channel, channelPasswords.getOrDefault(passwordKey(network.getId(), channel), ""));
-                    joined.add(channel.toLowerCase());
-                }
-            }
-            // A reconnect rejoins whatever channel buffers are still open for this network.
-            if (panel != null) {
-                for (BufferKey key : panel.getBuffers()) {
-                    if (key.getNetworkId().equals(network.getId()) && key.getName().startsWith("#")
-                            && joined.add(key.getName().toLowerCase())) {
-                        joinChannel(adapter, network.getId(), key.getName(),
-                                channelPasswords.getOrDefault(passwordKey(network.getId(), key.getName()), ""));
-                    }
-                }
-            }
+            joinOnOpen(adapter, network);
             return adapter;
         }
 
@@ -299,7 +283,38 @@ public class IrcPlugin extends Plugin {
         panel.initializeGui();
     }
 
-    private void joinDefaultChannel(IrcAdapter adapter) {
+    /** The channels a freshly opened connection joins. */
+    private void joinOnOpen(IrcAdapter adapter, NetworkConfig network) {
+        Set<String> joined = new HashSet<>();
+        boolean firstOpen = openedThisSession.add(network.getId());
+        if (network.isBuiltIn()) {
+            // Like main: the default channel is joined once per session; a reconnect only
+            // rejoins open buffers, so a channel the user parted stays parted.
+            if (firstOpen) {
+                for (String channel : joinDefaultChannel(adapter).split(",")) {
+                    joined.add(channel.toLowerCase());
+                }
+            }
+        } else {
+            for (String channel : network.autojoinChannels()) {
+                joinChannel(adapter, network.getId(), channel, channelPasswords.getOrDefault(passwordKey(network.getId(), channel), ""));
+                joined.add(channel.toLowerCase());
+            }
+        }
+        // A reconnect rejoins whatever channel buffers are still open for this network.
+        if (panel != null) {
+            for (BufferKey key : panel.getBuffers()) {
+                if (key.getNetworkId().equals(network.getId()) && key.getName().startsWith("#")
+                        && joined.add(key.getName().toLowerCase())) {
+                    joinChannel(adapter, network.getId(), key.getName(),
+                            channelPasswords.getOrDefault(passwordKey(network.getId(), key.getName()), ""));
+                }
+            }
+        }
+    }
+
+    /** Joins the configured channel(s) and returns them as joined (normalized). */
+    private String joinDefaultChannel(IrcAdapter adapter) {
         String channel;
         if (config.channel().isEmpty()) {
             channel = "#rshelp";
@@ -310,6 +325,7 @@ public class IrcPlugin extends Plugin {
             }
         }
         joinChannel(adapter, NetworkConfig.SWIFTIRC_ID, channel, config.channelPassword());
+        return channel;
     }
 
     private void handleMessageSend(BufferKey buffer, String message) {

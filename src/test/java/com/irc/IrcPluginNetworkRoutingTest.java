@@ -22,6 +22,7 @@ public class IrcPluginNetworkRoutingTest {
         @Override public void sendRawLine(String line) { sent.add(line); }
         @Override public boolean isConnected() { return true; }
         @Override public void disconnect(String reason) { sent.add("QUIT " + reason); }
+        @Override public void joinChannel(String channel, String password) { sent.add("JOIN " + channel); }
     }
 
     private static IrcConfig stubConfig() {
@@ -123,5 +124,52 @@ public class IrcPluginNetworkRoutingTest {
         } finally {
             release.countDown();
         }
+    }
+
+    private static void joinOnOpen(IrcPlugin plugin, IrcAdapter adapter, NetworkConfig network) throws Exception {
+        Method m = IrcPlugin.class.getDeclaredMethod("joinOnOpen", IrcAdapter.class, NetworkConfig.class);
+        m.setAccessible(true);
+        m.invoke(plugin, adapter, network);
+    }
+
+    private static IrcPanel panelOf(IrcPlugin plugin) throws Exception {
+        Field field = IrcPlugin.class.getDeclaredField("panel");
+        field.setAccessible(true);
+        return (IrcPanel) field.get(plugin);
+    }
+
+    @Test
+    public void defaultChannelIsJoinedOnlyOnTheFirstOpen() throws Exception {
+        IrcPlugin plugin = plugin();
+        NetworkConfig swiftIrc = NetworkConfig.swiftIrc(stubConfig());
+        RecordingAdapter first = new RecordingAdapter();
+        joinOnOpen(plugin, first, swiftIrc);
+        assertEquals(Collections.singletonList("JOIN #rshelp"), first.sent);
+
+        // The user parted it, then reconnected: it stays parted.
+        RecordingAdapter second = new RecordingAdapter();
+        joinOnOpen(plugin, second, swiftIrc);
+        assertTrue(second.sent.toString(), second.sent.isEmpty());
+
+        // Its buffer is open again: the reconnect rejoins it, once.
+        panelOf(plugin).addChannel("#rshelp");
+        RecordingAdapter third = new RecordingAdapter();
+        joinOnOpen(plugin, third, swiftIrc);
+        assertEquals(Collections.singletonList("JOIN #rshelp"), third.sent);
+    }
+
+    @Test
+    public void normalizedDefaultChannelIsNotJoinedTwice() throws Exception {
+        IrcPlugin plugin = plugin();
+        IrcConfig bare = new IrcConfig() {
+            @Override public String username() { return "me"; }
+            @Override public String password() { return ""; }
+            @Override public String channel() { return "RSHelp"; }
+        };
+        set(IrcPlugin.class, plugin, "config", bare);
+        panelOf(plugin).addChannel("#rshelp");
+        RecordingAdapter adapter = new RecordingAdapter();
+        joinOnOpen(plugin, adapter, NetworkConfig.swiftIrc(bare));
+        assertEquals(Collections.singletonList("JOIN #rshelp"), adapter.sent);
     }
 }
