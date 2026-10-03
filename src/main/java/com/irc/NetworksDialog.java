@@ -6,11 +6,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Lists the built-in SwiftIRC network and the user's extra networks, and edits the extras. */
+/**
+ * Lists the built-in SwiftIRC network and the user's extra networks in the user's order, edits
+ * the extras and reorders all of them.
+ */
 final class NetworksDialog extends JDialog {
     interface Callbacks {
         /** Persists the extra networks (SwiftIRC excluded), in display order. */
         void save(List<NetworkConfig> extras);
+
+        /** Persists the order of every network, SwiftIRC included, as ids. */
+        void saveOrder(List<String> ids);
 
         boolean isConnected(String networkId);
 
@@ -19,6 +25,8 @@ final class NetworksDialog extends JDialog {
 
     private NetworkConfig builtIn;
     private final List<NetworkConfig> extras = new ArrayList<>();
+    /** The saved network order; see {@link OrderStore#applyNetworkOrder}. */
+    private final List<String> order = new ArrayList<>();
     private final Callbacks callbacks;
     private final DefaultListModel<NetworkConfig> model = new DefaultListModel<>();
     private final JList<NetworkConfig> list = new JList<>(model);
@@ -26,8 +34,11 @@ final class NetworksDialog extends JDialog {
     private final JButton duplicate = button("Duplicate", "ircNetworkDuplicate", this::duplicateSelected);
     private final JButton remove = button("Remove", "ircNetworkRemove", this::removeSelected);
     private final JButton connect = button("Connect", "ircNetworkConnect", this::toggleConnection);
+    private final JButton up = button("Move up", "ircNetworkUp", () -> moveSelected(-1));
+    private final JButton down = button("Move down", "ircNetworkDown", () -> moveSelected(1));
 
-    NetworksDialog(Window owner, NetworkConfig builtIn, List<NetworkConfig> extras, Callbacks callbacks) {
+    NetworksDialog(Window owner, NetworkConfig builtIn, List<NetworkConfig> extras, List<String> order,
+                   Callbacks callbacks) {
         super(owner, "IRC networks", ModalityType.MODELESS);
         this.callbacks = callbacks;
         setDefaultCloseOperation(HIDE_ON_CLOSE);
@@ -52,6 +63,8 @@ final class NetworksDialog extends JDialog {
         buttons.add(duplicate);
         buttons.add(remove);
         buttons.add(connect);
+        buttons.add(up);
+        buttons.add(down);
         JPanel south = new JPanel(new BorderLayout());
         south.add(buttons, BorderLayout.NORTH);
         JLabel note = new JLabel("SwiftIRC is set up in RuneLite's Global Chat (IRC) settings.");
@@ -63,16 +76,18 @@ final class NetworksDialog extends JDialog {
         content.add(south, BorderLayout.SOUTH);
         setContentPane(content);
 
-        setNetworks(builtIn, extras);
-        setSize(520, 320);
+        setNetworks(builtIn, extras, order);
+        setSize(640, 320);
         setLocationRelativeTo(owner);
     }
 
     /** Replaces what the list shows, keeping the selection where it can. */
-    void setNetworks(NetworkConfig builtIn, List<NetworkConfig> extras) {
+    void setNetworks(NetworkConfig builtIn, List<NetworkConfig> extras, List<String> order) {
         this.builtIn = builtIn;
         this.extras.clear();
         this.extras.addAll(extras);
+        this.order.clear();
+        this.order.addAll(order);
         reload();
     }
 
@@ -124,15 +139,49 @@ final class NetworksDialog extends JDialog {
         remove.setEnabled(extra);
         connect.setEnabled(selected != null && selected.isEnabled());
         connect.setText(selected != null && callbacks.isConnected(selected.getId()) ? "Disconnect" : "Connect");
+        int index = list.getSelectedIndex();
+        up.setEnabled(index > 0);
+        down.setEnabled(index >= 0 && index < model.size() - 1);
     }
 
     private void reload() {
         String selectedId = selected() != null ? selected().getId() : null;
         model.clear();
-        model.addElement(builtIn);
-        for (NetworkConfig extra : extras) model.addElement(extra);
+        for (NetworkConfig network : OrderStore.applyNetworkOrder(all(), order)) model.addElement(network);
         selectNetwork(selectedId);
         updateButtons();
+    }
+
+    /** SwiftIRC, then the extras in their saved list order. */
+    private List<NetworkConfig> all() {
+        List<NetworkConfig> all = new ArrayList<>();
+        all.add(builtIn);
+        all.addAll(extras);
+        return all;
+    }
+
+    /**
+     * Swaps the selected network with its neighbour and saves both the full order and the extras
+     * in the same relative order, so the stored list reads the way the dialog shows it.
+     */
+    private void moveSelected(int step) {
+        int from = list.getSelectedIndex();
+        int to = from + step;
+        if (from < 0 || to < 0 || to >= model.size()) return;
+        List<NetworkConfig> shown = new ArrayList<>();
+        for (int i = 0; i < model.size(); i++) shown.add(model.get(i));
+        NetworkConfig moved = shown.remove(from);
+        shown.add(to, moved);
+        order.clear();
+        extras.clear();
+        for (NetworkConfig network : shown) {
+            order.add(network.getId());
+            if (!network.isBuiltIn()) extras.add(network);
+        }
+        callbacks.save(new ArrayList<>(extras));
+        callbacks.saveOrder(new ArrayList<>(order));
+        reload();
+        selectNetwork(moved.getId());
     }
 
     private int indexOf(String id) {

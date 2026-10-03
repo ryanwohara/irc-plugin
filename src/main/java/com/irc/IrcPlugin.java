@@ -137,6 +137,22 @@ public class IrcPlugin extends Plugin {
         return all;
     }
 
+    /** The saved network order as ids; it may name networks that have since been removed. */
+    private List<String> networkOrder() {
+        return OrderStore.parseNetworkOrder(config.networkOrder());
+    }
+
+    /** Saves the network order, dropping ids of networks that no longer exist. */
+    private void saveNetworkOrder(List<String> ids) {
+        Set<String> known = new HashSet<>();
+        for (NetworkConfig network : networkConfigs()) known.add(network.getId());
+        List<String> kept = new ArrayList<>();
+        for (String id : ids) {
+            if (known.contains(id)) kept.add(id);
+        }
+        configManager.setConfiguration("irc", OrderStore.NETWORK_ORDER_KEY, OrderStore.serializeNetworkOrder(kept));
+    }
+
     private void applyNetworks() {
         if (networks == null) return;
         List<NetworkConfig> all = networkConfigs();
@@ -148,7 +164,7 @@ public class IrcPlugin extends Plugin {
         if (networksDialog != null) {
             SwingUtilities.invokeLater(() -> {
                 if (networksDialog != null) {
-                    networksDialog.setNetworks(all.get(0), all.subList(1, all.size()));
+                    networksDialog.setNetworks(all.get(0), all.subList(1, all.size()), networkOrder());
                 }
             });
         }
@@ -227,11 +243,16 @@ public class IrcPlugin extends Plugin {
         List<NetworkConfig> all = networkConfigs();
         if (networksDialog == null) {
             networksDialog = new NetworksDialog(SwingUtilities.getWindowAncestor(panel.getChatContent()),
-                    all.get(0), all.subList(1, all.size()), new NetworksDialog.Callbacks() {
+                    all.get(0), all.subList(1, all.size()), networkOrder(), new NetworksDialog.Callbacks() {
                         @Override
                         public void save(List<NetworkConfig> extras) {
                             configManager.setConfiguration("irc", NetworkStore.CONFIG_KEY,
                                     NetworkStore.serialize(gson, extras));
+                        }
+
+                        @Override
+                        public void saveOrder(List<String> ids) {
+                            saveNetworkOrder(ids);
                         }
 
                         @Override
@@ -246,7 +267,7 @@ public class IrcPlugin extends Plugin {
                         }
                     });
         } else {
-            networksDialog.setNetworks(all.get(0), all.subList(1, all.size()));
+            networksDialog.setNetworks(all.get(0), all.subList(1, all.size()), networkOrder());
         }
         networksDialog.selectNetwork(networkId);
         networksDialog.setVisible(true);

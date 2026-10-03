@@ -79,8 +79,9 @@ public class NetworksDialogTest {
         List<String> calls = new ArrayList<>();
         SwingUtilities.invokeAndWait(() -> {
             NetworksDialog dialog = new NetworksDialog(null, builtIn(), Collections.singletonList(rizon()),
-                    new NetworksDialog.Callbacks() {
+                    Collections.emptyList(), new NetworksDialog.Callbacks() {
                         @Override public void save(List<NetworkConfig> extras) { calls.add("save " + extras.size()); }
+                        @Override public void saveOrder(List<String> ids) { calls.add("order " + ids); }
                         @Override public boolean isConnected(String id) { return "r1".equals(id); }
                         @Override public void setConnected(String id, boolean c) { calls.add(id + " " + c); }
                     });
@@ -101,6 +102,63 @@ public class NetworksDialogTest {
                 dialog.dispose();
             }
         });
+    }
+
+    @Test
+    public void moveUpAndDownReorderEveryNetworkAndSaveTheOrder() throws Exception {
+        org.junit.Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        List<String> calls = new ArrayList<>();
+        NetworkConfig libera = rizon().toBuilder().id("l2").name("Libera").host("irc.libera.chat").build();
+        SwingUtilities.invokeAndWait(() -> {
+            NetworksDialog dialog = new NetworksDialog(null, builtIn(), Arrays.asList(rizon(), libera),
+                    Arrays.asList("r1", "gone", NetworkConfig.SWIFTIRC_ID), new NetworksDialog.Callbacks() {
+                        @Override public void save(List<NetworkConfig> extras) {
+                            List<String> ids = new ArrayList<>();
+                            for (NetworkConfig extra : extras) ids.add(extra.getId());
+                            calls.add("save " + ids);
+                        }
+                        @Override public void saveOrder(List<String> ids) { calls.add("order " + ids); }
+                        @Override public boolean isConnected(String id) { return false; }
+                        @Override public void setConnected(String id, boolean c) { }
+                    });
+            try {
+                JList<?> list = (JList<?>) find(dialog, "ircNetworkList");
+                JButton up = (JButton) find(dialog, "ircNetworkUp");
+                JButton down = (JButton) find(dialog, "ircNetworkDown");
+                assertEquals(Arrays.asList("r1", NetworkConfig.SWIFTIRC_ID, "l2"), ids(list));
+
+                dialog.selectNetwork("r1");
+                assertFalse(up.isEnabled());
+                assertTrue(down.isEnabled());
+                dialog.selectNetwork("l2");
+                assertTrue(up.isEnabled());
+                assertFalse(down.isEnabled());
+
+                // SwiftIRC moves like any other network.
+                dialog.selectNetwork(NetworkConfig.SWIFTIRC_ID);
+                down.doClick();
+                assertEquals(Arrays.asList("r1", "l2", NetworkConfig.SWIFTIRC_ID), ids(list));
+                assertEquals(NetworkConfig.SWIFTIRC_ID, ((NetworkConfig) list.getSelectedValue()).getId());
+                dialog.selectNetwork("l2");
+                up.doClick();
+                assertEquals(Arrays.asList("l2", "r1", NetworkConfig.SWIFTIRC_ID), ids(list));
+                assertEquals(Arrays.asList(
+                        "save [r1, l2]", "order [r1, l2, swiftirc]",
+                        "save [l2, r1]", "order [l2, r1, swiftirc]"), calls);
+
+                // Reloading from the saved settings keeps the order.
+                dialog.setNetworks(builtIn(), Arrays.asList(libera, rizon()), Arrays.asList("l2", "r1", NetworkConfig.SWIFTIRC_ID));
+                assertEquals(Arrays.asList("l2", "r1", NetworkConfig.SWIFTIRC_ID), ids(list));
+            } finally {
+                dialog.dispose();
+            }
+        });
+    }
+
+    private static List<String> ids(JList<?> list) {
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < list.getModel().getSize(); i++) ids.add(((NetworkConfig) list.getModel().getElementAt(i)).getId());
+        return ids;
     }
 
     private static Component find(Container parent, String name) {
