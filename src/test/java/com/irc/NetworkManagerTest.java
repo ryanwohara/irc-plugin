@@ -148,6 +148,20 @@ public class NetworkManagerTest {
     }
 
     @Test
+    public void connectRestartsANetworkWhoseConnectionDropped() {
+        NetworkConfig a = net("a");
+        IrcAdapter dropped = new IrcAdapter() {
+            @Override public boolean isConnected() {
+                return false;
+            }
+        };
+        manager.register(a, dropped);
+        manager.setConnected("a", true);
+        assertEquals(Arrays.asList("close a true false Reloading, brb", "open a"), calls);
+        assertNotSame(dropped, manager.get("a"));
+    }
+
+    @Test
     public void shutdownClosesEverything() {
         manager.apply(Arrays.asList(net("a"), net("b")));
         calls.clear();

@@ -115,7 +115,17 @@ final class NetworkManager {
         if (config == null) return;
         if (connected) {
             paused.remove(id);
-            if (config.isEnabled() && !running.containsKey(id)) start(config);
+            if (!config.isEnabled()) return;
+            if (!running.containsKey(id)) {
+                start(config);
+            } else {
+                // Still listed but dropped (lost link, bad password, /quit): connect afresh.
+                IrcAdapter adapter = running.get(id);
+                if (adapter == null || !adapter.isConnected()) {
+                    stop(id, false, "Reloading, brb");
+                    start(config);
+                }
+            }
         } else {
             paused.add(id);
             stop(id, false, "Disconnecting");
