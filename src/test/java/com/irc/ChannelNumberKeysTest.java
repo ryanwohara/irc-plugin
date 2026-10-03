@@ -18,12 +18,13 @@ public class ChannelNumberKeysTest {
     private final JTextField input = new JTextField();
     private final JTextField outside = new JTextField();
     private final List<Integer> jumps = new ArrayList<>();
+    private int markAllReads;
     private ChannelNumberKeys keys;
 
     @Before
     public void setUp() {
         root.add(input);
-        keys = new ChannelNumberKeys(root, jumps::add);
+        keys = new ChannelNumberKeys(root, jumps::add, () -> markAllReads++);
         keys.install();
     }
 
@@ -119,6 +120,32 @@ public class ChannelNumberKeysTest {
         keys.uninstall();
         assertFalse(press(input, KeyEvent.VK_3, KeyEvent.ALT_DOWN_MASK));
         assertEquals(Collections.singletonList(2), jumps);
+    }
+
+    @Test
+    public void altHMarksEverythingReadAndSwallowsItsTypedCharacter() {
+        assertTrue(press(input, KeyEvent.VK_H, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(type(input, 'h', KeyEvent.ALT_DOWN_MASK));
+        assertEquals(1, markAllReads);
+        assertTrue(jumps.isEmpty());
+    }
+
+    @Test
+    public void plainHAndAltGrHStillType() {
+        assertFalse(press(input, KeyEvent.VK_H, 0));
+        assertFalse(type(input, 'h', 0));
+        assertFalse(press(input, KeyEvent.VK_H, KeyEvent.ALT_DOWN_MASK | KeyEvent.CTRL_DOWN_MASK));
+        assertFalse(press(input, KeyEvent.VK_H, KeyEvent.ALT_GRAPH_DOWN_MASK));
+        assertEquals(0, markAllReads);
+    }
+
+    @Test
+    public void altHCancelsAPendingJump() {
+        press(input, KeyEvent.VK_J, KeyEvent.ALT_DOWN_MASK);
+        assertTrue(press(input, KeyEvent.VK_H, KeyEvent.ALT_DOWN_MASK));
+        assertEquals(1, markAllReads);
+        assertFalse("the jump is over, so digits type again", press(input, KeyEvent.VK_1, 0));
+        assertTrue(jumps.isEmpty());
     }
 
     private boolean press(JComponent source, int code, int mods) {

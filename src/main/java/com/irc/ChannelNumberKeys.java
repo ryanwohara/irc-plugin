@@ -14,7 +14,7 @@ import java.util.function.IntConsumer;
 /**
  * WeeChat-style buffer number keys, active while focus is inside {@code root}: Alt+1 to Alt+9 jump
  * straight to that buffer and Alt+0 to the tenth, and Alt+J followed by two digits jumps to any
- * buffer (Alt+J 1 1 for the eleventh).
+ * buffer (Alt+J 1 1 for the eleventh). Alt+H marks every buffer read.
  *
  * A key listener on every component under {@code root} rather than key bindings, because the
  * KEY_TYPED that follows a handled key press must be swallowed too: otherwise the digits after
@@ -29,13 +29,15 @@ final class ChannelNumberKeys implements KeyListener, ContainerListener {
         public void focusLost(FocusEvent e) { reset(); }
     };
     private final IntConsumer jump;
+    private final Runnable markAllRead;
     /** Digits typed since Alt+J; null when no jump is pending. */
     private String digits;
     private boolean swallowTyped;
 
-    ChannelNumberKeys(Component root, IntConsumer jump) {
+    ChannelNumberKeys(Component root, IntConsumer jump, Runnable markAllRead) {
         this.root = root;
         this.jump = jump;
+        this.markAllRead = markAllRead;
     }
 
     void install() {
@@ -125,6 +127,11 @@ final class ChannelNumberKeys implements KeyListener, ContainerListener {
         if (code == KeyEvent.VK_J) {
             digits = "";
             swallowTyped = true;
+            return true;
+        }
+        if (code == KeyEvent.VK_H) {
+            swallowTyped = true;
+            markAllRead.run();
             return true;
         }
         return false;

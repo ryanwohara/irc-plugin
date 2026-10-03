@@ -275,6 +275,7 @@ In the side panel or pop-out window:
 | **Alt+1** … **Alt+9** | Jump to channels 1–9 |
 | **Alt+0** | Jump to channel 10 |
 | **Alt+J**, then two digits | Jump to any channel, e.g. **Alt+J 1 1** for the eleventh |
+| **Alt+H** | Mark every channel as read |
 | **Tab** / **Shift+Tab** | Complete a nick or channel name |
 | **↑** / **↓** | Recall previously sent messages |
 | **Ctrl+B** / **Ctrl+I** / **Ctrl+U** | Insert bold / italic / underline formatting |

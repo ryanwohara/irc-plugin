@@ -269,7 +269,7 @@ public class IrcPanel extends PluginPanel {
         };
         inputField.getActionMap().put("paste", customPasteAction);
         setupShortcuts();
-        channelNumberKeys = new ChannelNumberKeys(chatContent, this::jumpToChannel);
+        channelNumberKeys = new ChannelNumberKeys(chatContent, this::jumpToChannel, this::markAllRead);
         channelNumberKeys.install();
         inputField.addActionListener(e -> {
             String message = inputField.getText();
@@ -632,6 +632,16 @@ public class IrcPanel extends PluginPanel {
     }
 
     /** The selected buffer; SwiftIRC's System when nothing is selected. */
+    /** Clears the unread flag on every buffer of every network (Alt+H). EDT only. */
+    public void markAllRead() {
+        for (Map.Entry<BufferKey, Boolean> entry : unreadMessages.entrySet()) entry.setValue(false);
+        if (tabbedPane != null) {
+            for (int i = 0; i < tabbedPane.getTabCount(); i++) tabbedPane.setForegroundAt(i, Color.WHITE);
+        }
+        bufferDropdown.repaint();
+        refreshDesktopChannels();
+    }
+
     public BufferKey getCurrentBuffer() {
         int index = tabbedPane == null ? -1 : tabbedPane.getSelectedIndex();
         List<BufferKey> buffers = getBuffers();

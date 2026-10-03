@@ -43,6 +43,23 @@ public class IrcPanelNetworkTest {
     }
 
     @Test
+    public void markAllReadClearsEveryNetworksUnreadBuffers() throws Exception {
+        IrcPanel panel = panel();
+        panel.addChannel("#a"); // second buffer: gets focus
+        panel.addMessage(new IrcMessage("#b", "Ash", "hi", CHAT, Instant.now()));
+        panel.addMessage(new IrcMessage("#c", "Ash", "hi", CHAT, Instant.now()).withNetworkId(RIZON));
+        assertTrue(panel.isUnread("#b"));
+        assertTrue(panel.unreadMessages.get(BufferKey.of(RIZON, "#c")));
+
+        panel.markAllRead();
+
+        for (BufferKey key : panel.getBuffers()) {
+            assertFalse(key + " should be read", panel.unreadMessages.getOrDefault(key, false));
+        }
+        assertEquals(panel.getBuffers().size(), panel.unreadMessages.size());
+    }
+
+    @Test
     public void sameChannelNameOnTwoNetworksMakesTwoBuffers() throws Exception {
         IrcPanel panel = panel();
         panel.addMessage(new IrcMessage("#rshelp", "Ash", "on swift", CHAT, Instant.now()));

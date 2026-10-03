@@ -285,7 +285,7 @@ final class IrcDesktopLayout extends JPanel {
         add(all, BorderLayout.CENTER);
         configureToggle(channelsToggle, "ircToggleChannels", "Show or hide the channel list", all, left);
         configureToggle(usersToggle, "ircToggleUsers", "Show or hide the user list", chatAndUsers, right);
-        JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Alt+1–0 or Alt+J ## switch channel  ·  Double-click a nick to message");
+        JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Alt+1–0 or Alt+J ## switch channel  ·  Alt+H mark all read  ·  Double-click a nick to message");
         hint.setFont(hint.getFont().deriveFont(11f));
         hint.setForeground(MUTED);
         add(hint, BorderLayout.SOUTH);
