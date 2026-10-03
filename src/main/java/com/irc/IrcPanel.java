@@ -1333,6 +1333,12 @@ public class IrcPanel extends PluginPanel {
         private final PreviewManager previewManager;
         /** Set when a render couldn't scroll because the pane was off screen. */
         private boolean scrollPending;
+        /**
+         * Set while a render is queued. A burst of lines (a ZNC replaying its backlog) then costs one
+         * re-parse of the scrollback instead of one per line, which used to freeze the window.
+         */
+        private final java.util.concurrent.atomic.AtomicBoolean renderQueued =
+                new java.util.concurrent.atomic.AtomicBoolean();
 
         ChannelPane(Font font, IrcConfig config, OkHttpClient okHttpClient) {
             this.config = config;
@@ -1380,7 +1386,12 @@ public class IrcPanel extends PluginPanel {
             if (messageLog.size() > config.getMaxScrollback()) {
                 messageLog.remove(0);
             }
-            SwingUtilities.invokeLater(this::render);
+            if (renderQueued.compareAndSet(false, true)) {
+                SwingUtilities.invokeLater(() -> {
+                    renderQueued.set(false);
+                    render();
+                });
+            }
         }
 
         void applyFont(Font font) {
