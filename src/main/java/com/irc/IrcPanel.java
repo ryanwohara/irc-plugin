@@ -901,6 +901,11 @@ public class IrcPanel extends PluginPanel {
 
     public void addMessage(IrcMessage message) {
         BufferKey key = message.getBuffer();
+        // A line already on its way when the network was removed must not bring its buffer back.
+        if (!NetworkConfig.SWIFTIRC_ID.equals(key.getNetworkId())
+                && !networkNames.containsKey(key.getNetworkId())) {
+            return;
+        }
         ChannelPane pane = channelPanes.get(key);
         if (pane == null) {
             addChannel(key);

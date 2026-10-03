@@ -54,6 +54,16 @@ public class IrcPanelNetworkTest {
     }
 
     @Test
+    public void lateMessageForARemovedNetworkDoesNotRecreateItsBuffer() throws Exception {
+        IrcPanel panel = panel();
+        panel.addMessage(new IrcMessage("#foo", "Ash", "hi", CHAT, Instant.now()).withNetworkId(RIZON));
+        panel.removeNetworkBuffers(RIZON);
+        panel.forgetNetwork(RIZON);
+        panel.addMessage(new IrcMessage("#foo", "Ash", "late", CHAT, Instant.now()).withNetworkId(RIZON));
+        assertEquals(Collections.singletonList(BufferKey.swiftIrc("System")), panel.getBuffers());
+    }
+
+    @Test
     public void samePmNickOnTwoNetworksMakesTwoBuffers() throws Exception {
         IrcPanel panel = panel();
         panel.addMessage(new IrcMessage("Luna", "Luna", "hi", CHAT, Instant.now()));
