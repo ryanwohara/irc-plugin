@@ -200,7 +200,7 @@ public class IrcAdapterListTest {
         volatile boolean cancelCalled;
 
         @Override
-        public void showChannelList(List<ChannelListEntry> entries, String query, boolean truncated) {
+        public void showChannelList(String networkId, List<ChannelListEntry> entries, String query, boolean truncated) {
             deliveredEntries = entries;
             deliveredQuery = query;
             deliveredTruncated = truncated;

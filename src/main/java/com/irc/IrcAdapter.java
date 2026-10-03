@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import java.awt.*;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -28,6 +30,11 @@ public class IrcAdapter {
      * happens-before edge created by both sides passing through the same monitor.
      */
     private volatile String lastChannelListQuery = "";
+    /** Lines stamped earlier than this before registration are replayed history (ZNC playback). */
+    static final Duration PLAYBACK_THRESHOLD = Duration.ofSeconds(5);
+    private String networkId = NetworkConfig.SWIFTIRC_ID;
+    /** When this connection registered; null until it has. Set on the reader thread. */
+    private volatile Instant registeredAt;
 
     public IrcAdapter() {
         client = new SimpleIrcClient();
@@ -37,22 +44,33 @@ public class IrcAdapter {
      * Initialize the client with the provided config
      */
     public void initialize(IrcConfig config, Consumer<IrcMessage> messageConsumer, IrcPanel panel, String currentNick) {
+        initialize(config, NetworkConfig.swiftIrc(config), messageConsumer, panel, currentNick);
+    }
+
+    public void initialize(IrcConfig config, NetworkConfig network, Consumer<IrcMessage> messageConsumer,
+                           IrcPanel panel, String currentNick) {
         this.messageConsumer = messageConsumer;
         this.currentNick = currentNick;
         this.config = config;
         this.panel = panel;
+        this.networkId = network.getId();
 
         client = new SimpleIrcClient()
-                .server(config.server().getHostname(), 6697, true)
-                .credentials(currentNick, "runelite", currentNick);
+                .server(network.getHost(), network.getPort(), network.isTls())
+                .credentials(currentNick, "runelite", currentNick)
+                .serverPassword(network.getServerPassword());
 
-        if (config.password() != null && !config.password().isEmpty()) {
-            client.sasl(config.accountName(), config.password());
+        if (!network.getSaslPassword().isEmpty()) {
+            client.sasl(network.getSaslAccount(), network.getSaslPassword());
         }
 
         client.setRawLogging(config.logRawLines());
 
         setupEventHandlers();
+    }
+
+    public String getNetworkId() {
+        return networkId;
     }
 
     /**
@@ -203,7 +221,37 @@ public class IrcAdapter {
      */
     private void processMessage(IrcMessage message) {
         if (messageConsumer != null) {
-            messageConsumer.accept(message);
+            messageConsumer.accept(message.withNetworkId(networkId));
+        }
+    }
+
+    /** The line's server-time, or null when absent or unreadable. */
+    private static Instant serverTime(String tag) {
+        if (tag == null || tag.isEmpty()) return null;
+        try {
+            return Instant.parse(tag);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /** Older than registration by more than the threshold: replayed, not live. */
+    private boolean isPlayback(Instant sent) {
+        if (sent == null) return false;
+        Instant reference = registeredAt != null ? registeredAt : Instant.now();
+        return sent.isBefore(reference.minus(PLAYBACK_THRESHOLD));
+    }
+
+    /** A clock ahead of ours would date lines in the future; show those as now. */
+    private static Instant displayTime(Instant sent) {
+        Instant now = Instant.now();
+        return sent == null || sent.isAfter(now) ? now : sent;
+    }
+
+    private void reportConnected(boolean connected) {
+        IrcPanel target = panel;
+        if (target != null) {
+            SwingUtilities.invokeLater(() -> target.setNetworkConnected(networkId, connected));
         }
     }
 
@@ -217,14 +265,19 @@ public class IrcAdapter {
 
             switch (event.getType()) {
                 case CONNECT:
+                    registeredAt = null;
                     processMessage(new IrcMessage("System", "System", "Connected to IRC server, registering...", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     break;
 
                 case REGISTERED:
+                    registeredAt = Instant.now();
                     currentNick = client.getNick();
                     processMessage(new IrcMessage("System", "System", "Registration complete - ready for commands", IrcMessage.MessageType.SYSTEM, Instant.now()));
-                    processMessage(new IrcMessage("System", "System", "Welcome to IRC! To chat in the current channel, use '" + config.prefix() + "' followed by your message in the game chatbox.", IrcMessage.MessageType.SYSTEM, Instant.now()));
-                    processMessage(new IrcMessage("System", "System", "For a list of commands, type '/help' in the side panel input box.", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    if (NetworkConfig.SWIFTIRC_ID.equals(networkId)) {
+                        processMessage(new IrcMessage("System", "System", "Welcome to IRC! To chat in the current channel, use '" + config.prefix() + "' followed by your message in the game chatbox.", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                        processMessage(new IrcMessage("System", "System", "For a list of commands, type '/help' in the side panel input box.", IrcMessage.MessageType.SYSTEM, Instant.now()));
+                    }
+                    reportConnected(true);
                     break;
 
                 case SASL_SUCCESS:
@@ -250,6 +303,7 @@ public class IrcAdapter {
                     if (panel != null) {
                         SwingUtilities.invokeLater(panel::cancelChannelListTimeout);
                     }
+                    reportConnected(false);
                     break;
 
                 case MESSAGE:
@@ -257,7 +311,7 @@ public class IrcAdapter {
                         switch (config.filterPMs()) {
                             case Current:
                                 source = "[PM] " + source;
-                                target = panel != null ? panel.getCurrentChannel() : "System";
+                                target = panel != null ? panel.getCurrentChannelOn(networkId) : "System";
                                 break;
                             case Status:
                                 source = "[PM] " + source;
@@ -268,15 +322,20 @@ public class IrcAdapter {
                                 break;
                         }
                     }
+                    Instant chatSent = serverTime(event.getAdditionalData());
+                    IrcMessage.MessageType chatType = isPlayback(chatSent) ? IrcMessage.MessageType.HISTORY : IrcMessage.MessageType.CHAT;
                     // Looked up by the original target: PMs have no channel, so they get no prefix.
-                    processMessage(new IrcMessage(target, source, event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now(),
+                    processMessage(new IrcMessage(target, source, event.getMessage(), chatType, displayTime(chatSent),
                             client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
 
-                case ACTION:
-                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), IrcMessage.MessageType.CHAT, Instant.now(),
+                case ACTION: {
+                    Instant sent = serverTime(event.getAdditionalData());
+                    IrcMessage.MessageType actionType = isPlayback(sent) ? IrcMessage.MessageType.HISTORY : IrcMessage.MessageType.CHAT;
+                    processMessage(new IrcMessage(event.getTarget(), "* " + event.getSource(), event.getMessage(), actionType, displayTime(sent),
                             client.getChannelPrefix(event.getTarget(), event.getSource())));
                     break;
+                }
 
                 case JOIN:
                     if (!config.hideConnectionMessages()) {
@@ -313,8 +372,10 @@ public class IrcAdapter {
                         currentNick = newNick;
                     }
 
-                    if (panel != null && panel.isPane(oldNick)) {
-                        SwingUtilities.invokeLater(() -> panel.renameChannel(oldNick, newNick));
+                    BufferKey oldQuery = BufferKey.of(networkId, oldNick);
+                    if (panel != null && panel.isPane(oldQuery)) {
+                        IrcPanel renameTarget = panel;
+                        SwingUtilities.invokeLater(() -> renameTarget.renameChannel(oldQuery, newNick));
                     }
 
                     if (event.getAdditionalData() != null) {
@@ -348,7 +409,7 @@ public class IrcAdapter {
                         source = "[N] " + source;
                         switch (config.filterNotices()) {
                             case Current:
-                                target = panel != null ? panel.getCurrentChannel() : "System";
+                                target = panel != null ? panel.getCurrentChannelOn(networkId) : "System";
                                 break;
                             case Status:
                                 target = "System";
@@ -382,7 +443,7 @@ public class IrcAdapter {
                         String usersChannel = event.getTarget();
                         // Snapshot on the IRC thread; it is immutable, so the EDT can hold it.
                         List<ChannelUserList.Entry> users = client.getChannelUsers(usersChannel);
-                        SwingUtilities.invokeLater(() -> panel.setChannelUsers(usersChannel, users));
+                        SwingUtilities.invokeLater(() -> panel.setChannelUsers(BufferKey.of(networkId, usersChannel), users));
                     }
                     break;
 
@@ -393,7 +454,7 @@ public class IrcAdapter {
                         boolean truncated = client.isChannelListTruncated();
                         String listQuery = lastChannelListQuery;
                         SwingUtilities.invokeLater(
-                                () -> panel.showChannelList(channelList, listQuery, truncated));
+                                () -> panel.showChannelList(networkId, channelList, listQuery, truncated));
                     }
                     break;
 
