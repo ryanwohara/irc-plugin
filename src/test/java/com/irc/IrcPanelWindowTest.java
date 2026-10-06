@@ -14,6 +14,7 @@ import java.awt.BorderLayout;
 import java.awt.Rectangle;
 import java.awt.event.WindowEvent;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.*;
 
@@ -105,6 +106,65 @@ public class IrcPanelWindowTest {
             } finally {
                 host.shutdown();
                 main.dispose();
+            }
+        });
+    }
+
+    @Test
+    public void geometryIsSavedAndRestoredAcrossRestarts() throws Exception {
+        AtomicReference<String> config = new AtomicReference<>();
+        Rectangle moved = new Rectangle(120, 80, 700, 500);
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel dock = new JPanel(new BorderLayout());
+            JPanel content = new JPanel();
+            dock.add(content, BorderLayout.CENTER);
+            IrcPanelWindow host = new IrcPanelWindow(dock, content, () -> {}, () -> {}, () -> {},
+                    config::get, config::set);
+            try {
+                host.setDetached(true, false);
+                SwingUtilities.getWindowAncestor(content).setBounds(moved);
+                // Docking saves at once rather than waiting for the move to settle.
+                host.setDetached(false, false);
+                PopOutGeometry saved = PopOutGeometry.parse(config.get());
+                assertNotNull(config.get(), saved);
+                assertFalse(saved.maximized);
+            } finally {
+                host.shutdown();
+            }
+        });
+        Rectangle savedBounds = PopOutGeometry.parse(config.get()).bounds;
+        SwingUtilities.invokeAndWait(() -> {
+            // A new IrcPanelWindow, as after RuneLite restarts, reading the same config.
+            JPanel dock = new JPanel(new BorderLayout());
+            JPanel content = new JPanel();
+            dock.add(content, BorderLayout.CENTER);
+            IrcPanelWindow host = new IrcPanelWindow(dock, content, () -> {}, () -> {}, () -> {},
+                    config::get, config::set);
+            try {
+                host.setDetached(true, false);
+                assertEquals(savedBounds, SwingUtilities.getWindowAncestor(content).getBounds());
+            } finally {
+                host.shutdown();
+            }
+        });
+    }
+
+    @Test
+    public void unusableSavedGeometryFallsBackToTheDefault() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel dock = new JPanel(new BorderLayout());
+            JPanel content = new JPanel();
+            dock.add(content, BorderLayout.CENTER);
+            AtomicReference<String> config = new AtomicReference<>("-99999,-99999,700,500");
+            IrcPanelWindow host = new IrcPanelWindow(dock, content, () -> {}, () -> {}, () -> {},
+                    config::get, config::set);
+            try {
+                host.setDetached(true, false);
+                Rectangle bounds = SwingUtilities.getWindowAncestor(content).getBounds();
+                assertEquals(960, bounds.width);
+                assertEquals(620, bounds.height);
+            } finally {
+                host.shutdown();
             }
         });
     }

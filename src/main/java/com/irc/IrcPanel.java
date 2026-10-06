@@ -286,7 +286,12 @@ public class IrcPanel extends PluginPanel {
         chatContent.add(inputField, BorderLayout.SOUTH);
         add(chatContent, BorderLayout.CENTER);
         panelWindow = new IrcPanelWindow(this, chatContent, this::prepareForHostChange,
-                this::hideAllPreviews, this::requestDock);
+                this::hideAllPreviews, this::requestDock,
+                // No ConfigManager outside RuneLite (tests); the pop-out then opens at its default.
+                () -> configManager == null ? null : configManager.getConfiguration("irc", PopOutGeometry.CONFIG_KEY),
+                geometry -> {
+                    if (configManager != null) configManager.setConfiguration("irc", PopOutGeometry.CONFIG_KEY, geometry);
+                });
         navigationButton = generateNavigationButton();
         SwingUtilities.invokeLater(() -> addChannel("System"));
         tabbedPane.addChangeListener(e -> onFocusedBufferChanged());
