@@ -163,7 +163,7 @@ public class IrcPanel extends PluginPanel {
      * after it ('+' to ';' silently sweeps in digits and punctuation). Neither can start a link,
      * so a channel name like #osrs is still not matched.
      */
-    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+([\\w-;:,./?%&=+#]*))");
+    public static final Pattern VALID_LINK = Pattern.compile("(https?://([\\w-]+\\.)+[\\w-]+((?:[\\w-;:,./?%&=+#]|\\([\\w-;:,./?%&=+#]*\\))*))");
 
     private void initializeFlashTimer() {
         // Change color for different flash

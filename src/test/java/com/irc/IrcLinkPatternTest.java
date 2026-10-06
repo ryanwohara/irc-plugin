@@ -91,6 +91,30 @@ public class IrcLinkPatternTest {
         assertEquals("https://example.com/x", firstMatch("#chan https://example.com/x"));
     }
 
+    // --- parentheses ---
+
+    /** Wiki disambiguation pages put parens in the title: everything from '(' on used to be dropped. */
+    @Test
+    public void keepsParenthesesInAPath() {
+        String url = "https://oldschool.runescape.wiki/w/Dragon_(disambiguation)";
+        assertEquals(url, firstMatch(url));
+    }
+
+    @Test
+    public void keepsParenthesesFollowedByMorePath() {
+        String url = "https://example.com/a_(b)/c?d=(e)#f_(g)";
+        assertEquals(url, firstMatch(url));
+    }
+
+    /** A link wrapped in parens in prose must not swallow the closing one. */
+    @Test
+    public void doesNotSwallowAWrappingCloseParen() {
+        String url = "https://example.com/x";
+        assertEquals(url, firstMatch("(see " + url + ")"));
+        String wiki = "https://oldschool.runescape.wiki/w/Dragon_(disambiguation)";
+        assertEquals(wiki, firstMatch("(see " + wiki + ")"));
+    }
+
     // --- regressions: everything that worked before must still work ---
 
     @Test
