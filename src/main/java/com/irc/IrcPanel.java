@@ -78,6 +78,7 @@ public class IrcPanel extends PluginPanel {
 
     public final Map<BufferKey, Boolean> unreadMessages = new LinkedHashMap<>();
     private BufferKey focusedChannel;
+    private final BufferHistory bufferHistory = new BufferHistory(50);
     /** Network display names and connection state by id, in the order networks were announced. */
     private final Map<String, String> networkNames = new LinkedHashMap<>();
     private final Map<String, Boolean> networkConnected = new LinkedHashMap<>();
@@ -269,7 +270,8 @@ public class IrcPanel extends PluginPanel {
         };
         inputField.getActionMap().put("paste", customPasteAction);
         setupShortcuts();
-        channelNumberKeys = new ChannelNumberKeys(chatContent, this::jumpToChannel, this::markAllRead);
+        channelNumberKeys = new ChannelNumberKeys(chatContent, this::jumpToChannel, this::markAllRead,
+                this::jumpToLastBuffer, this::bufferHistoryBack, this::bufferHistoryForward, this::stepChannel);
         channelNumberKeys.install();
         inputField.addActionListener(e -> {
             String message = inputField.getText();
@@ -297,6 +299,7 @@ public class IrcPanel extends PluginPanel {
         if (reordering) return;
         BufferKey current = getCurrentBuffer();
         focusedChannel = current;
+        bufferHistory.visit(current);
         if (unreadMessages.containsKey(current)) {
             unreadMessages.put(current, false);
             int selectedIndex = tabbedPane.getSelectedIndex();
@@ -327,9 +330,44 @@ public class IrcPanel extends PluginPanel {
      * tree groups buffers, so its order can differ from the side panel's tabs.
      */
     void jumpToChannel(int number) {
-        List<BufferKey> buffers = detachedLayout ? desktopLayout.channelOrder() : getBuffers();
+        List<BufferKey> buffers = numberedBuffers();
         if (number < 1 || number > buffers.size()) return;
         setFocusedChannel(buffers.get(number - 1));
+        inputField.requestFocusInWindow();
+    }
+
+    /** Focuses the buffer {@code delta} places along the numbered order, wrapping at either end
+     *  (Alt+Up / Alt+Down). */
+    void stepChannel(int delta) {
+        List<BufferKey> buffers = numberedBuffers();
+        if (buffers.isEmpty()) return;
+        int index = Math.floorMod(buffers.indexOf(getCurrentBuffer()) + delta, buffers.size());
+        setFocusedChannel(buffers.get(index));
+        inputField.requestFocusInWindow();
+    }
+
+    private List<BufferKey> numberedBuffers() {
+        return detachedLayout ? desktopLayout.channelOrder() : getBuffers();
+    }
+
+    /** Focuses the buffer shown before this one (Alt+/). */
+    void jumpToLastBuffer() {
+        focusFromHistory(bufferHistory.last());
+    }
+
+    /** Steps back through the buffers visited ({@code Alt+<}). */
+    void bufferHistoryBack() {
+        focusFromHistory(bufferHistory.back());
+    }
+
+    /** Steps forward through the buffers visited ({@code Alt+>}). */
+    void bufferHistoryForward() {
+        focusFromHistory(bufferHistory.forward());
+    }
+
+    private void focusFromHistory(BufferKey key) {
+        if (key == null) return;
+        setFocusedChannel(key);
         inputField.requestFocusInWindow();
     }
 
@@ -542,6 +580,7 @@ public class IrcPanel extends PluginPanel {
         tabbedPane.setSelectedIndex(index);
         bufferDropdown.setSelectedIndex(index);
         this.focusedChannel = channel;
+        bufferHistory.visit(channel);
         refreshDesktopChannels();
     }
 
@@ -1169,7 +1208,15 @@ public class IrcPanel extends PluginPanel {
         if (!includingSystem && SYSTEM_TAB.equals(channel.getName())) return;
         int index = getBuffers().indexOf(channel);
         if (index == -1 || index >= tabbedPane.getTabCount()) return;
-        tabbedPane.removeTabAt(index);
+        bufferHistory.remove(channel);
+        // The selection change this fires sees the closed buffer still in channelPanes; the
+        // onFocusedBufferChanged() below handles the real one.
+        reordering = true;
+        try {
+            tabbedPane.removeTabAt(index);
+        } finally {
+            reordering = false;
+        }
         channelPanes.remove(channel);
         unreadMessages.remove(channel);
         bufferDropdown.removeItemAt(index);
@@ -1277,6 +1324,7 @@ public class IrcPanel extends PluginPanel {
         if (oldKey.equals(focusedChannel)) {
             focusedChannel = newKey;
         }
+        bufferHistory.rename(oldKey, newKey);
         refreshDesktopChannels();
     }
 

@@ -19,12 +19,15 @@ public class ChannelNumberKeysTest {
     private final JTextField outside = new JTextField();
     private final List<Integer> jumps = new ArrayList<>();
     private int markAllReads;
+    private final List<String> navigations = new ArrayList<>();
     private ChannelNumberKeys keys;
 
     @Before
     public void setUp() {
         root.add(input);
-        keys = new ChannelNumberKeys(root, jumps::add, () -> markAllReads++);
+        keys = new ChannelNumberKeys(root, jumps::add, () -> markAllReads++,
+                () -> navigations.add("last"), () -> navigations.add("back"), () -> navigations.add("forward"),
+                delta -> navigations.add("step " + delta));
         keys.install();
     }
 
@@ -148,8 +151,63 @@ public class ChannelNumberKeysTest {
         assertTrue(jumps.isEmpty());
     }
 
+    @Test
+    public void altSlashGoesToTheLastBufferAndSwallowsItsTypedCharacter() {
+        assertTrue(press(input, KeyEvent.VK_SLASH, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(type(input, '/', KeyEvent.ALT_DOWN_MASK));
+        assertTrue(press(input, KeyEvent.VK_DIVIDE, KeyEvent.ALT_DOWN_MASK));
+        assertEquals(java.util.Arrays.asList("last", "last"), navigations);
+
+        assertFalse("a plain slash still starts a command", press(input, KeyEvent.VK_SLASH, 0));
+        assertFalse(type(input, '/', 0));
+    }
+
+    @Test
+    public void altLessAndGreaterWalkTheBufferHistoryAndSwallowTheirCharacters() {
+        int altShift = KeyEvent.ALT_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK;
+        assertTrue("US: Shift+comma", press(input, KeyEvent.VK_COMMA, altShift));
+        assertTrue(type(input, '<', altShift));
+        assertTrue("US: Shift+period", press(input, KeyEvent.VK_PERIOD, altShift));
+        assertTrue(type(input, '>', altShift));
+        assertTrue("European: the < key", press(input, KeyEvent.VK_LESS, KeyEvent.ALT_DOWN_MASK));
+        assertTrue("European: Shift+<", press(input, KeyEvent.VK_LESS, altShift));
+        assertTrue("going by the char", press(input, KeyEvent.VK_UNDEFINED, '<', KeyEvent.ALT_DOWN_MASK));
+        assertEquals(java.util.Arrays.asList("back", "forward", "back", "forward", "back"), navigations);
+
+        assertTrue("Alt+, aliases Alt+<", press(input, KeyEvent.VK_COMMA, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(type(input, ',', KeyEvent.ALT_DOWN_MASK));
+        assertTrue("Alt+. aliases Alt+>", press(input, KeyEvent.VK_PERIOD, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(type(input, '.', KeyEvent.ALT_DOWN_MASK));
+        assertEquals(7, navigations.size());
+        assertEquals("back", navigations.get(5));
+        assertEquals("forward", navigations.get(6));
+
+        assertFalse("a plain comma still types", press(input, KeyEvent.VK_COMMA, 0));
+        assertFalse("Alt+arrows are left to the text field", press(input, KeyEvent.VK_LEFT, KeyEvent.ALT_DOWN_MASK));
+        assertFalse("a plain < still types", press(input, KeyEvent.VK_COMMA, KeyEvent.SHIFT_DOWN_MASK));
+        assertFalse(type(input, '<', KeyEvent.SHIFT_DOWN_MASK));
+        assertEquals(7, navigations.size());
+    }
+
+    @Test
+    public void altUpAndDownStepThroughTheBuffers() {
+        assertTrue(press(input, KeyEvent.VK_UP, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(press(input, KeyEvent.VK_DOWN, KeyEvent.ALT_DOWN_MASK));
+        assertTrue(press(input, KeyEvent.VK_KP_DOWN, KeyEvent.ALT_DOWN_MASK));
+        assertEquals(java.util.Arrays.asList("step -1", "step 1", "step 1"), navigations);
+
+        assertFalse("plain Up still recalls input history", press(input, KeyEvent.VK_UP, 0));
+        assertFalse(press(input, KeyEvent.VK_DOWN, KeyEvent.CTRL_DOWN_MASK | KeyEvent.ALT_DOWN_MASK));
+        assertFalse("nothing to swallow after an arrow", type(input, 'x', 0));
+        assertEquals(3, navigations.size());
+    }
+
     private boolean press(JComponent source, int code, int mods) {
-        return fire(source, new KeyEvent(source, KeyEvent.KEY_PRESSED, 0, mods, code, KeyEvent.CHAR_UNDEFINED));
+        return press(source, code, KeyEvent.CHAR_UNDEFINED, mods);
+    }
+
+    private boolean press(JComponent source, int code, char c, int mods) {
+        return fire(source, new KeyEvent(source, KeyEvent.KEY_PRESSED, 0, mods, code, c));
     }
 
     private boolean type(JComponent source, char c, int mods) {
