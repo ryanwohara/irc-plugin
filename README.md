@@ -228,7 +228,9 @@ buffer, its channels, and its private chats. Drag a network to reorder the netwo
 within its network to reorder its channels; the order is remembered. Right-click a network to
 Reconnect, Connect or Disconnect it, or Edit it. Clicking a channel in the tree moves the cursor
 to the input box so you can type straight away. Channels are numbered down the whole tree,
-matching the **Alt+number** shortcuts (see [Keyboard Shortcuts](#keyboard-shortcuts)).
+matching the **Alt+number** shortcuts, and **Alt+↑** / **Alt+↓** step through them in the same
+order (see [Keyboard Shortcuts](#keyboard-shortcuts)). A strip along the bottom of the window lists
+the shortcuts, wrapping onto more lines when the window is narrow.
 
 Above the chat are the channel's name (with its network once two are connected) and its topic.
 Links in the topic are clickable, and a long topic scrolls sideways - use the scrollbar or the
@@ -242,8 +244,9 @@ without reconnecting to IRC.
 
 Click **Dock**, or close the window with its **X**, to return IRC to the RuneLite
 sidebar. Click the IRC sidebar icon to view it there. If **Enabled** is off, docking just closes
-the window. Window size and position are remembered while the plugin remains enabled.
-Disabling the plugin also closes the pop-out.
+the window. The window's size and position, and whether it was maximized, are remembered, even
+after RuneLite restarts; if it was on a monitor that is no longer connected, it opens centred on
+RuneLite instead. Disabling the plugin also closes the pop-out.
 
 #### keep pop-out on top
 
