@@ -1255,7 +1255,7 @@ public class IrcPanel extends PluginPanel {
         refreshDesktopChannels();
     }
 
-    /** A join, part, quit or kick, when those are set not to mark a channel unread. */
+    /** A join, part, quit, kick or nick change, when those are set not to mark a channel unread. */
     private boolean quietConnectionMessage(IrcMessage message) {
         if (config == null || !config.quietConnectionMessages()) return false;
         switch (message.getType()) {
@@ -1263,6 +1263,7 @@ public class IrcPanel extends PluginPanel {
             case PART:
             case QUIT:
             case KICK:
+            case NICK_CHANGE:
                 return true;
             default:
                 return false;

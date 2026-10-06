@@ -242,8 +242,8 @@ public interface IrcConfig extends Config
 
     @ConfigItem(
             keyName = "quietConnectionMessages",
-            name = "Join/Part/Quit/Kick Stay Read",
-            description = "Joins, parts, quits, and kicks don't mark a channel as unread.",
+            name = "Join/Part/Quit/Kick/Nick Stay Read",
+            description = "Joins, parts, quits, kicks, and nick changes don't mark a channel as unread.",
             position = 10,
             section = generalSettings
     )

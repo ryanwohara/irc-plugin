@@ -45,9 +45,9 @@ public class IrcPanelUnreadTest {
     }
 
     @Test
-    public void joinsPartsQuitsAndKicksLeaveAChannelReadWhenQuiet() throws Exception {
+    public void connectionMessagesLeaveAChannelReadWhenQuiet() throws Exception {
         IrcPanel panel = panel(true);
-        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK}) {
+        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE}) {
             add(panel, type);
             assertFalse(type + " marked the channel unread", panel.isUnread("#a"));
         }
@@ -56,8 +56,8 @@ public class IrcPanelUnreadTest {
     }
 
     @Test
-    public void joinsPartsQuitsAndKicksMarkAChannelUnreadWhenNotQuiet() throws Exception {
-        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK}) {
+    public void connectionMessagesMarkAChannelUnreadWhenNotQuiet() throws Exception {
+        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE}) {
             IrcPanel panel = panel(false);
             add(panel, type);
             assertTrue(type + " should mark the channel unread", panel.isUnread("#a"));
