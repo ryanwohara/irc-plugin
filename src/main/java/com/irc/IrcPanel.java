@@ -872,6 +872,9 @@ public class IrcPanel extends PluginPanel {
                 chatContent.add(inputField, BorderLayout.SOUTH);
             }
             detachedLayout = detached;
+            synchronized (channelPanes) {
+                for (ChannelPane pane : channelPanes.values()) pane.setCompactPresence(detached);
+            }
             chatContent.revalidate();
             chatContent.repaint();
         }
@@ -953,6 +956,7 @@ public class IrcPanel extends PluginPanel {
             return;
         }
         ChannelPane pane = new ChannelPane(font, config, okHttpClient);
+        pane.setCompactPresence(detachedLayout);
         int index = insertionIndex(channel);
         if (index < 0) {
             bufferDropdown.addItem(titleOf(channel));
@@ -1437,7 +1441,23 @@ public class IrcPanel extends PluginPanel {
 
     public static class ChannelPane extends JTextPane {
         private final IrcConfig config;
-        private ArrayList<String> messageLog;
+        /** A received line and its HTML, kept together so the log can be re-rendered compacted or not. */
+        private static final class Entry {
+            final IrcMessage message;
+            final String html;
+
+            Entry(IrcMessage message, String html) {
+                this.message = message;
+                this.html = html;
+            }
+        }
+
+        private ArrayList<Entry> messageLog;
+        /**
+         * Set in the pop-out: a run of joins, parts, quits, kicks and nick changes renders as one
+         * line grouped by kind instead of one line each.
+         */
+        private boolean compactPresence;
         private static final Pattern UNDERLINE = Pattern.compile("\u001F([^\u001F\u000F]+)[\u001F\u000F]?");
         private static final Pattern ITALIC = Pattern.compile("\u001D([^\u001D\u000F]+)[\u001D\u000F]?");
         private static final Pattern BOLD = Pattern.compile("\u0002([^\u0002\u000F]+)[\u0002\u000F]?");
@@ -1494,10 +1514,21 @@ public class IrcPanel extends PluginPanel {
 
         void appendMessage(IrcMessage message, IrcConfig config) {
             String formattedMessage = formatPanelMessage(message, config);
-            messageLog.add(formattedMessage);
+            messageLog.add(new Entry(message, formattedMessage));
             if (messageLog.size() > config.getMaxScrollback()) {
                 messageLog.remove(0);
             }
+            requestRender();
+        }
+
+        /** Groups runs of joins, parts, quits, kicks and nick changes into one line, or stops. */
+        void setCompactPresence(boolean compact) {
+            if (compactPresence == compact) return;
+            compactPresence = compact;
+            requestRender();
+        }
+
+        private void requestRender() {
             if (renderQueued.compareAndSet(false, true)) {
                 SwingUtilities.invokeLater(() -> {
                     renderQueued.set(false);
@@ -1521,10 +1552,42 @@ public class IrcPanel extends PluginPanel {
             setBackground(background);
             setText("<html><body style='color:" + ColorUtil.toHexColor(text)
                     + "; background-color:" + ColorUtil.toHexColor(background) + ";"
-                    + fontStyle() + "'>" + String.join("", messageLog) + "</body></html>");
+                    + fontStyle() + "'>" + renderLog() + "</body></html>");
             setCaretPosition(getDocument().getLength());
             scrollPending = true;
             SwingUtilities.invokeLater(this::scrollToBottom);
+        }
+
+        private String renderLog() {
+            StringBuilder html = new StringBuilder();
+            if (!compactPresence) {
+                for (Entry entry : messageLog) html.append(entry.html);
+                return html.toString();
+            }
+            List<Entry> run = new ArrayList<>();
+            for (Entry entry : messageLog) {
+                if (PresenceRun.isPresence(entry.message)) {
+                    run.add(entry);
+                    continue;
+                }
+                appendRun(html, run);
+                html.append(entry.html);
+            }
+            appendRun(html, run);
+            return html.toString();
+        }
+
+        /** A lone event keeps its usual line; two or more become one grouped line. */
+        private void appendRun(StringBuilder html, List<Entry> run) {
+            if (run.size() == 1) {
+                html.append(run.get(0).html);
+            } else if (run.size() > 1) {
+                PresenceRun grouped = new PresenceRun();
+                for (Entry entry : run) grouped.add(entry.message);
+                html.append("<div>").append(timeStamp(run.get(0).message, config)).append("* ")
+                        .append(grouped.toHtml(nick -> coloredNick(nick, config))).append("</div>");
+            }
+            run.clear();
         }
 
         // The HTML document ignores the component font, so carry it into the body style.
@@ -1550,11 +1613,7 @@ public class IrcPanel extends PluginPanel {
             if (message.getType() == IrcMessage.MessageType.HISTORY_SEPARATOR) {
                 return "<div style='color: #808080; text-align: center;'>--- Begin of chat ---</div>";
             }
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
-            String timeStamp = "";
-            if (config.timestamp()) {
-                timeStamp = "[" + formatter.format(message.getTimestamp()) + "] ";
-            }
+            String timeStamp = timeStamp(message, config);
             String color;
             switch (message.getType()) {
                 case SYSTEM:
@@ -1579,11 +1638,26 @@ public class IrcPanel extends PluginPanel {
             }
             String sender = escapeHtml4(message.getDisplaySender());
             if (config.colorizedNicks()) {
-                String senderColor = htmlColorById(nickColorId(message.getSender()));
-                sender = String.format("<font style=\"color:%s\">%s</font>", senderColor, sender);
+                sender = colorNick(message.getSender(), sender);
             }
             String open = color == null ? "<div>" : String.format("<div style='color: %s'>", color);
             return String.format("%s%s%s: %s</div>", open, timeStamp, sender, formatMessage(message.getContent()));
+        }
+
+        private static String timeStamp(IrcMessage message, IrcConfig config) {
+            if (!config.timestamp()) return "";
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
+            return "[" + formatter.format(message.getTimestamp()) + "] ";
+        }
+
+        /** {@code html} in the colour {@code nick} always gets. */
+        private static String colorNick(String nick, String html) {
+            return String.format("<font style=\"color:%s\">%s</font>", htmlColorById(nickColorId(nick)), html);
+        }
+
+        private static String coloredNick(String nick, IrcConfig config) {
+            String html = escapeHtml4(nick);
+            return config.colorizedNicks() ? colorNick(nick, html) : html;
         }
 
         private String formatMessage(String message) {

@@ -242,6 +242,12 @@ Links in the topic are clickable, and a long topic scrolls sideways - use the sc
 mouse wheel. Double-click a nick (or press Enter on it) to open a private conversation;
 right-click for Message and WHOIS.
 
+Back-to-back joins, parts, quits, kicks, and nick changes are condensed onto one line, grouped
+by kind: `* Joins: alice, gina · Parts: carol · Quits: bob · Nicks: dave → dave_ · Kicks: frank (by eve)`.
+Each nick appears once per group, so someone hopping in and out doesn't repeat; every nick change
+is listed. Reasons are left out, and the timestamp is when the run began. A lone event keeps its
+usual line, and any other message starts a new run. The sidebar still shows one line per event.
+
 The toolbar provides Reconnect, Join, Leave, Channels, and Networks for the selected channel's
 network, font and font size selectors, and Dock. Docking restores the compact sidebar layout.
 The same chat controls are reused, preserving scrollback, the selected channel, and unsent text
