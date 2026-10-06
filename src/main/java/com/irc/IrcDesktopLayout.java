@@ -325,10 +325,25 @@ final class IrcDesktopLayout extends JPanel {
         add(all, BorderLayout.CENTER);
         configureToggle(channelsToggle, "ircToggleChannels", "Show or hide the channel list", all, left);
         configureToggle(usersToggle, "ircToggleUsers", "Show or hide the user list", chatAndUsers, right);
-        JLabel hint = heading("Enter to send  ·  ↑ / ↓ input history  ·  Alt+1–0 or Alt+J ## switch channel  ·  Alt+H mark all read  ·  Alt+↑ / ↓ next channel  ·  Alt+/ last channel  ·  Alt+< / > channel history  ·  Double-click a nick to message");
-        hint.setFont(hint.getFont().deriveFont(11f));
-        hint.setForeground(MUTED);
-        add(hint, BorderLayout.SOUTH);
+        add(hints("Enter to send", "↑ / ↓ input history", "Alt+1–0 or Alt+J ## switch channel",
+                "Alt+H mark all read", "Alt+↑ / ↓ next channel", "Alt+/ last channel",
+                "Alt+< / > channel history", "Double-click a nick to message"), BorderLayout.SOUTH);
+    }
+
+    /** The key tips along the bottom, wrapping between tips when the window is too narrow. */
+    private static JPanel hints(String... tips) {
+        // The flow's gaps make up the rest of the 9/12 padding the headings have.
+        JPanel panel = new JPanel(new WrapLayout(FlowLayout.LEFT, 6, 2));
+        panel.setName("ircHints");
+        panel.setBackground(HEADER);
+        panel.setBorder(BorderFactory.createEmptyBorder(7, 6, 7, 6));
+        for (int i = 0; i < tips.length; i++) {
+            JLabel tip = new JLabel(i < tips.length - 1 ? tips[i] + "  ·" : tips[i]);
+            tip.setFont(tip.getFont().deriveFont(11f));
+            tip.setForeground(MUTED);
+            panel.add(tip);
+        }
+        return panel;
     }
 
     void attachChat(JTabbedPane chat, JTextField input) {
