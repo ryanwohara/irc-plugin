@@ -166,6 +166,11 @@ tab, or in a private window with the sender.
 
 Hide joins, parts, quits, and kicks from channel windows.
 
+#### join/part/quit/kick stay read
+
+Joins, parts, quits, and kicks don't mark a channel as unread, so only conversation does. On by
+default; turn it off to have them mark the channel unread like any other message.
+
 #### log raw IRC lines
 
 Writes every IRC line sent and received to the RuneLite client log. Off by default. Turn it on

@@ -1243,7 +1243,7 @@ public class IrcPanel extends PluginPanel {
         ChannelPane pane = channelPanes.get(key);
         boolean history = message.getType() == IrcMessage.MessageType.HISTORY
                 || message.getType() == IrcMessage.MessageType.HISTORY_SEPARATOR;
-        if (!key.equals(focusedChannel) && !history) {
+        if (!key.equals(focusedChannel) && !history && !quietConnectionMessage(message)) {
             unreadMessages.put(key, true);
         }
         if (message.getType() == IrcMessage.MessageType.TOPIC
@@ -1253,6 +1253,20 @@ public class IrcPanel extends PluginPanel {
         }
         pane.appendMessage(message, config);
         refreshDesktopChannels();
+    }
+
+    /** A join, part, quit or kick, when those are set not to mark a channel unread. */
+    private boolean quietConnectionMessage(IrcMessage message) {
+        if (config == null || !config.quietConnectionMessages()) return false;
+        switch (message.getType()) {
+            case JOIN:
+            case PART:
+            case QUIT:
+            case KICK:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**

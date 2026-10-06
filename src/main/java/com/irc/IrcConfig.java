@@ -241,11 +241,20 @@ public interface IrcConfig extends Config
     default boolean hideConnectionMessages() { return false; }
 
     @ConfigItem(
+            keyName = "quietConnectionMessages",
+            name = "Join/Part/Quit/Kick Stay Read",
+            description = "Joins, parts, quits, and kicks don't mark a channel as unread.",
+            position = 10,
+            section = generalSettings
+    )
+    default boolean quietConnectionMessages() { return true; }
+
+    @ConfigItem(
             keyName = "logRawLines",
             name = "Log Raw IRC Lines",
             description = "Writes every IRC line sent and received to the RuneLite client log, "
                     + "with passwords removed. Only turn this on to diagnose a connection problem.",
-            position = 10,
+            position = 11,
             section = generalSettings
     )
     default boolean logRawLines() { return false; }
@@ -255,7 +264,7 @@ public interface IrcConfig extends Config
             name = "Custom In-Game Text Colour",
             description = "Colour IRC messages in the in-game chat box with the colour below. "
                     + "Off, they follow RuneLite's Chat Colour settings.",
-            position = 11,
+            position = 12,
             section = generalSettings
     )
     default boolean inGameTextColorEnabled() { return false; }
@@ -264,7 +273,7 @@ public interface IrcConfig extends Config
             keyName = "inGameTextColor",
             name = "In-Game Text Colour",
             description = "Colour of IRC messages in the in-game chat box, when Custom In-Game Text Colour is on.",
-            position = 12,
+            position = 13,
             section = generalSettings
     )
     default Color inGameTextColor() { return ColorScheme.BRAND_ORANGE; }
@@ -274,7 +283,7 @@ public interface IrcConfig extends Config
             name = "IRC Colours In-Game",
             description = "Show IRC colour codes in the in-game chat box instead of stripping them. "
                     + "Background colours are not shown; the chat box cannot draw them.",
-            position = 13,
+            position = 14,
             section = generalSettings
     )
     default boolean ircColorsInGame() { return true; }
