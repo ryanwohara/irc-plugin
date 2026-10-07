@@ -35,7 +35,8 @@ public class SimpleIrcClientTest {
         List<String> sent = new ArrayList<>();
         SimpleIrcClient client = recordingClient(sent);
         assertTrue(client.beginRegistration());
-        assertEquals("NICK me", sent.get(0));
+        assertEquals("CAP LS 302", sent.get(0));
+        assertEquals("NICK me", sent.get(1));
     }
 
     @Test

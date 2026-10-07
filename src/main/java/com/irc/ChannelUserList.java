@@ -192,6 +192,33 @@ class ChannelUserList {
         return affected;
     }
 
+    /**
+     * Forgets every away mark, for when the server stops reporting changes. Returns the channels
+     * that showed someone away.
+     */
+    synchronized List<String> clearAway() {
+        List<String> affected = new ArrayList<>();
+        for (Channel ch : live.values()) {
+            for (String nick : ch.users.keySet()) {
+                if (away.contains(nick)) {
+                    affected.add(ch.displayName);
+                    break;
+                }
+            }
+        }
+        away.clear();
+        return affected;
+    }
+
+    /** Display names of every channel with a roster. */
+    synchronized List<String> channels() {
+        List<String> names = new ArrayList<>();
+        for (Channel ch : live.values()) {
+            names.add(ch.displayName);
+        }
+        return names;
+    }
+
     synchronized boolean isAway(String nick) {
         return away.contains(key(nick));
     }

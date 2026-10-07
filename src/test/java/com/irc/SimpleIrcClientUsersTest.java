@@ -303,4 +303,54 @@ public class SimpleIrcClientUsersTest {
         client.processLine(":server 305 me :You are no longer marked as being away");
         assertFalse(awayIn(client, "#chan", "me"));
     }
+
+    /**
+     * ZNC answers a CAP LS sent before login with its core caps only, then offers the network's
+     * via CAP NEW once it knows who we are - after which it replays every JOIN at once.
+     */
+    @Test
+    public void requestsAwayNotifyWhenOfferedLaterThroughCapNew() {
+        RecordingClient client = new RecordingClient();
+        client.processLine(":irc.znc.in CAP me NEW :account-notify away-notify extended-join");
+        assertTrue(client.sentLines.contains("CAP REQ :away-notify"));
+
+        RecordingClient other = new RecordingClient();
+        other.processLine(":irc.znc.in CAP me NEW :account-notify extended-join");
+        assertTrue(other.sentLines.isEmpty());
+    }
+
+    @Test
+    public void awayNotifyAckedAfterJoiningAsksWhoForEveryChannelAlreadyJoined() {
+        RecordingClient client = new RecordingClient();
+        client.credentials("me", "me", "me");
+        client.processLine(":irc.znc.in CAP unknown-nick LS :batch");
+        client.processLine(":irc.znc.in CAP me ACK :batch");
+        client.processLine(":me!u@h JOIN #a");
+        loadNames(client, "#a", "me bob");
+        client.processLine(":me!u@h JOIN #b");
+        loadNames(client, "#b", "me");
+        assertFalse(client.sentLines.contains("WHO #a"));
+
+        client.processLine(":irc.znc.in CAP me ACK :away-notify");
+        assertTrue(client.sentLines.contains("WHO #a"));
+        assertTrue(client.sentLines.contains("WHO #b"));
+        assertEquals("CAP END is sent once, at registration", 1,
+                client.sentLines.stream().filter("CAP END"::equals).count());
+    }
+
+    @Test
+    public void capDelOfAwayNotifyForgetsAwayMarksSinceTheyWouldGoStale() {
+        RecordingClient client = new RecordingClient();
+        client.credentials("me", "me", "me");
+        client.processLine(":server CAP me ACK :away-notify");
+        loadNames(client, "#chan", "bob");
+        client.processLine(":bob!u@h AWAY :lunch");
+        client.events.clear();
+
+        client.processLine(":server CAP me DEL :away-notify");
+        assertFalse(awayIn(client, "#chan", "bob"));
+        assertEquals(java.util.Collections.singletonList("#chan"), client.usersChangedChannels());
+        client.processLine(":me!u@h JOIN #other");
+        assertFalse(client.sentLines.contains("WHO #other"));
+    }
 }

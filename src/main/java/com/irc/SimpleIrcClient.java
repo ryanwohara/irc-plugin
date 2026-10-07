@@ -285,12 +285,17 @@ public class SimpleIrcClient {
         }
     }
 
-    /** The registration burst. PASS goes first, as a trailing parameter so spaces survive. */
+    /**
+     * The registration burst. CAP LS opens it so the server holds registration until CAP END:
+     * ZNC registers as soon as it has PASS, NICK and USER, and replays every JOIN before reading
+     * a CAP LS sent after them, so caps acked that late miss those joins. PASS precedes NICK, as a
+     * trailing parameter so spaces survive.
+     */
     void sendRegistration() {
+        sendRawLine("CAP LS 302");
         if (!serverPassword.isEmpty()) sendRawLine("PASS :" + serverPassword);
         sendRawLine("NICK " + nick);
         sendRawLine("USER " + username + " 0 * :" + realName);
-        sendRawLine("CAP LS 302");
     }
 
     /**
@@ -773,7 +778,14 @@ public class SimpleIrcClient {
                         for (String cap : acked.split(" ")) {
                             String c = cap.trim();
                             if ("chathistory".equals(c)) capHistorySupported = true;
-                            if ("away-notify".equals(c)) capAwayNotify = true;
+                            if ("away-notify".equals(c) && !capAwayNotify) {
+                                capAwayNotify = true;
+                                // Acked late (CAP NEW) after channels were joined: their JOINs
+                                // went by without a WHO, so catch them up now.
+                                for (String joined : channelUserList.channels()) {
+                                    sendRawLine("WHO " + joined);
+                                }
+                            }
                             if ("sasl".equals(c)) saslAcked = true;
                         }
                         if (saslAcked) {
@@ -783,6 +795,35 @@ public class SimpleIrcClient {
                         } else if (!capEndSent) {
                             sendRawLine("CAP END");
                             capEndSent = true;
+                        }
+                        break;
+                    }
+                    case "NEW": {
+                        // cap-notify: ZNC offers the network's caps only once it knows who we
+                        // are, after the CAP LS that opened registration was already answered.
+                        String offered = params.size() >= 3 ? params.get(params.size() - 1) : "";
+                        for (String cap : offered.split(" ")) {
+                            int eq = cap.indexOf('=');
+                            String name = eq > 0 ? cap.substring(0, eq) : cap;
+                            if (name.isEmpty()) continue;
+                            advertisedCaps.add(name);
+                            if ("away-notify".equals(name) && !capAwayNotify) {
+                                sendRawLine("CAP REQ :away-notify");
+                            }
+                        }
+                        break;
+                    }
+                    case "DEL": {
+                        String removed = params.size() >= 3 ? params.get(params.size() - 1) : "";
+                        for (String cap : removed.split(" ")) {
+                            advertisedCaps.remove(cap);
+                            if ("away-notify".equals(cap) && capAwayNotify) {
+                                // No more AWAY updates, so the marks we hold would only go stale.
+                                capAwayNotify = false;
+                                for (String channel : channelUserList.clearAway()) {
+                                    fireUsersChanged(channel);
+                                }
+                            }
                         }
                         break;
                     }

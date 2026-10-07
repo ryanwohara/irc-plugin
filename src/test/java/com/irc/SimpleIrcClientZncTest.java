@@ -32,12 +32,17 @@ public class SimpleIrcClientZncTest {
         }
     }
 
+    /**
+     * CAP LS opens the burst so the server holds registration until CAP END. ZNC registers the
+     * moment it has PASS, NICK and USER, so a CAP LS sent after them was answered only after the
+     * JOIN replay - too late for away-notify to trigger WHO on those joins.
+     */
     @Test
-    public void passPrecedesNickAndKeepsSpaces() {
+    public void capLsOpensTheBurstThenPassPrecedesNickAndKeepsSpaces() {
         RecordingClient client = new RecordingClient();
         client.serverPassword("me/rizon:pass word");
         client.sendRegistration();
-        assertEquals(Arrays.asList("PASS :me/rizon:pass word", "NICK me", "USER runelite 0 * :me", "CAP LS 302"),
+        assertEquals(Arrays.asList("CAP LS 302", "PASS :me/rizon:pass word", "NICK me", "USER runelite 0 * :me"),
                 client.sentLines);
     }
 
@@ -46,7 +51,7 @@ public class SimpleIrcClientZncTest {
         RecordingClient client = new RecordingClient();
         client.serverPassword(null);
         client.sendRegistration();
-        assertEquals("NICK me", client.sentLines.get(0));
+        assertEquals(Arrays.asList("CAP LS 302", "NICK me", "USER runelite 0 * :me"), client.sentLines);
     }
 
     @Test
