@@ -105,6 +105,20 @@ public class SimpleIrcClientDiagnosticsTest {
                 client.firstOf(SimpleIrcClient.IrcEvent.Type.SERVER_ERROR));
     }
 
+    /** UnrealIRCd's RPL_WHOISASN sits in the error range but is just another WHOIS line. */
+    @Test
+    public void whoisAsnIsAWhoisLineNotAnError() {
+        RecordingClient client = new RecordingClient();
+
+        client.processLine(":server 569 me bob 7922 :is connecting from AS7922 [Comcast Cable Communications, LLC]");
+
+        assertNull("569 is not a failure",
+                client.firstOf(SimpleIrcClient.IrcEvent.Type.SERVER_ERROR));
+        SimpleIrcClient.IrcEvent event = client.firstOf(SimpleIrcClient.IrcEvent.Type.WHOIS_REPLY);
+        assertNotNull("569 is shown with the rest of the WHOIS", event);
+        assertEquals("bob is connecting from AS7922 [Comcast Cable Communications, LLC]", event.getMessage());
+    }
+
     @Test
     public void numericWithItsOwnHandlerIsNotAlsoReportedGenerically() {
         RecordingClient client = new RecordingClient();

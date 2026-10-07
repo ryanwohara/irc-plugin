@@ -887,6 +887,10 @@ public class SimpleIrcClient {
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
                 break;
+            case 569: // RPL_WHOISASN (UnrealIRCd): in the error range, but only a WHOIS line.
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), params.get(1) + " " + params.get(params.size() - 1), null));
+                break;
             case 321: // RPL_LISTSTART: an explicit start always resets the run.
                 synchronized (channelListAccumulator) {
                     channelListAccumulator.clear();
