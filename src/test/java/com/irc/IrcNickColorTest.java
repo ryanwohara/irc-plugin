@@ -2,95 +2,83 @@ package com.irc;
 
 import org.junit.Test;
 
+import java.awt.Color;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * The palette nicks are colored from, shared by the chat pane and the nicklist dropdown so a
- * nick looks the same in both.
- *
- * 36 codes: the classic 02-13 plus the extended palette's vivid and pastel rows 64-87. The
- * near-black rows (16-39) and dark grays (88-93) are excluded as unreadable on the dark panel.
+ * The palette nicks are colored from, shared by the chat pane and the nicklists so a nick looks
+ * the same in both: 50 bright hues once around the wheel, each readable on the dark panel and
+ * still readable dimmed to half for an away nick.
  */
 public class IrcNickColorTest {
 
-    /** Reflection-free access: the palette is exercised through nickColorId's full range. */
-    private static Set<String> allProducedIds() {
-        Set<String> ids = new HashSet<>();
+    /** Reflection-free access: the palette is exercised through nickColor's full range. */
+    private static Set<String> allProducedColors() {
+        Set<String> colors = new HashSet<>();
         for (int i = 0; i < 5000; i++) {
-            ids.add(IrcPanel.ChannelPane.nickColorId("nick" + i));
+            colors.add(IrcPanel.ChannelPane.nickColor("nick" + i));
         }
-        return ids;
+        return colors;
     }
 
     @Test
-    public void paletteHasThirtySixColors() {
-        assertEquals(36, allProducedIds().size());
+    public void paletteHasFiftyColors() {
+        assertEquals(50, allProducedColors().size());
     }
 
     @Test
-    public void paletteKeepsTheClassicCodesTwoThroughThirteen() {
-        Set<String> ids = allProducedIds();
-        for (String classic : Arrays.asList("02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13")) {
-            assertTrue("classic code " + classic + " should still be in the palette", ids.contains(classic));
-        }
-    }
-
-    @Test
-    public void paletteIncludesExtendedRowsSixtyFourThroughEightySeven() {
-        Set<String> ids = allProducedIds();
-        for (int code = 64; code <= 87; code++) {
-            assertTrue("extended code " + code + " should be in the palette", ids.contains(String.valueOf(code)));
+    public void everyPaletteEntryIsAHexColor() {
+        for (String color : allProducedColors()) {
+            assertTrue("expected #RRGGBB, got: " + color, color.matches("#[0-9A-F]{6}"));
         }
     }
 
     @Test
-    public void paletteExcludesUnreadableRows() {
-        Set<String> ids = allProducedIds();
-        assertFalse("00/01 are pure white and black", ids.contains("00") || ids.contains("01"));
-        assertFalse("16 is near-black", ids.contains("16"));
-        assertFalse("88 is a dark gray", ids.contains("88"));
-    }
-
-    @Test
-    public void everyPaletteEntryResolvesToARealColor() {
-        for (String id : allProducedIds()) {
-            String color = IrcPanel.ChannelPane.htmlColorById(id);
-            assertTrue("code " + id + " must resolve to a hex color, got: " + color, color.startsWith("#"));
+    public void everyPaletteEntryIsBrightEnoughForTheDarkPanel() {
+        for (String hex : allProducedColors()) {
+            Color c = Color.decode(hex);
+            int brightest = Math.max(c.getRed(), Math.max(c.getGreen(), c.getBlue()));
+            assertTrue(hex + " is too dark to read once dimmed", brightest >= 0xE4);
         }
     }
 
     @Test
-    public void nickColorIdIsDeterministic() {
-        assertEquals(IrcPanel.ChannelPane.nickColorId("bob"), IrcPanel.ChannelPane.nickColorId("bob"));
+    public void nickColorIsDeterministic() {
+        assertEquals(IrcPanel.ChannelPane.nickColor("bob"), IrcPanel.ChannelPane.nickColor("bob"));
     }
 
     @Test
-    public void nickColorIdHandlesTheMinimumHashCodeWithoutCrashing() {
+    public void nickColorHandlesTheMinimumHashCodeWithoutCrashing() {
         // Math.abs(Integer.MIN_VALUE) is still Integer.MIN_VALUE, so the old
         // "Math.abs(h) % length" produced a negative index here. Math.floorMod does not.
         assertEquals(Integer.MIN_VALUE, "polygenelubricants".hashCode());
-        String id = IrcPanel.ChannelPane.nickColorId("polygenelubricants");
-        assertTrue("must return a usable palette code, got: " + id, allProducedIds().contains(id));
+        String color = IrcPanel.ChannelPane.nickColor("polygenelubricants");
+        assertTrue("must return a palette colour, got: " + color, allProducedColors().contains(color));
     }
 
     @Test
-    public void nickColorIdHandlesAnEmptyNick() {
-        assertTrue(allProducedIds().contains(IrcPanel.ChannelPane.nickColorId("")));
+    public void nickColorHandlesAnEmptyNick() {
+        assertTrue(allProducedColors().contains(IrcPanel.ChannelPane.nickColor("")));
     }
 
     @Test
-    public void nickColorIdSpreadsAcrossTheWholePalette() {
+    public void nickColorSpreadsAcrossTheWholePalette() {
         List<String> sampled = Arrays.asList(
-                IrcPanel.ChannelPane.nickColorId("alice"),
-                IrcPanel.ChannelPane.nickColorId("bob"),
-                IrcPanel.ChannelPane.nickColorId("carol"));
+                IrcPanel.ChannelPane.nickColor("alice"),
+                IrcPanel.ChannelPane.nickColor("bob"),
+                IrcPanel.ChannelPane.nickColor("carol"));
         assertEquals("distinct nicks should not all collide", 3, new HashSet<>(sampled).size());
+    }
+
+    @Test
+    public void dimmedIsHalfWayToTheBackground() {
+        assertEquals(new Color(0x81, 0x31, 0x32),
+                IrcPanel.dimmed(Color.decode("#E44343"), new Color(0x1E, 0x1F, 0x22)));
     }
 }

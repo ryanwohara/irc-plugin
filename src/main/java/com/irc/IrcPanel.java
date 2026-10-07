@@ -429,7 +429,7 @@ public class IrcPanel extends PluginPanel {
                 if (text.startsWith(USERS_HEADER_PREFIX)) {
                     label.setForeground(Color.GRAY);
                 } else {
-                    label.setForeground(nickColorAt(index, text));
+                    label.setForeground(nickColorAt(index, text, label.getBackground()));
                 }
                 return label;
             }
@@ -442,31 +442,42 @@ public class IrcPanel extends PluginPanel {
      * Colors a dropdown label the same way the chat pane colors that nick. The label carries a
      * prefix character, so the raw nick is taken from the backing entry rather than the text.
      */
-    private Color nickColor(String label) {
+    private ChannelUserList.Entry entryForLabel(String label) {
         for (ChannelUserList.Entry entry : displayedEntries) {
             if (label.equals(entry.getPrefix() + entry.getNick())) {
-                return nickColorFor(entry.getNick());
+                return entry;
             }
         }
-        return Color.WHITE;
+        return null;
     }
 
-    /** Colours a dropdown row. Prefers the row index the renderer already has; the label scan is
-     *  only for index -1, the collapsed button, which renders one item. */
-    private Color nickColorAt(int index, String label) {
+    /** Colours a dropdown row, dimmed when the nick is away. Prefers the row index the renderer
+     *  already has; the label scan is only for index -1, the collapsed button, which renders one
+     *  item. */
+    private Color nickColorAt(int index, String label, Color background) {
         List<ChannelUserList.Entry> entries = displayedEntries;
-        if (index >= 1 && index <= entries.size()) {
-            return nickColorFor(entries.get(index - 1).getNick());
+        ChannelUserList.Entry entry = index >= 1 && index <= entries.size()
+                ? entries.get(index - 1) : entryForLabel(label);
+        if (entry == null) {
+            return Color.WHITE;
         }
-        return nickColor(label);
+        Color color = nickColorFor(entry.getNick());
+        return entry.isAway() && config.dimAwayNicks() ? dimmed(color, background) : color;
     }
 
     private Color nickColorFor(String nick) {
-        try {
-            return Color.decode(ChannelPane.htmlColorById(ChannelPane.nickColorId(nick)));
-        } catch (NumberFormatException ignored) {
-            return Color.WHITE;
-        }
+        return Color.decode(ChannelPane.nickColor(nick));
+    }
+
+    /**
+     * An away nick's colour: half way to the background, as if drawn at 50% opacity. Blending
+     * with the row's actual background keeps it right on a selected row too.
+     */
+    static Color dimmed(Color color, Color background) {
+        return new Color(
+                (color.getRed() + background.getRed()) / 2,
+                (color.getGreen() + background.getGreen()) / 2,
+                (color.getBlue() + background.getBlue()) / 2);
     }
 
     /** Opens (or focuses) a PM buffer for the selected nick, then returns to the header. */
@@ -855,6 +866,7 @@ public class IrcPanel extends PluginPanel {
                             },
                             this::requestDock, getFontComboBox(), getFontSizeComboBox(),
                             nick -> config.colorizedNicks() ? nickColorFor(nick) : null);
+                    desktopLayout.setDimAway(config::dimAwayNicks);
                     desktopLayout.setMoves(new IrcDesktopLayout.Moves() {
                         @Override public void moveNetwork(String id, int newIndex) { userMovedNetwork(id, newIndex); }
                         @Override public void moveBuffer(BufferKey key, int newIndex) { userMovedBuffer(key, newIndex); }
@@ -1657,7 +1669,7 @@ public class IrcPanel extends PluginPanel {
 
         /** {@code html} in the colour {@code nick} always gets. */
         private static String colorNick(String nick, String html) {
-            return String.format("<font style=\"color:%s\">%s</font>", htmlColorById(nickColorId(nick)), html);
+            return String.format("<font style=\"color:%s\">%s</font>", nickColor(nick), html);
         }
 
         private static String coloredNick(String nick, IrcConfig config) {
@@ -1770,24 +1782,31 @@ public class IrcPanel extends PluginPanel {
         }
 
         /**
-         * Palette nicks are colored from: the classic 02-13 plus the extended palette's vivid and
-         * pastel rows 64-87. Near-black rows (16-39) and dark grays (88-93) are excluded as
-         * unreadable on the dark panel. Shared with the nicklist dropdown so a nick looks the
-         * same in both places.
+         * Palette nicks are colored from: 50 bright hues walked once around the wheel, red to
+         * rose, in three alternating tones so neighbours stay distinguishable. All of them are
+         * light enough to read on the dark panel, and still readable dimmed to half for an away
+         * nick. Shared with the nicklists so a nick looks the same everywhere.
          */
-        private static final String[] NICK_COLOR_IDS = {
-                "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13",
-                "64", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74", "75",
-                "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87"
+        private static final String[] NICK_COLORS = {
+                "#E44343", "#EF6D5C", "#F56E44", "#E47D43", "#EFA25C",
+                "#F5AE44", "#E4B743", "#EFD75C", "#F5EE44", "#D7E443",
+                "#D1EF5C", "#BCF544", "#9DE443", "#9CEF5C", "#7DF544",
+                "#63E443", "#67EF5C", "#44F54B", "#43E45D", "#5CEF85",
+                "#44F58B", "#43E497", "#5CEFBA", "#44F5CA", "#43E4D0",
+                "#5CEFEF", "#44DFF5", "#43BDE4", "#5CBAEF", "#44A0F5",
+                "#4383E4", "#5C85EF", "#4460F5", "#434AE4", "#675CEF",
+                "#6744F5", "#7643E4", "#9C5CEF", "#A744F5", "#B043E4",
+                "#D15CEF", "#E744F5", "#E443DD", "#EF5CD7", "#F544C3",
+                "#E443A3", "#EF5CA2", "#F54484", "#E4436A", "#EF5C6D",
         };
 
         /**
-         * Deterministic palette code for a nick. Uses floorMod rather than abs: for a nick whose
-         * hashCode is Integer.MIN_VALUE, Math.abs returns Integer.MIN_VALUE again and the index
-         * goes negative.
+         * Deterministic palette colour for a nick, as {@code #RRGGBB}. Uses floorMod rather than
+         * abs: for a nick whose hashCode is Integer.MIN_VALUE, Math.abs returns Integer.MIN_VALUE
+         * again and the index goes negative.
          */
-        static String nickColorId(String nick) {
-            return NICK_COLOR_IDS[Math.floorMod(nick.hashCode(), NICK_COLOR_IDS.length)];
+        static String nickColor(String nick) {
+            return NICK_COLORS[Math.floorMod(nick.hashCode(), NICK_COLORS.length)];
         }
 
         /**

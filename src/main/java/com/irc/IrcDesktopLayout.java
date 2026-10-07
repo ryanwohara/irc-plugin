@@ -21,6 +21,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -118,6 +119,7 @@ final class IrcDesktopLayout extends JPanel {
     private JTextField input;
     private boolean synchronizing;
     private Moves moves = Moves.NONE;
+    private BooleanSupplier dimAway = () -> true;
 
     IrcDesktopLayout(Predicate<BufferKey> unread, Consumer<BufferKey> select,
                      Consumer<String> query, Consumer<String> whois, Runnable join,
@@ -213,7 +215,9 @@ final class IrcDesktopLayout extends JPanel {
                 setText(entry.getPrefix() + entry.getNick());
                 // Match the nick's colour in chat; null when colourised nicks are turned off.
                 Color color = nickColor.apply(entry.getNick());
-                setForeground(color != null ? color : entry.getPrefix().isEmpty() ? TEXT : ACCENT);
+                if (color == null) color = entry.getPrefix().isEmpty() ? TEXT : ACCENT;
+                // Away nicks are drawn at half strength, against whatever the row shows.
+                setForeground(entry.isAway() && dimAway.getAsBoolean() ? IrcPanel.dimmed(color, getBackground()) : color);
                 return this;
             }
         });
@@ -354,6 +358,11 @@ final class IrcDesktopLayout extends JPanel {
 
     void setMoves(Moves moves) {
         this.moves = moves != null ? moves : Moves.NONE;
+    }
+
+    /** Whether away nicks in the user list are dimmed; read on every paint so a config change applies at once. */
+    void setDimAway(BooleanSupplier dimAway) {
+        this.dimAway = dimAway != null ? dimAway : () -> true;
     }
 
     /** Networks and buffers other than System can be dragged; the group headings cannot. */

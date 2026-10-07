@@ -141,6 +141,10 @@ public class SimpleIrcClient {
 
     boolean capHistorySupported = false;  // package-private: accessed by TestableIrcClient subclass
     private boolean capEndSent = false;
+    /** The server tells us when anyone sharing a channel goes away or comes back. */
+    private boolean capAwayNotify = false;
+    /** Channels whose WHO reply changed someone's away state, redrawn once at 315. */
+    private final Set<String> whoChangedChannels = new HashSet<>();
     private final Set<String> advertisedCaps = new HashSet<>();
 
     public SimpleIrcClient server(String host, int port, boolean secure) {
@@ -203,6 +207,8 @@ public class SimpleIrcClient {
                 advertisedCaps.clear();
                 capEndSent = false;
                 capHistorySupported = false;
+                capAwayNotify = false;
+                whoChangedChannels.clear();
                 if (!beginRegistration()) {
                     closeQuietly(socket);
                     return;
@@ -582,6 +588,11 @@ public class SimpleIrcClient {
                     if (sourceNick.equals(nick) && capHistorySupported) {
                         sendRawLine("CHATHISTORY LATEST " + channel + " * 100");
                     }
+                    // NAMES carries no away state, so ask once per join; away-notify keeps it
+                    // current from then on. Without away-notify it would only go stale.
+                    if (sourceNick.equals(nick) && capAwayNotify) {
+                        sendRawLine("WHO " + channel);
+                    }
                 }
                 break;
 
@@ -745,6 +756,7 @@ public class SimpleIrcClient {
                             // ZNC delivers lines typed in our other attached clients. Not
                             // echo-message: the adapter echoes our own sends locally already.
                             if (advertisedCaps.contains("znc.in/self-message")) toRequest.add("znc.in/self-message");
+                            if (advertisedCaps.contains("away-notify")) toRequest.add("away-notify");
                             if (saslEnabled && advertisedCaps.contains("sasl")) toRequest.add("sasl");
                             if (!toRequest.isEmpty()) {
                                 sendRawLine("CAP REQ :" + String.join(" ", toRequest));
@@ -761,6 +773,7 @@ public class SimpleIrcClient {
                         for (String cap : acked.split(" ")) {
                             String c = cap.trim();
                             if ("chathistory".equals(c)) capHistorySupported = true;
+                            if ("away-notify".equals(c)) capAwayNotify = true;
                             if ("sasl".equals(c)) saslAcked = true;
                         }
                         if (saslAcked) {
@@ -781,6 +794,11 @@ public class SimpleIrcClient {
                         }
                         break;
                 }
+                break;
+
+            case "AWAY":
+                // away-notify: a message means away, none means back.
+                markAway(sourceNick, !params.isEmpty() && !params.get(0).isEmpty());
                 break;
 
             case "AUTHENTICATE":
@@ -860,6 +878,7 @@ public class SimpleIrcClient {
                 }
                 break;
             case 301:
+                if (params.size() >= 2) markAway(params.get(1), true);
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is away: %s", params.get(1), params.get(2)), null));
                 break;
@@ -980,6 +999,23 @@ public class SimpleIrcClient {
             case 333:
                 if (params.size() >= 4)
                     fireEvent(new IrcEvent(IrcEvent.Type.TOPIC_INFO, "* Topic set by", params.get(1), params.get(2), null));
+                break;
+            case 305: // RPL_UNAWAY
+                markAway(nick, false);
+                break;
+            case 306: // RPL_NOWAWAY
+                markAway(nick, true);
+                break;
+            case 352: // RPL_WHOREPLY: <me> <channel> <user> <host> <server> <nick> <H|G>[*@+] :<hops> <real>
+                if (params.size() >= 7) {
+                    whoChangedChannels.addAll(channelUserList.setAway(params.get(5), params.get(6).startsWith("G")));
+                }
+                break;
+            case 315: // RPL_ENDOFWHO
+                for (String whoChannel : whoChangedChannels) {
+                    fireUsersChanged(whoChannel);
+                }
+                whoChangedChannels.clear();
                 break;
             case 353:
                 if (params.size() >= 4) {
@@ -1230,6 +1266,13 @@ public class SimpleIrcClient {
     }
 
     /** Fires USERS_CHANGED for a channel whose roster just changed. */
+    private void markAway(String who, boolean isAway) {
+        if (who == null || who.isEmpty()) return;
+        for (String channel : channelUserList.setAway(who, isAway)) {
+            fireUsersChanged(channel);
+        }
+    }
+
     private void fireUsersChanged(String channel) {
         fireEvent(new IrcEvent(IrcEvent.Type.USERS_CHANGED, null, channel, null, null));
     }

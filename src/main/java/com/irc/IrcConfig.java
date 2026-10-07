@@ -361,7 +361,7 @@ public interface IrcConfig extends Config
             keyName = "popOutAlwaysOnTop",
             name = "Keep pop-out on top",
             description = "Keep the IRC pop-out above other windows",
-            position = 9,
+            position = 10,
             section = sidePanelSettings
     )
     default boolean popOutAlwaysOnTop() { return false; }
@@ -393,6 +393,15 @@ public interface IrcConfig extends Config
     )
     default boolean colorizedNicks() { return true; }
 
+    @ConfigItem(
+            keyName = "dimAwayNicks",
+            name = "Dim Away Nicks",
+            description = "Draw nicks that are marked away at half strength in the user list. Needs a server with away-notify.",
+            position = 4,
+            section = sidePanelSettings
+    )
+    default boolean dimAwayNicks() { return true; }
+
     @Range(
             min = 0
     )
@@ -400,7 +409,7 @@ public interface IrcConfig extends Config
             keyName = "panelPriority",
             name = "Position in Sidebar",
             description = "Control where the panel appears in the sidebar of RuneLite",
-            position = 4,
+            position = 5,
             section = sidePanelSettings
     )
     default int getPanelPriority() { return 10; }
@@ -412,7 +421,7 @@ public interface IrcConfig extends Config
             keyName = "maxScrollback",
             name = "Maximum Scrollback per Channel",
             description = "Restrict the scrollback per channel to avoid lag",
-            position = 5,
+            position = 6,
             section = sidePanelSettings
     )
     default int getMaxScrollback() { return 100; }
@@ -435,7 +444,7 @@ public interface IrcConfig extends Config
             keyName = "fontSize",
             name = "Font Size",
             description = "Font size for the side panel and pop-out window.",
-            position = 7,
+            position = 8,
             section = sidePanelSettings
     )
     default int fontSize() { return 12; }
@@ -444,7 +453,7 @@ public interface IrcConfig extends Config
             keyName = "chatBackgroundColor",
             name = "Chat Background",
             description = "Background colour of the chat area in the side panel and pop-out window.",
-            position = 10,
+            position = 11,
             section = sidePanelSettings
     )
     default Color chatBackgroundColor() { return ColorScheme.DARKER_GRAY_COLOR; }
@@ -453,7 +462,7 @@ public interface IrcConfig extends Config
             keyName = "chatTextColor",
             name = "Chat Text Colour",
             description = "Colour of regular chat messages. Joins, parts, notices and IRC colour codes keep their own colours.",
-            position = 11,
+            position = 12,
             section = sidePanelSettings
     )
     default Color chatTextColor() { return ColorScheme.LIGHT_GRAY_COLOR; }

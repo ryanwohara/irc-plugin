@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -23,12 +24,27 @@ import java.util.Set;
  */
 class ChannelUserList {
 
-    /** One user as the UI should draw them: display nick, highest prefix, and that prefix's rank. */
+    /**
+     * One user as the UI should draw them: display nick, highest prefix, that prefix's rank, and
+     * whether they are marked away.
+     */
     @Value
     static class Entry {
         String nick;
         String prefix;
         int rank;
+        boolean away;
+
+        Entry(String nick, String prefix, int rank, boolean away) {
+            this.nick = nick;
+            this.prefix = prefix;
+            this.rank = rank;
+            this.away = away;
+        }
+
+        Entry(String nick, String prefix, int rank) {
+            this(nick, prefix, rank, false);
+        }
     }
 
     private static final class User {
@@ -52,6 +68,8 @@ class ChannelUserList {
     private final ModeSpec spec;
     private final Map<String, Channel> live = new HashMap<>();
     private final Map<String, Channel> pending = new HashMap<>();
+    /** Away is a property of the user, not the channel, so it is kept once per nick. */
+    private final Set<String> away = new HashSet<>();
 
     ChannelUserList(ModeSpec spec) {
         this.spec = spec;
@@ -102,7 +120,12 @@ class ChannelUserList {
         }
     }
 
+    /**
+     * A joining user starts out present. With away-notify the server follows the JOIN with an
+     * AWAY when they are away, so a flag left over from before they parted cannot linger.
+     */
     synchronized void join(String channel, String nick) {
+        away.remove(key(nick));
         live.computeIfAbsent(key(channel), k -> new Channel(channel))
                 .users.computeIfAbsent(key(nick), k -> new User(nick));
     }
@@ -111,6 +134,9 @@ class ChannelUserList {
         Channel ch = live.get(key(channel));
         if (ch != null) {
             ch.users.remove(key(nick));
+        }
+        if (!isVisible(nick)) {
+            away.remove(key(nick));
         }
     }
 
@@ -126,6 +152,7 @@ class ChannelUserList {
                 affected.add(ch.displayName);
             }
         }
+        away.remove(key(nick));
         return affected;
     }
 
@@ -141,7 +168,41 @@ class ChannelUserList {
             ch.users.put(key(newNick), user);
             affected.add(ch.displayName);
         }
+        if (away.remove(key(oldNick))) {
+            away.add(key(newNick));
+        }
         return affected;
+    }
+
+    /**
+     * Marks the nick away or back. Returns the channels whose roster shows them and so need a
+     * redraw - empty when nothing changed, so a repeated AWAY costs nothing.
+     */
+    synchronized List<String> setAway(String nick, boolean isAway) {
+        boolean changed = isAway ? away.add(key(nick)) : away.remove(key(nick));
+        List<String> affected = new ArrayList<>();
+        if (!changed) {
+            return affected;
+        }
+        for (Channel ch : live.values()) {
+            if (ch.users.containsKey(key(nick))) {
+                affected.add(ch.displayName);
+            }
+        }
+        return affected;
+    }
+
+    synchronized boolean isAway(String nick) {
+        return away.contains(key(nick));
+    }
+
+    private boolean isVisible(String nick) {
+        for (Channel ch : live.values()) {
+            if (ch.users.containsKey(key(nick))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -202,11 +263,13 @@ class ChannelUserList {
     synchronized void removeChannel(String channel) {
         live.remove(key(channel));
         pending.remove(key(channel));
+        away.removeIf(nick -> !isVisible(nick));
     }
 
     synchronized void clear() {
         live.clear();
         pending.clear();
+        away.clear();
     }
 
     /** Users sorted by rank then case-insensitive nick. Unmodifiable. */
@@ -245,6 +308,6 @@ class ChannelUserList {
         }
         char prefixChar = bestMode == '\0' ? '\0' : spec.prefixFor(bestMode);
         String prefix = prefixChar == '\0' ? "" : String.valueOf(prefixChar);
-        return new Entry(user.displayNick, prefix, bestRank);
+        return new Entry(user.displayNick, prefix, bestRank, away.contains(key(user.displayNick)));
     }
 }

@@ -279,6 +279,11 @@ an image host.
 
 Add a color to nicks appearing in the side panel.
 
+#### dim away nicks
+
+Draw nicks that are marked away at half strength in the user list. On by default. Away status
+comes from the server's `away-notify` capability, so on a server without it nicks are never dimmed.
+
 #### position in sidebar
 
 Specifically where the side panel appears on the right, from top to bottom.

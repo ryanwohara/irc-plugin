@@ -280,4 +280,79 @@ public class ChannelUserListTest {
         assertEquals(Collections.emptyList(), users.snapshot("#one"));
         assertEquals(Collections.emptyList(), users.snapshot("#two"));
     }
+
+    // --- away ---
+
+    private boolean awayIn(String channel, String nick) {
+        for (ChannelUserList.Entry entry : users.snapshot(channel)) {
+            if (entry.getNick().equalsIgnoreCase(nick)) {
+                return entry.isAway();
+            }
+        }
+        throw new AssertionError(nick + " is not in " + channel);
+    }
+
+    @Test
+    public void awayShowsInEveryChannelTheNickIsIn() {
+        names("#a", "bob", "carol");
+        names("#b", "bob");
+        List<String> affected = users.setAway("BOB", true);
+        assertEquals(2, affected.size());
+        assertTrue(awayIn("#a", "bob"));
+        assertTrue(awayIn("#b", "bob"));
+        assertEquals(false, awayIn("#a", "carol"));
+    }
+
+    @Test
+    public void aRepeatedAwayChangesNothingAndRedrawsNothing() {
+        names("#a", "bob");
+        users.setAway("bob", true);
+        assertTrue(users.setAway("bob", true).isEmpty());
+        assertTrue(users.setAway("carol", false).isEmpty());
+    }
+
+    @Test
+    public void comingBackClearsAway() {
+        names("#a", "bob");
+        users.setAway("bob", true);
+        assertEquals(Collections.singletonList("#a"), users.setAway("bob", false));
+        assertEquals(false, awayIn("#a", "bob"));
+    }
+
+    @Test
+    public void awayFollowsANickChange() {
+        names("#a", "bob");
+        users.setAway("bob", true);
+        users.rename("bob", "bobby");
+        assertTrue(awayIn("#a", "bobby"));
+        assertEquals(false, users.isAway("bob"));
+    }
+
+    @Test
+    public void quitForgetsAway() {
+        names("#a", "bob");
+        users.setAway("bob", true);
+        users.quit("bob");
+        assertEquals(false, users.isAway("bob"));
+    }
+
+    @Test
+    public void rejoiningStartsPresentUntilTheServerSaysOtherwise() {
+        names("#a", "bob");
+        users.setAway("bob", true);
+        users.part("#a", "bob");
+        users.join("#a", "bob");
+        assertEquals(false, awayIn("#a", "bob"));
+    }
+
+    @Test
+    public void leavingAChannelKeepsAwayForNicksStillSeenElsewhere() {
+        names("#a", "bob", "carol");
+        names("#b", "bob");
+        users.setAway("bob", true);
+        users.setAway("carol", true);
+        users.removeChannel("#a");
+        assertTrue(users.isAway("bob"));
+        assertEquals(false, users.isAway("carol"));
+    }
 }

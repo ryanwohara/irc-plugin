@@ -236,4 +236,71 @@ public class SimpleIrcClientUsersTest {
         client.processLine(":me!user@host MODE me +i");
         assertTrue("no channel changed", client.usersChangedChannels().isEmpty());
     }
+
+    // --- away ---
+
+    private static boolean awayIn(RecordingClient client, String channel, String nick) {
+        for (ChannelUserList.Entry entry : client.getChannelUsers(channel)) {
+            if (entry.getNick().equals(nick)) return entry.isAway();
+        }
+        throw new AssertionError(nick + " is not in " + channel);
+    }
+
+    @Test
+    public void requestsAwayNotifyWhenAdvertised() {
+        RecordingClient client = new RecordingClient();
+        client.processLine(":server CAP * LS :batch away-notify");
+        assertTrue(client.sentLines.contains("CAP REQ :batch away-notify"));
+    }
+
+    @Test
+    public void joiningAsksWhoOnlyWithAwayNotify() {
+        RecordingClient with = new RecordingClient();
+        with.credentials("me", "me", "me");
+        with.processLine(":server CAP me ACK :away-notify");
+        with.processLine(":me!u@h JOIN #chan");
+        assertTrue(with.sentLines.contains("WHO #chan"));
+
+        RecordingClient without = new RecordingClient();
+        without.credentials("me", "me", "me");
+        without.processLine(":me!u@h JOIN #chan");
+        assertFalse(without.sentLines.contains("WHO #chan"));
+    }
+
+    @Test
+    public void whoRepliesMarkGoneUsersAwayAndRedrawOnceAtTheEnd() {
+        RecordingClient client = new RecordingClient();
+        loadNames(client, "#chan", "@bob erin");
+        client.events.clear();
+        client.processLine(":server 352 me #chan ~b host server bob G@ :0 Bob");
+        client.processLine(":server 352 me #chan ~e host server erin H :0 Erin");
+        assertTrue("no redraw per reply", client.usersChangedChannels().isEmpty());
+        client.processLine(":server 315 me #chan :End of /WHO list.");
+        assertEquals(java.util.Collections.singletonList("#chan"), client.usersChangedChannels());
+        assertTrue(awayIn(client, "#chan", "bob"));
+        assertFalse(awayIn(client, "#chan", "erin"));
+    }
+
+    @Test
+    public void awayNotifyTogglesAwayAndRedraws() {
+        RecordingClient client = new RecordingClient();
+        loadNames(client, "#chan", "bob");
+        client.events.clear();
+        client.processLine(":bob!u@h AWAY :lunch");
+        assertTrue(awayIn(client, "#chan", "bob"));
+        assertEquals(java.util.Collections.singletonList("#chan"), client.usersChangedChannels());
+        client.processLine(":bob!u@h AWAY");
+        assertFalse(awayIn(client, "#chan", "bob"));
+    }
+
+    @Test
+    public void ourOwnAwayNumericsMarkUs() {
+        RecordingClient client = new RecordingClient();
+        client.credentials("me", "me", "me");
+        loadNames(client, "#chan", "me");
+        client.processLine(":server 306 me :You have been marked as being away");
+        assertTrue(awayIn(client, "#chan", "me"));
+        client.processLine(":server 305 me :You are no longer marked as being away");
+        assertFalse(awayIn(client, "#chan", "me"));
+    }
 }
