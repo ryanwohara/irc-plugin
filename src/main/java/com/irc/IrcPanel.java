@@ -1782,10 +1782,11 @@ public class IrcPanel extends PluginPanel {
         }
 
         /**
-         * Palette nicks are colored from: 50 bright hues walked once around the wheel, red to
-         * rose, in three alternating tones so neighbours stay distinguishable. All of them are
-         * light enough to read on the dark panel, and still readable dimmed to half for an away
-         * nick. Shared with the nicklists so a nick looks the same everywhere.
+         * Palette nicks are colored from, shared with the nicklists so a nick looks the same
+         * everywhere. The first 50 are bright hues walked once around the wheel, red to rose. The
+         * second 50 sit in a slightly wider lightness/chroma band and were each picked to be as
+         * far as possible, in OKLab, from every colour before them, so a bigger palette does not
+         * mean more look-alikes; each of those has at least 3:1 contrast on the dark panel.
          */
         private static final String[] NICK_COLORS = {
                 "#E44343", "#EF6D5C", "#F56E44", "#E47D43", "#EFA25C",
@@ -1798,6 +1799,16 @@ public class IrcPanel extends PluginPanel {
                 "#6744F5", "#7643E4", "#9C5CEF", "#A744F5", "#B043E4",
                 "#D15CEF", "#E744F5", "#E443DD", "#EF5CD7", "#F544C3",
                 "#E443A3", "#EF5CA2", "#F54484", "#E4436A", "#EF5C6D",
+                "#FC93AE", "#E47D95", "#FC094C", "#F58D79", "#C7664C",
+                "#E25500", "#FD8706", "#B77610", "#DB940E", "#B19B28",
+                "#D7C814", "#918A09", "#BFB60D", "#B9D06B", "#A7CC0A",
+                "#7EAA0D", "#8AC157", "#65CB0E", "#ADE891", "#5D9847",
+                "#1BBC07", "#B2FFB0", "#04A322", "#39B457", "#18CB6B",
+                "#5ECD97", "#10A47A", "#04BD94", "#05CBC6", "#0EABD8",
+                "#0A95CB", "#8598FE", "#8C7AFF", "#9781DA", "#B69AFC",
+                "#B57CFF", "#BA6DD7", "#DB7AF1", "#CD1FE6", "#FDB3FF",
+                "#AE68B0", "#FA87FE", "#FD64FC", "#C54EBE", "#D082C5",
+                "#EB9BE0", "#E206BD", "#CF67B4", "#FC79C6", "#CA688C",
         };
 
         /**

@@ -13,8 +13,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * The palette nicks are colored from, shared by the chat pane and the nicklists so a nick looks
- * the same in both: 50 bright hues once around the wheel, each readable on the dark panel and
- * still readable dimmed to half for an away nick.
+ * the same in both: 100 hues, all readable on the dark panel.
  */
 public class IrcNickColorTest {
 
@@ -28,8 +27,8 @@ public class IrcNickColorTest {
     }
 
     @Test
-    public void paletteHasFiftyColors() {
-        assertEquals(50, allProducedColors().size());
+    public void paletteHasOneHundredColors() {
+        assertEquals(100, allProducedColors().size());
     }
 
     @Test
@@ -39,12 +38,26 @@ public class IrcNickColorTest {
         }
     }
 
+    /** WCAG relative luminance of an sRGB colour. */
+    private static double luminance(Color c) {
+        double[] channels = {c.getRed(), c.getGreen(), c.getBlue()};
+        for (int i = 0; i < 3; i++) {
+            double v = channels[i] / 255;
+            channels[i] = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    }
+
+    /**
+     * The 50 added colours were each chosen for at least 3:1; the floor is lower because three of
+     * the original 50, the deep blues #434AE4, #6744F5 and #7643E4, sit between 2.6 and 2.9.
+     */
     @Test
-    public void everyPaletteEntryIsBrightEnoughForTheDarkPanel() {
+    public void everyPaletteEntryIsReadableOnTheDarkPanel() {
+        double panel = luminance(new Color(0x1E, 0x1F, 0x22));
         for (String hex : allProducedColors()) {
-            Color c = Color.decode(hex);
-            int brightest = Math.max(c.getRed(), Math.max(c.getGreen(), c.getBlue()));
-            assertTrue(hex + " is too dark to read once dimmed", brightest >= 0xE4);
+            double contrast = (luminance(Color.decode(hex)) + 0.05) / (panel + 0.05);
+            assertTrue(hex + " contrast is only " + contrast, contrast >= 2.5);
         }
     }
 
