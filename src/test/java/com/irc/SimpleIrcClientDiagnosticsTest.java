@@ -140,6 +140,28 @@ public class SimpleIrcClientDiagnosticsTest {
                 "ghost: There was no such nickname"), lines);
     }
 
+    /**
+     * The real host and IP come in their own line - 378, or 338 on some servers, in either the
+     * middle parameters or the text - during both WHOIS and WHOWAS. They used to be dropped.
+     */
+    @Test
+    public void hostAndIpLinesAreShown() {
+        RecordingClient client = new RecordingClient();
+
+        client.processLine(":server 378 me bob :is connecting from *@cpe.example.net 203.0.113.7");
+        client.processLine(":server 338 me bob :is actually ~bob@cpe.example.net [203.0.113.7]");
+        client.processLine(":server 338 me bob 203.0.113.7 :actually using host");
+
+        List<String> lines = new ArrayList<>();
+        for (SimpleIrcClient.IrcEvent event : client.events) {
+            if (event.getType() == SimpleIrcClient.IrcEvent.Type.WHOIS_REPLY) lines.add(event.getMessage());
+        }
+        assertEquals(java.util.Arrays.asList(
+                "bob is connecting from *@cpe.example.net 203.0.113.7",
+                "bob is actually ~bob@cpe.example.net [203.0.113.7]",
+                "bob 203.0.113.7 actually using host"), lines);
+    }
+
     @Test
     public void numericWithItsOwnHandlerIsNotAlsoReportedGenerically() {
         RecordingClient client = new RecordingClient();

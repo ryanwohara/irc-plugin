@@ -891,6 +891,14 @@ public class SimpleIrcClient {
                 if (params.size() >= 6)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s was %s@%s (%s)", params.get(1), params.get(2), params.get(3), params.get(5)), null));
                 break;
+            case 338: // RPL_WHOISACTUALLY
+            case 378: // RPL_WHOISHOST: the real host and IP, during WHOIS and WHOWAS alike.
+                // Servers disagree on whether the IP is a middle parameter or in the text, so
+                // show everything after the nick.
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1),
+                            params.get(1) + " " + String.join(" ", params.subList(2, params.size())), null));
+                break;
             case 369: // RPL_ENDOFWHOWAS
                 if (params.size() >= 2)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), "End of WHOWAS for " + params.get(1), null));
