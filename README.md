@@ -166,10 +166,11 @@ tab, or in a private window with the sender.
 
 Hide joins, parts, quits, and kicks from channel windows.
 
-#### join/part/quit/kick/nick stay read
+#### join/part/quit/kick/nick/mode stay read
 
-Joins, parts, quits, kicks, and nick changes don't mark a channel as unread, so only conversation
-does. On by default; turn it off to have them mark the channel unread like any other message.
+Joins, parts, quits, kicks, nick changes, and channel mode changes don't mark a channel as unread,
+so only conversation does. On by default; turn it off to have them mark the channel unread like
+any other message.
 
 #### log raw IRC lines
 

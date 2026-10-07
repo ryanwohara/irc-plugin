@@ -1259,7 +1259,10 @@ public class IrcPanel extends PluginPanel {
         refreshDesktopChannels();
     }
 
-    /** A join, part, quit, kick or nick change, when those are set not to mark a channel unread. */
+    /**
+     * A join, part, quit, kick, nick change or channel mode change, when those are set not to mark
+     * a channel unread. User modes land in System and still mark it.
+     */
     private boolean quietConnectionMessage(IrcMessage message) {
         if (config == null || !config.quietConnectionMessages()) return false;
         switch (message.getType()) {
@@ -1269,6 +1272,8 @@ public class IrcPanel extends PluginPanel {
             case KICK:
             case NICK_CHANGE:
                 return true;
+            case MODE:
+                return !SYSTEM_TAB.equals(message.getChannel());
             default:
                 return false;
         }

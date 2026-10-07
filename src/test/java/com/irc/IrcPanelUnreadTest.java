@@ -47,7 +47,7 @@ public class IrcPanelUnreadTest {
     @Test
     public void connectionMessagesLeaveAChannelReadWhenQuiet() throws Exception {
         IrcPanel panel = panel(true);
-        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE}) {
+        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE, MODE}) {
             add(panel, type);
             assertFalse(type + " marked the channel unread", panel.isUnread("#a"));
         }
@@ -57,10 +57,19 @@ public class IrcPanelUnreadTest {
 
     @Test
     public void connectionMessagesMarkAChannelUnreadWhenNotQuiet() throws Exception {
-        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE}) {
+        for (IrcMessage.MessageType type : new IrcMessage.MessageType[]{JOIN, PART, QUIT, KICK, NICK_CHANGE, MODE}) {
             IrcPanel panel = panel(false);
             add(panel, type);
             assertTrue(type + " should mark the channel unread", panel.isUnread("#a"));
         }
+    }
+
+    /** Only channel modes are quiet; your own user modes still mark the System buffer. */
+    @Test
+    public void userModesStillMarkSystemUnread() throws Exception {
+        IrcPanel panel = panel(true);
+        panel.setFocusedChannel("#a");
+        panel.addMessage(new IrcMessage("System", "tester", "+i", MODE, Instant.now()));
+        assertTrue(panel.isUnread("System"));
     }
 }
