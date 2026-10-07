@@ -28,7 +28,7 @@ dependencies {
 }
 
 group = 'com.irc'
-version = '2.16.1'
+version = '2.16.2'
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
