@@ -1668,7 +1668,39 @@ public class IrcPanel extends PluginPanel {
         private String formatMessage(String message) {
             String msg = formatColorCodes(escapeHtml4(message));
             Matcher matcher = VALID_LINK.matcher(msg);
-            return convertModernEmojis(matcher.replaceAll("<a href=\"$1\">$1</a>"));
+            return keepSpaceRuns(convertModernEmojis(matcher.replaceAll("<a href=\"$1\">$1</a>")));
+        }
+
+        private static final Pattern SPACE_RUN = Pattern.compile(" {2,}");
+
+        /**
+         * HTML collapses a run of spaces to one. Every space in a run but the last becomes
+         * {@code &nbsp;}, so the spacing survives and the trailing plain space can still wrap.
+         * Only text between tags is touched; the message text is already escaped, so every
+         * {@code <} starts a tag.
+         */
+        static String keepSpaceRuns(String html) {
+            StringBuilder out = new StringBuilder(html.length());
+            int i = 0;
+            while (i < html.length()) {
+                int tag = html.indexOf('<', i);
+                int textEnd = tag < 0 ? html.length() : tag;
+                Matcher runs = SPACE_RUN.matcher(html.substring(i, textEnd));
+                StringBuffer text = new StringBuffer();
+                while (runs.find()) {
+                    StringBuilder kept = new StringBuilder();
+                    for (int n = 1; n < runs.group().length(); n++) kept.append("&nbsp;");
+                    runs.appendReplacement(text, kept.append(' ').toString());
+                }
+                runs.appendTail(text);
+                out.append(text);
+                if (tag < 0) break;
+                int close = html.indexOf('>', tag);
+                int tagEnd = close < 0 ? html.length() : close + 1;
+                out.append(html, tag, tagEnd);
+                i = tagEnd;
+            }
+            return out.toString();
         }
 
         private String formatColorCodes(String message) {
