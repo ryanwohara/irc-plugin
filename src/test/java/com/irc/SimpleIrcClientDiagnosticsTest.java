@@ -119,6 +119,27 @@ public class SimpleIrcClientDiagnosticsTest {
         assertEquals("bob is connecting from AS7922 [Comcast Cable Communications, LLC]", event.getMessage());
     }
 
+    /** A WHOWAS answer, found or not, is shown with the WHOIS lines and is never an error. */
+    @Test
+    public void whowasRepliesAreWhoisLinesNotErrors() {
+        RecordingClient client = new RecordingClient();
+
+        client.processLine(":server 314 me bob ~bob host.example * :Bob Smith");
+        client.processLine(":server 369 me bob :End of WHOWAS");
+        client.processLine(":server 406 me ghost :There was no such nickname");
+
+        assertNull("WHOWAS replies are not failures",
+                client.firstOf(SimpleIrcClient.IrcEvent.Type.SERVER_ERROR));
+        List<String> lines = new ArrayList<>();
+        for (SimpleIrcClient.IrcEvent event : client.events) {
+            if (event.getType() == SimpleIrcClient.IrcEvent.Type.WHOIS_REPLY) lines.add(event.getMessage());
+        }
+        assertEquals(java.util.Arrays.asList(
+                "bob was ~bob@host.example (Bob Smith)",
+                "End of WHOWAS for bob",
+                "ghost: There was no such nickname"), lines);
+    }
+
     @Test
     public void numericWithItsOwnHandlerIsNotAlsoReportedGenerically() {
         RecordingClient client = new RecordingClient();

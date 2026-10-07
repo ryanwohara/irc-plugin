@@ -81,7 +81,8 @@ public class IrcPluginNetworkRoutingTest {
         IrcPlugin plugin = plugin();
         send(plugin, BufferKey.of(RIZON, "#foo"), "/topic fresh topic");
         send(plugin, BufferKey.of(RIZON, "#foo"), "/whois Luna");
-        assertEquals(Arrays.asList("TOPIC #foo :fresh topic", "WHOIS Luna"), rizon.sent);
+        send(plugin, BufferKey.of(RIZON, "#foo"), "/whowas Luna");
+        assertEquals(Arrays.asList("TOPIC #foo :fresh topic", "WHOIS Luna", "WHOWAS Luna"), rizon.sent);
         assertTrue(swift.sent.isEmpty());
     }
 

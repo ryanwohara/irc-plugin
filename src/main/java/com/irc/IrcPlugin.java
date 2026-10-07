@@ -531,6 +531,12 @@ public class IrcPlugin extends Plugin {
                 }
                 break;
 
+            case "whowas":
+                if (!arg.isEmpty()) {
+                    adapter.sendRawLine("WHOWAS " + arg);
+                }
+                break;
+
             case "away":
                 if (arg.isEmpty()) {
                     adapter.sendRawLine("AWAY");
@@ -768,6 +774,7 @@ public class IrcPlugin extends Plugin {
                 "/topic [#channel] [topic] - View or set the channel topic",
                 "/umode [+modes|-modes] - Modify user modes",
                 "/whois <nick> - Query user information",
+                "/whowas <nick> - Look up a user who has left",
                 "/bs <message> - Talk to BotServ",
                 "/cs <message> - Talk to ChanServ",
                 "/hs <message> - Talk to HostServ",

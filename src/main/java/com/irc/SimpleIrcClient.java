@@ -887,6 +887,18 @@ public class SimpleIrcClient {
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s is on channels: %s", params.get(1), params.get(2)), null));
                 break;
+            case 314: // RPL_WHOWASUSER
+                if (params.size() >= 6)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), String.format("%s was %s@%s (%s)", params.get(1), params.get(2), params.get(3), params.get(5)), null));
+                break;
+            case 369: // RPL_ENDOFWHOWAS
+                if (params.size() >= 2)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), "End of WHOWAS for " + params.get(1), null));
+                break;
+            case 406: // ERR_WASNOSUCHNICK: in the error range, but only WHOWAS finding nobody.
+                if (params.size() >= 3)
+                    fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), params.get(1) + ": " + params.get(params.size() - 1), null));
+                break;
             case 569: // RPL_WHOISASN (UnrealIRCd): in the error range, but only a WHOIS line.
                 if (params.size() >= 3)
                     fireEvent(new IrcEvent(IrcEvent.Type.WHOIS_REPLY, "System", params.get(1), params.get(1) + " " + params.get(params.size() - 1), null));

@@ -68,6 +68,8 @@ Send an action: `;;me waves`
 
 Look up a user: `;;whois foobar`
 
+Look up a user who has left: `;;whowas foobar`
+
 Set or clear your away status: `;;away brb` / `;;away`
 
 Change your nick: `;;nick foo bar` (spaces become underscores: `foo_bar`)
