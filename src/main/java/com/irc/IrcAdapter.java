@@ -37,6 +37,7 @@ public class IrcAdapter {
     private String networkId = NetworkConfig.SWIFTIRC_ID;
     /** When this connection registered; null until it has. Set on the reader thread. */
     private volatile Instant registeredAt;
+    private volatile ConnectionListener connectionListener;
 
     public IrcAdapter() {
         client = new SimpleIrcClient();
@@ -87,10 +88,22 @@ public class IrcAdapter {
      * Disconnect from the IRC server
      */
     public void disconnect(String reason) {
-        client.disconnect(reason);
+        client.quit(reason);
     }
     public void disconnect() {
-        client.disconnect();
+        client.quit("");
+    }
+
+    /** Hears when this connection comes up and when it is lost; see {@link AutoReconnector}. */
+    interface ConnectionListener {
+        void registered();
+
+        /** The link went down without being asked to: refused, dropped, timed out or killed. */
+        void linkLost();
+    }
+
+    void setConnectionListener(ConnectionListener listener) {
+        this.connectionListener = listener;
     }
 
     /**
@@ -307,6 +320,13 @@ public class IrcAdapter {
                         processMessage(new IrcMessage("System", "System", "TLS certificate verification is off for this network.", IrcMessage.MessageType.SYSTEM, Instant.now()));
                     }
                     reportConnected(true);
+                    ConnectionListener up = connectionListener;
+                    if (up != null) up.registered();
+                    break;
+
+                case LINK_LOST:
+                    ConnectionListener lost = connectionListener;
+                    if (lost != null) lost.linkLost();
                     break;
 
                 case SASL_SUCCESS:
@@ -524,7 +544,8 @@ public class IrcAdapter {
 
                 case ERROR:
                     processMessage(new IrcMessage("System", "Error", event.getMessage() != null ? event.getMessage() : "Unknown error", IrcMessage.MessageType.SYSTEM, Instant.now()));
-                    disconnect();
+                    // Not quit(): the link failed, it was not ended on purpose, so it may reconnect.
+                    client.disconnect();
                     break;
 
                 case TOPIC_INFO:

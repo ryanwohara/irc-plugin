@@ -36,6 +36,8 @@ import java.awt.Color;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,6 +69,9 @@ public class IrcPlugin extends Plugin {
     private IrcPanel panel;
     @Inject
     private EmojiService emojiService;
+    @Inject
+    private ScheduledExecutorService executor;
+    private AutoReconnector reconnector;
 
     private static final Pattern VALID_WINKS = Pattern.compile("^;([opdOPD)(<>]|[-_];)");
 
@@ -87,6 +92,12 @@ public class IrcPlugin extends Plugin {
         overlay = new IrcOverlay(client, panel, config, keyManager);
         overlayManager.add(overlay);
         emojiService.initialize();
+        reconnector = new AutoReconnector(
+                (task, delayMs) -> executor.schedule(task, delayMs, TimeUnit.MILLISECONDS),
+                System::currentTimeMillis,
+                config::autoReconnect,
+                this::reconnectNetwork,
+                this::systemMessage);
         networks = new NetworkManager(new PluginConnector());
         SwingUtilities.invokeLater(() -> {
             if (panel == null) return;
@@ -121,6 +132,10 @@ public class IrcPlugin extends Plugin {
             panel = null;
             clientToolbar.removeNavigation(closingPanel.getNavigationButton());
             SwingUtilities.invokeLater(closingPanel::shutdown);
+        }
+        if (reconnector != null) {
+            reconnector.shutdown();
+            reconnector = null;
         }
         if (networks != null) {
             networks.shutdown();
@@ -245,6 +260,24 @@ public class IrcPlugin extends Plugin {
                     ? seedNick() : sanitizeNick(network.getNick());
             IrcAdapter adapter = new IrcAdapter();
             adapter.initialize(config, network, IrcPlugin.this::processMessage, panel, nick);
+            AutoReconnector backoff = reconnector;
+            if (backoff != null) {
+                String id = network.getId();
+                adapter.setConnectionListener(new IrcAdapter.ConnectionListener() {
+                    @Override
+                    public void registered() {
+                        backoff.registered(id);
+                    }
+
+                    @Override
+                    public void linkLost() {
+                        backoff.linkLost(id, () -> {
+                            NetworkManager current = networks;
+                            return current != null && current.get(id) == adapter;
+                        });
+                    }
+                });
+            }
             adapter.connect();
             joinOnOpen(adapter, network);
             return adapter;
@@ -486,6 +519,7 @@ public class IrcPlugin extends Plugin {
                 break;
 
             case "quit":
+                if (reconnector != null) reconnector.cancel(buffer.getNetworkId());
                 adapter.disconnect(arg.isEmpty() ? "Quitting the plugin" : arg);
                 break;
 

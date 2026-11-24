@@ -123,6 +123,19 @@ public interface IrcConfig extends Config
         return "";
     }
 
+    @ConfigItem(
+            keyName = "autoReconnect",
+            name = "Auto Reconnect",
+            description = "Reconnect any network whose connection drops, waiting longer after each "
+                    + "failed attempt (5 seconds, doubling up to 5 minutes). /quit and Disconnect stay down.",
+            position = 6,
+            section = connectionSettings
+    )
+    default boolean autoReconnect()
+    {
+        return true;
+    }
+
     @ConfigSection(
             name = "General",
             description = "General settings",

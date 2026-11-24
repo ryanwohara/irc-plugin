@@ -128,6 +128,12 @@ public class SimpleIrcClient {
      * what happened. Written on the reader thread, read from the EDT.
      */
     private volatile String disconnectReason = null;
+    /**
+     * Set by {@link #quit}: the user or the plugin ended this connection on purpose. Anything
+     * else that ends it - a refused connect, EOF, a read timeout, a server ERROR or KILL - is a
+     * lost link, and is announced with {@code LINK_LOST} so the plugin can reconnect.
+     */
+    private volatile boolean quitRequested = false;
     /** How far the current attempt got. Drives the wording of any failure we report. */
     private volatile ConnectPhase connectPhase = ConnectPhase.CONNECTING;
     /** Opt-in raw protocol logging, for diagnosing a failure we cannot reproduce. */
@@ -174,6 +180,7 @@ public class SimpleIrcClient {
 
     public void connect() {
         shuttingDown = false;
+        quitRequested = false;
         pendingSocket = null;
         disconnectReason = null;
         connectPhase = ConnectPhase.CONNECTING;
@@ -265,6 +272,10 @@ public class SimpleIrcClient {
             } finally {
                 if (!shuttingDown) {
                     disconnect();
+                }
+                // Last, so DISCONNECT has already reported why. A deliberate quit is not a loss.
+                if (!quitRequested) {
+                    fireEvent(new IrcEvent(IrcEvent.Type.LINK_LOST, null, null, disconnectReason, null));
                 }
             }
         });
@@ -370,6 +381,12 @@ public class SimpleIrcClient {
 
     public void disconnect() {
         disconnect("");
+    }
+
+    /** Ends the connection on purpose: unlike any other teardown, no {@code LINK_LOST} follows. */
+    public void quit(String reason) {
+        quitRequested = true;
+        disconnect(reason);
     }
 
     public void disconnect(String reason) {
@@ -1355,7 +1372,7 @@ public class SimpleIrcClient {
             NICK_CHANGE, KICK, NOTICE, SERVER_NOTICE, CHANNEL_MODE, USER_MODE,
             TOPIC, NAMES, NICK_IN_USE, ERROR, TOPIC_INFO, BAD_CHANNEL_KEY, WHOIS_REPLY,
             HISTORY_BATCH, SASL_SUCCESS, SASL_FAILED, USERS_CHANGED,
-            CHANNEL_LIST, CHANNEL_LIST_FAILED, SERVER_ERROR
+            CHANNEL_LIST, CHANNEL_LIST_FAILED, SERVER_ERROR, LINK_LOST
         }
 
         private final Type type;
